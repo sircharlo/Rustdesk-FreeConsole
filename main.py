@@ -3,7 +3,7 @@ import sqlite3
 from nicegui import ui
 
 # Ścieżka do pliku bazy danych SQLite
-DB_PATH = 'db_v2.sqlite3'
+DB_PATH = '/opt/rustdesk/db_v2.sqlite3'
 
 dark = ui.dark_mode(True)
 
