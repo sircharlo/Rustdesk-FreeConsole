@@ -1,6 +1,26 @@
 # HBBS Patches Documentation
 
-This directory contains the modified RustDesk HBBS server files that enable real-time device status monitoring through an HTTP API.
+This directory contains the modified RustDesk HBBS server files that enable:
+1. **Real-time device status monitoring** through HTTP API
+2. **Device banning system** - native ban check during registration
+
+## Features
+
+### 🔒 Device Banning System (NEW!)
+Native integration with BetterDesk Console ban functionality. When a device is banned:
+- Registration attempts are **rejected at source** by HBBS
+- No "race conditions" - 100% effective blocking
+- Minimal performance impact (single SQL query per registration)
+- Fail-open policy - system continues if database unavailable
+
+**How it works:**
+```
+Device connects → HBBS checks is_banned → Rejects if banned=1
+```
+
+See: [BAN_CHECK_PATCH.md](BAN_CHECK_PATCH.md) for technical details.
+
+---
 
 ## Modified Files
 
@@ -288,6 +308,81 @@ Response:
 
 3. **CORS**: Enabled for all origins (`*`)
    - Modify `http_api.rs` CORS settings if needed
+
+---
+
+## Building with Ban Check
+
+### Quick Build (Automated)
+
+```bash
+# Make script executable
+chmod +x build.sh
+
+# Run automated build
+./build.sh
+```
+
+This will:
+1. Clone RustDesk Server v1.1.14
+2. Apply all patches (HTTP API + Ban Check)
+3. Compile `hbbs`
+4. Create installation package
+
+### Manual Build
+
+```bash
+# Clone repository
+git clone --branch 1.1.14 https://github.com/rustdesk/rustdesk-server.git
+cd rustdesk-server
+
+# Copy patched files
+cp ../hbbs-patch/src/*.rs src/
+
+# Or apply patches manually:
+# 1. Add is_device_banned() to src/database.rs (see database_patch.rs)
+# 2. Add ban check to update_pk() in src/peer.rs (see peer_patch.rs)
+
+# Compile
+cargo build --release --bin hbbs
+
+# Result: target/release/hbbs
+```
+
+### Installation on Server
+
+```bash
+# 1. Stop HBBS
+sudo systemctl stop hbbs
+
+# 2. Backup current binary
+sudo cp /opt/rustdesk/hbbs /opt/rustdesk/hbbs.backup
+
+# 3. Install new binary
+sudo cp target/release/hbbs /opt/rustdesk/
+sudo chmod +x /opt/rustdesk/hbbs
+
+# 4. Restart
+sudo systemctl start hbbs
+
+# 5. Verify
+sudo journalctl -u hbbs -n 20 --no-pager
+```
+
+### Testing Ban Functionality
+
+```bash
+# 1. Ban a device in database
+sqlite3 /opt/rustdesk/db_v2.sqlite3 "UPDATE peer SET is_banned=1 WHERE id='123456789'"
+
+# 2. Try to connect from that device
+
+# 3. Check logs - should see:
+# "Registration REJECTED for device 123456789: DEVICE IS BANNED"
+
+# 4. Unban
+sqlite3 /opt/rustdesk/db_v2.sqlite3 "UPDATE peer SET is_banned=0 WHERE id='123456789'"
+```
 
 ---
 

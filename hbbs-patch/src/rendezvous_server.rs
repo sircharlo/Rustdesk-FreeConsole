@@ -696,6 +696,51 @@ impl RendezvousServer {
             return Ok((msg_out, None));
         }
         let id = ph.id;
+        
+        // *** SPRAWDZENIE BANU - URZĄDZENIE DOCELOWE ***
+        // Check if target device (the one being connected to) is banned
+        match self.pm.db.is_device_banned(&id).await {
+            Ok(true) => {
+                log::warn!("Connection REJECTED: Target device {} is BANNED", id);
+                let mut msg_out = RendezvousMessage::new();
+                msg_out.set_punch_hole_response(PunchHoleResponse {
+                    failure: punch_hole_response::Failure::OFFLINE.into(),
+                    ..Default::default()
+                });
+                return Ok((msg_out, None));
+            }
+            Ok(false) => {
+                log::debug!("Target ban check passed for device {}", id);
+            }
+            Err(e) => {
+                log::error!("Failed to check target ban status for {}: {}", id, e);
+            }
+        }
+        
+        // *** SPRAWDZENIE BANU - URZĄDZENIE ŹRÓDŁOWE ***
+        // Check if source device (the one initiating connection) is banned
+        if let Some(source_id) = self.pm.find_by_addr(addr).await {
+            match self.pm.db.is_device_banned(&source_id).await {
+                Ok(true) => {
+                    log::warn!("Connection REJECTED: Source device {} (from {}) is BANNED", source_id, addr);
+                    let mut msg_out = RendezvousMessage::new();
+                    msg_out.set_punch_hole_response(PunchHoleResponse {
+                        failure: punch_hole_response::Failure::LICENSE_MISMATCH.into(),
+                        ..Default::default()
+                    });
+                    return Ok((msg_out, None));
+                }
+                Ok(false) => {
+                    log::debug!("Source ban check passed for device {}", source_id);
+                }
+                Err(e) => {
+                    log::error!("Failed to check source ban status for {}: {}", source_id, e);
+                }
+            }
+        } else {
+            log::debug!("Could not find source device ID for address {}", addr);
+        }
+        
         // punch hole request from A, relay to B,
         // check if in same intranet first,
         // fetch local addrs if in same intranet.

@@ -67,8 +67,8 @@ This project adheres to a code of conduct that all contributors are expected to 
 
 ```bash
 # Clone your fork
-git clone https://github.com/YOUR_USERNAME/BetterDeskConsole.git
-cd BetterDeskConsole
+git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
+cd Rustdesk-FreeConsole
 
 # Install Python dependencies
 cd web

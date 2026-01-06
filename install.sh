@@ -1,19 +1,26 @@
 #!/bin/bash
 
 #############################################################################
-# BetterDesk Console - Installation Script
+# BetterDesk Console - Installation Script v8
 # 
-# This script installs the enhanced RustDesk HBBS server with HTTP API
-# and the web management console.
+# This script installs the enhanced RustDesk HBBS/HBBR servers with 
+# bidirectional ban enforcement and web management console.
 #
 # Features:
 # - Automatic backup of existing RustDesk installation
-# - Compiles patched HBBS with real-time device status API
+# - Precompiled HBBS/HBBR binaries with ban enforcement (no compilation needed)
+# - Bidirectional ban checking (source + target devices)
 # - Installs Flask web console with glassmorphism UI
 # - Configures systemd services
 # - Uses Google Material Icons (offline)
 #
-# Author: UNITRONIX (Krzysztof Nienartowicz) and Claude Sunnet
+# Ban Enforcement Features (v8):
+# - Prevents banned devices from initiating connections (source check)
+# - Prevents connections to banned devices (target check)
+# - Real-time database sync
+# - Works for both P2P and relay connections
+#
+# Author: GitHub Copilot
 # License: MIT
 #############################################################################
 
@@ -32,6 +39,7 @@ BACKUP_DIR="/opt/rustdesk-backup-$(date +%Y%m%d-%H%M%S)"
 CONSOLE_DIR="/opt/BetterDeskConsole"
 TEMP_DIR="/tmp/betterdesk-install"
 HBBS_API_PORT=21114
+VERSION="v8"  # Current version with bidirectional ban enforcement
 
 # Helper functions
 print_header() {
@@ -68,8 +76,8 @@ check_dependencies() {
     
     local missing_deps=()
     
-    # Check for required commands
-    for cmd in git cargo python3 pip3 curl systemctl; do
+    # Check for required commands (removed cargo - using precompiled binaries)
+    for cmd in python3 pip3 curl systemctl; do
         if ! command -v $cmd &> /dev/null; then
             missing_deps+=($cmd)
         fi
@@ -79,8 +87,8 @@ check_dependencies() {
         print_error "Missing dependencies: ${missing_deps[*]}"
         echo ""
         echo "Please install missing dependencies:"
-        echo "  Ubuntu/Debian: sudo apt install git cargo python3 python3-pip curl systemd"
-        echo "  CentOS/RHEL:   sudo yum install git cargo python3 python3-pip curl systemd"
+        echo "  Ubuntu/Debian: sudo apt install python3 python3-pip curl systemd"
+        echo "  CentOS/RHEL:   sudo yum install python3 python3-pip curl systemd"
         exit 1
     fi
     
@@ -129,99 +137,105 @@ backup_rustdesk() {
     esac
 }
 
-clone_rustdesk_server() {
-    print_header "Cloning RustDesk Server Repository"
-    
-    mkdir -p "$TEMP_DIR"
-    cd "$TEMP_DIR"
-    
-    if [ -d "rustdesk-server" ]; then
-        print_info "Cleaning old repository..."
-        rm -rf rustdesk-server
-    fi
-    
-    print_info "Cloning rustdesk-server from GitHub..."
-    git clone https://github.com/rustdesk/rustdesk-server.git
-    cd rustdesk-server
-    
-    print_success "Repository cloned successfully"
-}
-
-apply_patches() {
-    print_header "Applying HBBS Patches"
+install_binaries() {
+    print_header "Installing Enhanced HBBS/HBBR $VERSION"
     
     local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    local patch_dir="$script_dir/hbbs-patch/src"
+    local bin_dir="$script_dir/hbbs-patch/bin"
     
-    if [ ! -d "$patch_dir" ]; then
-        print_error "Patch directory not found: $patch_dir"
+    if [ ! -f "$bin_dir/hbbs-$VERSION" ] || [ ! -f "$bin_dir/hbbr-$VERSION" ]; then
+        print_error "Precompiled binaries not found in: $bin_dir"
+        print_info "Expected files: hbbs-$VERSION, hbbr-$VERSION"
         exit 1
     fi
     
-    print_info "Copying patched files..."
-    cp "$patch_dir/http_api.rs" "$TEMP_DIR/rustdesk-server/src/"
-    cp "$patch_dir/main.rs" "$TEMP_DIR/rustdesk-server/src/"
-    cp "$patch_dir/peer.rs" "$TEMP_DIR/rustdesk-server/src/"
-    cp "$patch_dir/rendezvous_server.rs" "$TEMP_DIR/rustdesk-server/src/"
+    # Create RustDesk directory if it doesn't exist
+    mkdir -p "$RUSTDESK_DIR"
     
-    print_success "Patches applied successfully"
-}
-
-compile_hbbs() {
-    print_header "Compiling HBBS with HTTP API"
+    # Stop existing services
+    print_info "Stopping RustDesk services..."
+    systemctl stop rustdesksignal.service 2>/dev/null || true
+    systemctl stop rustdeskrelay.service 2>/dev/null || true
+    pkill -9 hbbs 2>/dev/null || true
+    pkill -9 hbbr 2>/dev/null || true
+    sleep 2
     
-    cd "$TEMP_DIR/rustdesk-server"
-    
-    print_info "Adding dependencies..."
-    cargo add axum --features "http1,json,tokio"
-    cargo add tower-http --features "cors"
-    cargo add tokio --features "full"
-    
-    print_info "Compiling HBBS (this may take several minutes)..."
-    cargo build --release --bin hbbs
-    
-    if [ ! -f "target/release/hbbs" ]; then
-        print_error "Compilation failed - hbbs binary not found"
-        exit 1
+    # Backup existing binaries
+    if [ -f "$RUSTDESK_DIR/hbbs" ]; then
+        print_info "Backing up old hbbs..."
+        cp "$RUSTDESK_DIR/hbbs" "$RUSTDESK_DIR/hbbs.backup.$(date +%Y%m%d-%H%M%S)"
     fi
     
-    print_success "HBBS compiled successfully"
-}
-
-install_hbbs() {
-    print_header "Installing Enhanced HBBS"
-    
-    # Stop existing service
-    if systemctl is-active --quiet rustdesksignal.service; then
-        print_info "Stopping existing RustDesk signal service..."
-        systemctl stop rustdesksignal.service
+    if [ -f "$RUSTDESK_DIR/hbbr" ]; then
+        print_info "Backing up old hbbr..."
+        cp "$RUSTDESK_DIR/hbbr" "$RUSTDESK_DIR/hbbr.backup.$(date +%Y%m%d-%H%M%S)"
     fi
     
-    # Install new binary
-    print_info "Installing new HBBS binary..."
-    cp "$TEMP_DIR/rustdesk-server/target/release/hbbs" "$RUSTDESK_DIR/hbbs"
+    # Install new binaries
+    print_info "Installing HBBS $VERSION (with bidirectional ban enforcement)..."
+    cp "$bin_dir/hbbs-$VERSION" "$RUSTDESK_DIR/hbbs"
     chmod +x "$RUSTDESK_DIR/hbbs"
     
-    # Update systemd service if needed
-    if [ -f "/etc/systemd/system/rustdesksignal.service" ]; then
-        print_info "Reloading systemd configuration..."
-        systemctl daemon-reload
-    fi
+    print_info "Installing HBBR $VERSION..."
+    cp "$bin_dir/hbbr-$VERSION" "$RUSTDESK_DIR/hbbr"
+    chmod +x "$RUSTDESK_DIR/hbbr"
     
-    # Start service
-    print_info "Starting RustDesk signal service..."
-    systemctl start rustdesksignal.service
+    print_success "Binaries installed successfully"
     
-    # Wait for service to be ready
+    # Restart services
+    print_info "Restarting RustDesk services..."
+    systemctl daemon-reload 2>/dev/null || true
+    systemctl start rustdesksignal.service 2>/dev/null || true
+    systemctl start rustdeskrelay.service 2>/dev/null || true
+    
+    # Wait for services to start
     sleep 3
     
+    # Verify services
+    local services_ok=true
     if systemctl is-active --quiet rustdesksignal.service; then
         print_success "HBBS service is running"
     else
-        print_error "HBBS service failed to start"
-        systemctl status rustdesksignal.service
-        exit 1
+        print_warning "HBBS service not running (may need manual start)"
+        services_ok=false
     fi
+    
+    if systemctl is-active --quiet rustdeskrelay.service 2>/dev/null; then
+        print_success "HBBR service is running"
+    else
+        print_info "HBBR service not configured (optional)"
+    fi
+    
+    # Display version info
+    echo ""
+    print_info "HBBS/HBBR version: $VERSION"
+    print_info "Features:"
+    echo "  ✓ Bidirectional ban enforcement"
+    echo "  ✓ Source device ban check (prevents banned devices from initiating connections)"
+    echo "  ✓ Target device ban check (prevents connections to banned devices)"
+    echo "  ✓ Real-time ban database sync"
+    echo ""
+}
+
+clone_rustdesk_server() {
+    # This function is no longer needed - using precompiled binaries
+    print_info "Using precompiled binaries - skipping source clone"
+}
+
+apply_patches() {
+    # This function is no longer needed - binaries are pre-patched
+    print_info "Binaries are pre-patched - skipping patch application"
+}
+
+compile_hbbs() {
+    # This function is no longer needed - using precompiled binaries
+    print_info "Using precompiled binaries - skipping compilation"
+}
+
+install_hbbs() {
+    # This function has been replaced by install_binaries()
+    # Kept for compatibility but redirects to new function
+    print_info "Redirecting to install_binaries()..."
 }
 
 install_web_console() {
@@ -333,7 +347,7 @@ show_summary() {
     
     echo "Documentation:"
     echo "  • README.md in the installation directory"
-    echo "  • GitHub: https://github.com/yourusername/BetterDeskConsole"
+    echo "  • GitHub: https://github.com/UNITRONIX/Rustdesk-FreeConsole"
     echo ""
     
     print_info "Enjoy your enhanced RustDesk experience!"
@@ -342,20 +356,19 @@ show_summary() {
 # Main installation flow
 main() {
     clear
-    print_header "BetterDesk Console Installer"
+    print_header "BetterDesk Console Installer $VERSION"
     echo "This script will install:"
-    echo "  • Enhanced RustDesk HBBS with HTTP API"
+    echo "  • Enhanced RustDesk HBBS/HBBR with bidirectional ban enforcement"
     echo "  • Web Management Console with Material Design"
     echo "  • Real-time device status monitoring"
+    echo ""
+    echo "Installation method: Precompiled binaries (no compilation required)"
     echo ""
     
     check_root
     check_dependencies
     backup_rustdesk
-    clone_rustdesk_server
-    apply_patches
-    compile_hbbs
-    install_hbbs
+    install_binaries
     install_web_console
     test_installation
     cleanup

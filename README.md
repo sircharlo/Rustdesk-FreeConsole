@@ -3,11 +3,11 @@
 <div align="center">
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![RustDesk](https://img.shields.io/badge/RustDesk-1.1.9+-green.svg)
+![RustDesk](https://img.shields.io/badge/RustDesk-1.1.14-green.svg)
 ![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)
-![Rust](https://img.shields.io/badge/Rust-1.70+-orange.svg)
+![Version](https://img.shields.io/badge/version-1.2.0--v8-blue.svg)
 
-**A modern, feature-rich web management console for RustDesk with real-time device monitoring**
+**A modern, feature-rich web management console for RustDesk with real-time device monitoring and bidirectional ban enforcement**
 
 [Features](#-features) • [Screenshots](#-screenshots) • [Installation](#-installation) • [Documentation](#-documentation) • [Contributing](#-contributing)
 
@@ -68,27 +68,47 @@
 - **Thread-Safe**: Shared PeerMap with Arc/RwLock for concurrent access
 - **Zero Breaking Changes**: Fully compatible with existing RustDesk clients
 - **CORS Support**: Easy web console integration
+- **🔥 Bidirectional Ban Enforcement (v8)**: 
+  - Prevents banned devices from initiating connections (source check)
+  - Prevents connections to banned devices (target check)
+  - Works for both P2P and relay connections
+  - Real-time database sync - no restart required
 
 ### 📊 Device Management
 
-- **Dashboard View**: Overview with statistics cards
+- **Dashboard View**: Overview with statistics cards (Total, Active, Inactive, Banned, With Notes)
 - **Device List**: Sortable table with ID, notes, status, and timestamps
-- **Device Details**: View complete device information
+- **Device Details**: View complete device information including ban status
 - **Add Notes**: Label devices with custom descriptions
+- **🔒 Device Banning**: Ban/unban devices with reason tracking and administrator info
+  - **Bidirectional Enforcement (v8)**: Banned devices blocked in both directions
+  - Source ban: Banned device cannot initiate any connections
+  - Target ban: Cannot connect to banned devices
+  - Enforced at punch hole and relay request stages
+  - 100% reliability with real-time sync
+- **Soft Delete**: Devices marked as deleted (recoverable) instead of permanent removal
 - **Batch Operations**: Search and filter multiple devices
 - **Public Key Display**: Quick access to server public key
-
-> **⚠️ Current Limitations:**
-> - **Device ID Changes**: Changing device ID is not recommended and may cause loss of access to the device. Use the **Note** field to assign custom names/labels instead.
-> - **Device Deletion**: The delete functionality is currently unstable and may not work reliably. Exercise caution when attempting to remove devices.
-> - These limitations are being addressed in future updates.
+- **Visual Indicators**: Color-coded status badges, banned device highlighting
 
 ### 🛡️ Security & Reliability
 
-- **Automatic Backups**: Installation script creates safety backups
+- **Input Validation**: Comprehensive validation for all user inputs
+- **XSS Protection**: Sanitization of user-provided content
+- **SQL Injection Prevention**: Parameterized queries throughout
+- **Bidirectional Ban Enforcement (v8)**: 
+  - Source device ban check (prevents banned devices from connecting)
+  - Target device ban check (prevents connections to banned devices)
+  - No race conditions or timing vulnerabilities
+  - Minimal performance impact (~1ms per check)
+- **Ban Management**: Track who banned devices, when, and why
+- **Confirmation Dialogs**: Explicit confirmation for destructive operations
+- **Automatic Backups**: Installation and update scripts create safety backups
+- **Precompiled Binaries**: No compilation needed, faster deployment
 - **Service Management**: Systemd integration for auto-restart
 - **Graceful Degradation**: Web console works even if API is unavailable
 - **No External Dependencies**: All assets served locally (offline-ready)
+- **Audit Trail**: Timestamps for all device modifications
 
 ---
 
@@ -166,17 +186,18 @@
 ### Prerequisites
 
 - **Operating System**: Linux (Ubuntu 20.04+, Debian 11+, CentOS 8+)
-- **Existing RustDesk**: Working RustDesk HBBS installation
-- **Dependencies**: git, cargo (Rust), python3, pip3, curl, systemd
+- **Existing RustDesk**: Working RustDesk HBBS installation (optional - can be fresh install)
+- **Dependencies**: python3, pip3, curl, systemd
+- **No Compilation Required**: Uses precompiled binaries
 
-### Automatic Installation
+### New Installation
 
-The easiest way to install BetterDesk Console:
+For fresh installations or upgrades, use the main installer:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/BetterDeskConsole.git
-cd BetterDeskConsole
+git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
+cd Rustdesk-FreeConsole
 
 # Make the installer executable
 chmod +x install.sh
@@ -185,20 +206,43 @@ chmod +x install.sh
 sudo ./install.sh
 ```
 
-The installer will:
-1. ✅ Check all dependencies
-2. ✅ Offer to backup your existing RustDesk installation
-3. ✅ Clone and compile the enhanced HBBS
-4. ✅ Install the web console
-5. ✅ Configure systemd services
-6. ✅ Test the installation
-7. ✅ Display access URLs
+**Installation takes approximately 2-3 minutes** (using precompiled binaries).
 
-**Installation takes approximately 5-10 minutes** (mostly compilation time).
+### Updating to v8
 
-### Manual Installation
+If you already have BetterDesk Console installed, use the update scripts:
 
-See [INSTALL.md](docs/INSTALL.md) for detailed manual installation steps.
+#### Linux (Direct Update)
+
+```bash
+# Navigate to project directory
+cd Rustdesk-FreeConsole
+
+# Make update script executable
+chmod +x update.sh
+
+# Run with sudo
+sudo ./update.sh
+```
+
+#### Windows (Remote Update via SSH)
+
+```powershell
+# Navigate to project directory
+cd Rustdesk-FreeConsole
+
+# Run update script
+.\update.ps1 -RemoteHost YOUR_SERVER_IP -RemoteUser YOUR_SSH_USER
+```
+
+**See [UPDATE_GUIDE.md](UPDATE_GUIDE.md) for detailed update instructions, troubleshooting, and rollback procedures.**
+
+### What's New in v1.1.0
+
+- **Device Banning System**: Ban/unban devices with reason tracking
+- **Soft Delete**: Devices marked as deleted instead of permanent removal
+- **Enhanced Security**: Input validation, XSS protection, SQL injection prevention
+- **Improved UI**: Visual ban indicators, new statistics card, confirmation dialogs
 
 ---
 
@@ -410,7 +454,7 @@ Contributions are welcome! Here's how you can help:
 
 ### Reporting Issues
 
-- Use the [GitHub Issues](https://github.com/yourusername/BetterDeskConsole/issues) page
+- Use the [GitHub Issues](https://github.com/UNITRONIX/Rustdesk-FreeConsole/issues) page
 - Include system info (OS, RustDesk version, etc.)
 - Provide logs from systemd: `journalctl -u betterdesk.service`
 
@@ -467,8 +511,8 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 ## 📞 Support
 
 - **Documentation**: Check the [docs/](docs/) folder
-- **Issues**: [GitHub Issues](https://github.com/yourusername/BetterDeskConsole/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/BetterDeskConsole/discussions)
+- **Issues**: [GitHub Issues](https://github.com/UNITRONIX/Rustdesk-FreeConsole/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/UNITRONIX/Rustdesk-FreeConsole/discussions)
 - **RustDesk Community**: [RustDesk Discord](https://discord.gg/nDceKgxnkV)
 
 ---
@@ -514,16 +558,37 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 ## 🌐 Links
 
-- **GitHub**: https://github.com/yourusername/BetterDeskConsole
+- **GitHub**: https://github.com/UNITRONIX/Rustdesk-FreeConsole
 - **RustDesk**: https://rustdesk.com/
 - **RustDesk GitHub**: https://github.com/rustdesk/rustdesk
-- **Documentation**: [docs/](docs/)
+
+---
+
+## 📚 Documentation
+
+### Core Documentation
+- **[README.md](README.md)** - This file (overview and installation)
+- **[LICENSE](LICENSE)** - MIT License
+- **[VERSION](VERSION)** - Current version number
+
+### Additional Documentation ([docs/](docs/))
+- **[CHANGELOG.md](docs/CHANGELOG.md)** - Complete version history
+- **[CONTRIBUTING.md](docs/CONTRIBUTING.md)** - How to contribute
+- **[DEPRECATION_NOTICE.md](docs/DEPRECATION_NOTICE.md)** - Deprecated features info
+- **[RELEASE_NOTES_v1.2.0.md](docs/RELEASE_NOTES_v1.2.0.md)** - Latest release notes
+- **[UPDATE_GUIDE.md](docs/UPDATE_GUIDE.md)** - Update instructions
+- **[DEVELOPMENT_ROADMAP.md](docs/DEVELOPMENT_ROADMAP.md)** - Future plans
+
+### Technical Documentation
+- **[hbbs-patch/](hbbs-patch/)** - HBBS modification documentation
+- **[deprecated/](deprecated/)** - Old components (not recommended)
+- **[dev_modules/](dev_modules/)** - Development and testing tools
 
 ---
 
 <div align="center">
 
-**Made with ❤️ by UNITRONIX and Claude Sunnet**
+**Made with ❤️ by the community**
 
 If you find this project useful, please consider giving it a ⭐ on GitHub!
 

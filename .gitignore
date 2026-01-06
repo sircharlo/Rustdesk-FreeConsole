@@ -50,6 +50,28 @@ logs/
 *.db
 
 # Backups
+*.backup
+*backup*/
+rustdesk-backup*/
+
+# Old binary versions (keep only latest in bin/)
+hbbs-v[0-7]-patched
+hbbr-v[0-7]-patched
+
+# Sensitive data (should never be committed)
+*credentials*
+*password*
+*secret*
+.env
+config.local.*
+
+# Temporary files
+*.tmp
+*.temp
+/tmp/
+
+
+# Backups
 *.bak
 *.backup
 rustdesk-backup-*/
@@ -78,6 +100,9 @@ id_*
 .env
 .env.local
 .env.*.local
+config.local.*
+*_local.sh
+*_local.ps1
 
 # Testing
 .coverage

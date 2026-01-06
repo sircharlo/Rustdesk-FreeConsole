@@ -212,3 +212,17 @@ impl PeerMap {
             self.map.write().await.remove(&id);
         }
     }
+
+    /// Find peer ID by socket address
+    /// Returns the ID of the peer with matching socket address, or None
+    #[inline]
+    pub(crate) async fn find_by_addr(&self, addr: SocketAddr) -> Option<String> {
+        let map = self.map.read().await;
+        for (id, peer) in map.iter() {
+            let peer_addr = peer.read().await.socket_addr;
+            if peer_addr == addr {
+                return Some(id.clone());
+            }
+        }
+        None
+    }
