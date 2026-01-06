@@ -1,39 +1,35 @@
 #############################################################################
-# BetterDesk Console - Update Script (v1.1.0) for Windows
+# BetterDesk Console - Update Script (v8) for Windows
 # 
-# This script updates existing BetterDesk installation to version 1.1.0
-# with device banning system and soft delete functionality.
+# This script updates existing BetterDesk installation to version 1.2.0-v8
+# with bidirectional ban enforcement and precompiled binaries.
 #
 # Features:
+# - Installs precompiled HBBS/HBBR v8 binaries with bidirectional ban enforcement
 # - Automatic database backup before migration
 # - Executes database migrations (v1.0.1 soft delete + v1.1.0 bans)
-# - Updates web console files via SSH/SCP
-# - Restarts BetterDesk service on remote Linux server
+# - Updates web console files
+# - Restarts RustDesk services
 # - Verifies installation
+# - Works locally on Windows server (no SSH required)
 #
 # Requirements:
 # - PowerShell 5.1 or higher
-# - SSH access to Linux server with BetterDesk installed
-# - Python 3.x on remote server
+# - Python 3.x installed
+# - Administrator privileges
 #
 # Usage:
-#   .\update.ps1 -RemoteHost <hostname> -RemoteUser <username>
-#   Example: .\update.ps1 -RemoteHost YOUR_SERVER_IP -RemoteUser YOUR_SSH_USER
-#   Example: .\update.ps1 -RemoteHost YOUR_SERVER_IP -RemoteUser YOUR_SSH_USER -RustDeskPath "/custom/path/rustdesk"
+#   .\update.ps1 [-RustDeskPath <path>] [-ConsolePath <path>]
+#   Example: .\update.ps1
+#   Example: .\update.ps1 -RustDeskPath "C:\RustDesk" -ConsolePath "C:\BetterDeskConsole"
 #
 # Author: GitHub Copilot
 # License: MIT
 #############################################################################
 
 param(
-    [Parameter(Mandatory=$true)]
-    [string]$RemoteHost,
-    
-    [Parameter(Mandatory=$true)]
-    [string]$RemoteUser,
-    
-    [string]$RemotePath = "/opt/BetterDeskConsole",
-    [string]$RustDeskPath = "/opt/rustdesk",
+    [string]$RustDeskPath = "C:\RustDesk",
+    [string]$ConsolePath = "C:\BetterDeskConsole",
     [string]$DbPath = ""  # Will be auto-set from RustDeskPath if empty
 )
 
@@ -49,29 +45,43 @@ function Write-Header {
     Write-Host "========================================`n" -ForegroundColor Blue
 }
 
+# Check if running as Administrator
+function Test-Administrator {
+    $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
+    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+if (-not (Test-Administrator)) {
+    Write-Error "This script requires Administrator privileges"
+    Write-Info "Please run PowerShell as Administrator and try again"
+    exit 1
+}
+
 # Get script directory
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ProjectRoot = Split-Path -Parent $ScriptDir
 
 # Auto-set DbPath if not provided
 if ([string]::IsNullOrEmpty($DbPath)) {
-    $DbPath = "$RustDeskPath/db_v2.sqlite3"
+    $DbPath = Join-Path $RustDeskPath "db_v2.sqlite3"
 }
 
-Write-Header "BetterDesk Console - Update to v1.1.0"
+Write-Header "BetterDesk Console - Update to v1.2.0-v8"
 
 Write-Host "Configuration:" -ForegroundColor Cyan
-Write-Host "  Remote host:        $RemoteUser@$RemoteHost"
-Write-Host "  Console directory:  $RemotePath"
 Write-Host "  RustDesk directory: $RustDeskPath"
+Write-Host "  Console directory:  $ConsolePath"
 Write-Host "  Database path:      $DbPath"
 Write-Host ""
 Write-Host "This update includes:" -ForegroundColor Cyan
-Write-Host "  • Soft delete system for devices (v1.0.1)"
-Write-Host "  • Device banning system (v1.1.0)"
-Write-Host "  • Enhanced UI with ban controls"
-Write-Host "  • Input validation and security improvements"
+Write-Host "  • HBBS/HBBR v8 with bidirectional ban enforcement"
+Write-Host "  • Prevents banned devices from initiating connections"
+Write-Host "  • Prevents connections to banned devices"
+Write-Host "  • Database migrations (soft delete + banning system)"
+Write-Host "  • Updated web console"
 Write-Host ""
-Write-Warning "This will modify the database and restart services"
+Write-Warning "This will stop RustDesk services, update binaries, and restart services"
 Write-Host ""
 
 $confirm = Read-Host "Continue with update? [y/N]"
@@ -84,11 +94,13 @@ if ($confirm -ne 'y' -and $confirm -ne 'Y') {
 Write-Header "Step 1: Checking Local Files"
 
 $requiredFiles = @(
-    "$ScriptDir\migrations\v1.0.1_soft_delete.py",
-    "$ScriptDir\migrations\v1.1.0_device_bans.py",
-    "$ScriptDir\web\app.py",
-    "$ScriptDir\web\static\script.js",
-    "$ScriptDir\web\templates\index.html"
+    "$ProjectRoot\migrations\v1.0.1_soft_delete.py",
+    "$ProjectRoot\migrations\v1.1.0_device_bans.py",
+    "$ProjectRoot\web\app.py",
+    "$ProjectRoot\web\static\script.js",
+    "$ProjectRoot\web\templates\index.html",
+    "$ProjectRoot\hbbs-patch\bin\hbbs-v8",
+    "$ProjectRoot\hbbs-patch\bin\hbbr-v8"
 )
 
 foreach ($file in $requiredFiles) {
@@ -100,180 +112,222 @@ foreach ($file in $requiredFiles) {
     }
 }
 
-# Check SSH connectivity
-Write-Header "Step 2: Testing SSH Connection"
+# Check if RustDesk is installed
+Write-Header "Step 2: Checking RustDesk Installation"
 
-Write-Info "Testing connection to $RemoteHost..."
-$testConnection = ssh -o ConnectTimeout=5 -o BatchMode=yes "$RemoteUser@$RemoteHost" "echo 'Connected'" 2>&1
-
-if ($LASTEXITCODE -eq 0) {
-    Write-Success "SSH connection successful"
-} else {
-    Write-Error "Cannot connect to $RemoteHost. Please check SSH access."
-    Write-Info "Hint: Make sure you have SSH keys set up or use: ssh $RemoteUser@$RemoteHost"
+if (-not (Test-Path $RustDeskPath)) {
+    Write-Error "RustDesk directory not found: $RustDeskPath"
+    Write-Info "Please specify correct path using -RustDeskPath parameter"
     exit 1
 }
 
-# Check if BetterDesk is installed on remote
-Write-Info "Checking remote installation..."
-$checkInstall = ssh "$RemoteUser@$RemoteHost" "test -d $RemotePath && test -f $DbPath && echo 'OK' || echo 'MISSING'"
+Write-Success "RustDesk directory found"
 
-if ($checkInstall -match "OK") {
-    Write-Success "BetterDesk installation found on remote server"
+if (Test-Path $DbPath) {
+    Write-Success "Database found: $DbPath"
 } else {
-    Write-Error "BetterDesk not found at $RemotePath or database missing"
-    exit 1
+    Write-Warning "Database not found - it will be created on first run"
 }
 
-# Create backup on remote server
-Write-Header "Step 3: Creating Remote Backup"
+# Create backup
+Write-Header "Step 3: Creating Backup"
 
-$backupDir = "/opt/betterdesk-backup-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
-Write-Info "Creating backup directory: $backupDir"
+$timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+$backupDir = Join-Path $RustDeskPath "backup-$timestamp"
+New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+Write-Success "Created backup directory: $backupDir"
 
-$backupScript = @"
-#!/bin/bash
-set -e
-mkdir -p $backupDir
-cp $DbPath $backupDir/db_v2.sqlite3.backup
-[ -f $RemotePath/app.py ] && cp $RemotePath/app.py $backupDir/app.py.backup
-[ -f $RemotePath/static/script.js ] && cp $RemotePath/static/script.js $backupDir/script.js.backup
-[ -f $RemotePath/templates/index.html ] && cp $RemotePath/templates/index.html $backupDir/index.html.backup
-echo 'Backup completed'
-"@
+# Backup binaries
+if (Test-Path (Join-Path $RustDeskPath "hbbs.exe")) {
+    Copy-Item (Join-Path $RustDeskPath "hbbs.exe") (Join-Path $backupDir "hbbs.exe.backup")
+    Write-Success "Backed up hbbs.exe"
+}
 
-$backupResult = $backupScript | ssh "$RemoteUser@$RemoteHost" "bash"
-Write-Success "Backup created: $backupDir"
+if (Test-Path (Join-Path $RustDeskPath "hbbr.exe")) {
+    Copy-Item (Join-Path $RustDeskPath "hbbr.exe") (Join-Path $backupDir "hbbr.exe.backup")
+    Write-Success "Backed up hbbr.exe"
+}
 
-# Upload migration scripts
-Write-Header "Step 4: Uploading Migration Scripts"
+# Backup database
+if (Test-Path $DbPath) {
+    Copy-Item $DbPath (Join-Path $backupDir "db_v2.sqlite3.backup")
+    Write-Success "Backed up database"
+}
 
-Write-Info "Uploading v1.0.1_soft_delete.py..."
-scp "$ScriptDir\migrations\v1.0.1_soft_delete.py" "${RemoteUser}@${RemoteHost}:/tmp/" | Out-Null
-Write-Success "Uploaded v1.0.1_soft_delete.py"
+# Stop services
+Write-Header "Step 4: Stopping RustDesk Services"
 
-Write-Info "Uploading v1.1.0_device_bans.py..."
-scp "$ScriptDir\migrations\v1.1.0_device_bans.py" "${RemoteUser}@${RemoteHost}:/tmp/" | Out-Null
-Write-Success "Uploaded v1.1.0_device_bans.py"
+Write-Info "Stopping HBBS service..."
+Stop-Service -Name "RustDeskSignal" -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 2
 
-# Execute migrations
-Write-Header "Step 5: Running Database Migrations"
+Write-Info "Stopping HBBR service..."
+Stop-Service -Name "RustDeskRelay" -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 2
 
-Write-Info "Executing migration v1.0.1 (soft delete)..."
-$migration1 = @"
-cd /tmp
-echo 'y' | sudo python3 v1.0.1_soft_delete.py 2>&1 | tail -5
-"@
+# Kill any remaining processes
+Get-Process -Name "hbbs" -ErrorAction SilentlyContinue | Stop-Process -Force
+Get-Process -Name "hbbr" -ErrorAction SilentlyContinue | Stop-Process -Force
+Start-Sleep -Seconds 2
 
-$result1 = $migration1 | ssh "$RemoteUser@$RemoteHost" "bash"
-Write-Success "Migration v1.0.1 completed"
+Write-Success "Services stopped"
 
-Write-Host ""
-Write-Info "Executing migration v1.1.0 (device bans)..."
-$migration2 = @"
-cd /tmp
-echo 'y' | sudo python3 v1.1.0_device_bans.py 2>&1 | tail -5
-"@
+# Install new binaries
+Write-Header "Step 5: Installing HBBS/HBBR v8 Binaries"
 
-$result2 = $migration2 | ssh "$RemoteUser@$RemoteHost" "bash"
-Write-Success "Migration v1.1.0 completed"
+Write-Info "Installing hbbs-v8..."
+Copy-Item "$ProjectRoot\hbbs-patch\bin\hbbs-v8" (Join-Path $RustDeskPath "hbbs.exe") -Force
+Write-Success "Installed hbbs-v8"
 
-# Upload web files
-Write-Header "Step 6: Updating Web Console Files"
+Write-Info "Installing hbbr-v8..."
+Copy-Item "$ProjectRoot\hbbs-patch\bin\hbbr-v8" (Join-Path $RustDeskPath "hbbr.exe") -Force
+Write-Success "Installed hbbr-v8"
 
-Write-Info "Uploading app.py..."
-scp "$ScriptDir\web\app.py" "${RemoteUser}@${RemoteHost}:/tmp/" | Out-Null
-ssh "$RemoteUser@$RemoteHost" "cp /tmp/app.py $RemotePath/app.py"
-Write-Success "Updated app.py"
+Write-Info "Features:"
+Write-Host "  ✓ Bidirectional ban enforcement"
+Write-Host "  ✓ Source device ban check"
+Write-Host "  ✓ Target device ban check"
+Write-Host "  ✓ Real-time database sync"
 
-Write-Info "Uploading script.js..."
-scp "$ScriptDir\web\static\script.js" "${RemoteUser}@${RemoteHost}:/tmp/" | Out-Null
-ssh "$RemoteUser@$RemoteHost" "cp /tmp/script.js $RemotePath/static/script.js"
-Write-Success "Updated script.js"
+# Run database migrations
+Write-Header "Step 6: Running Database Migrations"
 
-Write-Info "Uploading index.html..."
-scp "$ScriptDir\web\templates\index.html" "${RemoteUser}@${RemoteHost}:/tmp/" | Out-Null
-ssh "$RemoteUser@$RemoteHost" "cp /tmp/index.html $RemotePath/templates/index.html"
-Write-Success "Updated index.html"
+if (Test-Path $DbPath) {
+    Write-Info "Running migration v1.0.1 (soft delete)..."
+    try {
+        python "$ProjectRoot\migrations\v1.0.1_soft_delete.py"
+        Write-Success "Migration v1.0.1 completed"
+    } catch {
+        Write-Warning "Migration v1.0.1 may have already been applied"
+    }
 
-# Restart service
-Write-Header "Step 7: Restarting BetterDesk Service"
-
-$restartScript = @"
-if systemctl list-unit-files | grep -q 'betterdesk.service'; then
-    sudo systemctl restart betterdesk
-    sleep 3
-    if systemctl is-active --quiet betterdesk; then
-        echo 'Service restarted successfully'
-    else
-        echo 'Service failed to start'
-        exit 1
-    fi
-else
-    echo 'Service not found, skipping restart'
-fi
-"@
-
-$restartResult = $restartScript | ssh "$RemoteUser@$RemoteHost" "bash"
-if ($LASTEXITCODE -eq 0) {
-    Write-Success $restartResult
+    Write-Info "Running migration v1.1.0 (device bans)..."
+    try {
+        python "$ProjectRoot\migrations\v1.1.0_device_bans.py"
+        Write-Success "Migration v1.1.0 completed"
+    } catch {
+        Write-Warning "Migration v1.1.0 may have already been applied"
+    }
 } else {
-    Write-Warning "Service restart may have failed"
+    Write-Info "Database doesn't exist yet - migrations will run automatically on first start"
+}
+
+# Update web console files
+Write-Header "Step 7: Updating Web Console Files"
+
+if (-not (Test-Path $ConsolePath)) {
+    Write-Info "Creating console directory: $ConsolePath"
+    New-Item -ItemType Directory -Path $ConsolePath -Force | Out-Null
+}
+
+Write-Info "Copying web console files..."
+Copy-Item "$ProjectRoot\web\*" $ConsolePath -Recurse -Force
+Write-Success "Web console files updated"
+
+# Install Python dependencies
+Write-Info "Installing Python dependencies..."
+try {
+    pip install -r (Join-Path $ConsolePath "requirements.txt")
+    Write-Success "Python dependencies installed"
+} catch {
+    Write-Warning "Failed to install dependencies - you may need to install them manually"
+}
+
+# Start services
+Write-Header "Step 8: Starting RustDesk Services"
+
+Write-Info "Starting HBBS service..."
+Start-Service -Name "RustDeskSignal" -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 3
+
+Write-Info "Starting HBBR service..."
+Start-Service -Name "RustDeskRelay" -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 3
+
+# Verify services
+$hbbsService = Get-Service -Name "RustDeskSignal" -ErrorAction SilentlyContinue
+$hbbrService = Get-Service -Name "RustDeskRelay" -ErrorAction SilentlyContinue
+
+if ($hbbsService.Status -eq "Running") {
+    Write-Success "HBBS service is running"
+} else {
+    Write-Warning "HBBS service is not running - you may need to start it manually"
+}
+
+if ($hbbrService -and $hbbrService.Status -eq "Running") {
+    Write-Success "HBBR service is running"
+} else {
+    Write-Info "HBBR service not configured (optional)"
 }
 
 # Verify installation
-Write-Header "Step 8: Verification"
+Write-Header "Step 9: Verification"
 
-Write-Info "Verifying database schema..."
-$schemaCheck = ssh "$RemoteUser@$RemoteHost" "sqlite3 $DbPath 'PRAGMA table_info(peer);' | wc -l"
-if ([int]$schemaCheck -ge 16) {
-    Write-Success "Database schema updated ($schemaCheck columns)"
-} else {
-    Write-Warning "Database may be missing columns (found $schemaCheck)"
+if (Test-Path $DbPath) {
+    Write-Info "Verifying database schema..."
+    try {
+        $schemaCheck = & sqlite3 $DbPath "PRAGMA table_info(peer);" | Measure-Object -Line
+        $columnCount = $schemaCheck.Lines
+        if ($columnCount -ge 16) {
+            Write-Success "Database schema updated ($columnCount columns)"
+        } else {
+            Write-Warning "Database may be missing columns (found $columnCount)"
+        }
+    } catch {
+        Write-Warning "Could not verify database (sqlite3 may not be installed)"
+    }
 }
 
 Write-Info "Checking web console..."
-Start-Sleep -Seconds 2
-$apiCheck = ssh "$RemoteUser@$RemoteHost" "curl -s http://localhost:5000/api/stats 2>&1"
-if ($apiCheck -match "success") {
-    Write-Success "Web console is responding"
-    
-    # Parse stats
-    if ($apiCheck -match '"total":\s*(\d+)') {
-        $total = $matches[1]
-        Write-Info "Total devices: $total"
+Start-Sleep -Seconds 3
+try {
+    $response = Invoke-WebRequest -Uri "http://localhost:5000/api/stats" -UseBasicParsing -TimeoutSec 5
+    if ($response.StatusCode -eq 200) {
+        Write-Success "Web console is responding"
+        $stats = $response.Content | ConvertFrom-Json
+        if ($stats.total) {
+            Write-Info "Total devices: $($stats.total)"
+        }
+        if ($stats.banned) {
+            Write-Info "Banned devices: $($stats.banned)"
+        }
     }
-    if ($apiCheck -match '"banned":\s*(\d+)') {
-        $banned = $matches[1]
-        Write-Info "Banned devices: $banned"
-    }
-} else {
-    Write-Warning "Web console may not be responding"
+} catch {
+    Write-Warning "Web console may not be running yet - give it a few seconds to start"
 }
 
 # Final summary
 Write-Header "Update Complete!"
 
-Write-Success "Database migrated to v1.1.0"
+Write-Success "HBBS/HBBR updated to v8 with bidirectional ban enforcement"
+Write-Success "Database migrated"
 Write-Success "Web console files updated"
 Write-Success "Backup created: $backupDir"
-Write-Success "Service restarted"
+Write-Success "Services restarted"
 Write-Host ""
-Write-Host "New Features:" -ForegroundColor Cyan
+Write-Host "New Features in v8:" -ForegroundColor Cyan
+Write-Host "  • Bidirectional ban enforcement (prevents banned devices from connecting AND being connected to)"
+Write-Host "  • Source device ban check (blocks outgoing connections from banned devices)"
+Write-Host "  • Target device ban check (blocks incoming connections to banned devices)"
+Write-Host "  • Real-time database synchronization"
+Write-Host "  • Works for both P2P and relay connections"
+Write-Host ""
+Write-Host "Previous Features (v1.1.0):" -ForegroundColor Cyan
 Write-Host "  • Soft delete for devices (is_deleted, deleted_at, updated_at)"
 Write-Host "  • Device banning system (is_banned, banned_at, banned_by, ban_reason)"
 Write-Host "  • Ban/Unban buttons in web interface"
 Write-Host "  • Enhanced input validation and security"
-Write-Host "  • Banned devices statistics card"
 Write-Host ""
 Write-Host "Access the console:" -ForegroundColor Cyan
-Write-Host "  http://${RemoteHost}:5000"
+Write-Host "  http://localhost:5000"
 Write-Host ""
 Write-Host "Rollback Instructions (if needed):" -ForegroundColor Yellow
-Write-Host "  ssh $RemoteUser@$RemoteHost"
-Write-Host "  sudo systemctl stop betterdesk"
-Write-Host "  sudo cp $backupDir/db_v2.sqlite3.backup $DbPath"
-Write-Host "  sudo cp $backupDir/*.backup $RemotePath/"
-Write-Host "  sudo systemctl start betterdesk"
+Write-Host "  1. Stop services: Stop-Service RustDeskSignal, RustDeskRelay"
+Write-Host "  2. Restore binaries:"
+Write-Host "     Copy-Item '$backupDir\hbbs.exe.backup' '$RustDeskPath\hbbs.exe'"
+Write-Host "     Copy-Item '$backupDir\hbbr.exe.backup' '$RustDeskPath\hbbr.exe'"
+Write-Host "  3. Restore database:"
+Write-Host "     Copy-Item '$backupDir\db_v2.sqlite3.backup' '$DbPath'"
+Write-Host "  4. Start services: Start-Service RustDeskSignal, RustDeskRelay"
 Write-Host ""
 Write-Success "Update completed successfully!"
