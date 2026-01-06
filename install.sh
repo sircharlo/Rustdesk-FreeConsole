@@ -238,6 +238,53 @@ install_hbbs() {
     print_info "Redirecting to install_binaries()..."
 }
 
+run_database_migrations() {
+    print_header "Running Database Migrations"
+    
+    local db_path="$RUSTDESK_DIR/db_v2.sqlite3"
+    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local migrations_dir="$script_dir/migrations"
+    
+    # Check if database exists
+    if [ ! -f "$db_path" ]; then
+        print_warning "Database not found at $db_path"
+        print_info "Database will be created automatically when HBBS starts"
+        print_info "Skipping migrations - they will be applied on first run"
+        return 0
+    fi
+    
+    # Create backup of database
+    local backup_file="$db_path.backup-$(date +%Y%m%d-%H%M%S)"
+    print_info "Creating database backup..."
+    cp "$db_path" "$backup_file"
+    print_success "Database backed up to: $backup_file"
+    
+    # Check if migrations directory exists
+    if [ ! -d "$migrations_dir" ]; then
+        print_error "Migrations directory not found: $migrations_dir"
+        exit 1
+    fi
+    
+    # Run v1.0.1 migration (soft delete)
+    print_info "Running migration v1.0.1 (soft delete)..."
+    if python3 "$migrations_dir/v1.0.1_soft_delete.py"; then
+        print_success "Migration v1.0.1 completed successfully"
+    else
+        print_warning "Migration v1.0.1 failed or already applied"
+    fi
+    
+    # Run v1.1.0 migration (device bans)
+    print_info "Running migration v1.1.0 (device bans)..."
+    if python3 "$migrations_dir/v1.1.0_device_bans.py"; then
+        print_success "Migration v1.1.0 completed successfully"
+    else
+        print_warning "Migration v1.1.0 failed or already applied"
+    fi
+    
+    print_success "Database migrations completed"
+    echo ""
+}
+
 install_web_console() {
     print_header "Installing Web Management Console"
     
@@ -369,6 +416,7 @@ main() {
     check_dependencies
     backup_rustdesk
     install_binaries
+    run_database_migrations
     install_web_console
     test_installation
     cleanup
