@@ -192,7 +192,7 @@ impl PeerMap {
     }
 
     pub(crate) async fn check_online_peers(&self) {
-        let timeout_secs = 90; // Consider peer offline if no registration for 90 seconds
+        let timeout_secs = 20; // Consider peer offline if no registration for 20 seconds (same as REG_TIMEOUT)
         let now = Instant::now();
         let mut offline_peers = Vec::new();
         
@@ -226,3 +226,4 @@ impl PeerMap {
         }
         None
     }
+}

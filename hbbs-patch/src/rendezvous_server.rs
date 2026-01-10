@@ -230,7 +230,7 @@ impl RendezvousServer {
         key: &str,
     ) -> LoopFailure {
         let mut timer_check_relay = interval(Duration::from_millis(CHECK_RELAY_TIMEOUT));
-        let mut timer_check_peers = interval(Duration::from_secs(30)); // Check peer status every 30 seconds
+        let mut timer_check_peers = interval(Duration::from_secs(5)); // Check peer status every 5 seconds
         loop {
             tokio::select! {
                 _ = timer_check_relay.tick() => {

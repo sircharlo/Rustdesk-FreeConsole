@@ -7,11 +7,11 @@ document.addEventListener('DOMContentLoaded', function() {
     loadDevices();
     loadStats();
     
-    // Auto-refresh every 5 seconds
+    // Auto-refresh every 2 seconds
     setInterval(() => {
         loadDevices();
         loadStats();
-    }, 5000);
+    }, 2000);
 });
 
 // Load devices from API

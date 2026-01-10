@@ -11,7 +11,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use crate::peer::PeerMap;
 
-const REG_TIMEOUT: i32 = 30_000;
+const REG_TIMEOUT: i32 = 20_000;
 
 #[derive(Clone)]
 pub struct ApiState {
@@ -104,8 +104,10 @@ pub async fn start_api_server(db_path: String, port: u16, peer_map: Arc<PeerMap>
         .route("/api/peers", get(get_online_peers))
         .layer(axum::Extension(state));
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
-    hbb_common::log::info!("HTTP API server listening on {}", addr);
+    // SECURITY: Bind only to localhost (127.0.0.1) - not exposed to internet
+    // Web console connects locally, so no need for external access
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    hbb_common::log::info!("HTTP API server listening on {} (localhost only)", addr);
 
     axum::Server::bind(&addr)
         .serve(app.into_make_service())

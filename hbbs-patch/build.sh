@@ -54,6 +54,22 @@ cd rustdesk-server
 
 echo -e "${GREEN}✓ Cloned v1.1.14${NC}"
 
+# Copy HTTP API and main.rs files
+echo ""
+echo -e "${YELLOW}[2.5/8] Copying HTTP API and main.rs files...${NC}"
+
+# Copy the HTTP API module
+cp ../src/http_api.rs src/http_api.rs
+# Copy the updated main.rs with API support
+cp ../src/main.rs src/main.rs
+
+# Add http_api module to lib.rs
+if ! grep -q "pub mod http_api;" src/lib.rs; then
+    echo "pub mod http_api;" >> src/lib.rs
+fi
+
+echo -e "${GREEN}✓ HTTP API and main.rs copied${NC}"
+
 # Add rusqlite dependency
 echo ""
 echo -e "${YELLOW}[3/8] Adding rusqlite dependency...${NC}"
@@ -63,6 +79,21 @@ echo -e "${YELLOW}[3/8] Adding rusqlite dependency...${NC}"
 sed -i '/^\[dependencies\]/a rusqlite = { version = "0.27", features = ["bundled"] }' Cargo.toml
 
 echo -e "${GREEN}✓ rusqlite added to Cargo.toml${NC}"
+
+# Add HTTP API dependencies
+echo ""
+echo -e "${YELLOW}[3.5/8] Adding HTTP API dependencies...${NC}"
+
+# Note: serde and tokio are already in dependencies, we just need axum and sqlx
+# Check if they already exist to avoid duplicates
+if ! grep -q "^axum =" Cargo.toml; then
+    sed -i '/^\[dependencies\]/a axum = { version = "0.5", features = ["headers"] }' Cargo.toml
+fi
+if ! grep -q "^sqlx =" Cargo.toml; then
+    sed -i '/^\[dependencies\]/a sqlx = { version = "0.6", features = ["runtime-tokio-rustls", "sqlite"] }' Cargo.toml
+fi
+
+echo -e "${GREEN}✓ HTTP API dependencies added${NC}"
 
 # Apply database.rs patch
 echo ""
@@ -242,6 +273,27 @@ sed -i '/async fn handle_punch_hole_request(/,/let id = ph.id;/{
 }' src/rendezvous_server.rs
 
 echo -e "${GREEN}✓ rendezvous_server.rs patched${NC}"
+
+# Patch to add API server support
+echo ""
+echo -e "${YELLOW}[6.4/8] Adding HTTP API server support...${NC}"
+
+# 1. Update start() function signature to accept api_port
+sed -i 's/pub async fn start(port: i32, serial: i32, key: \&str, rmem: usize)/pub async fn start(port: i32, serial: i32, key: \&str, rmem: usize, api_port: u16)/' src/rendezvous_server.rs
+
+# 2. Start API server in background task (add after PeerMap::new().await?)
+sed -i '/let pm = PeerMap::new().await?;/a\
+        \
+        // Start HTTP API server in background\
+        let pm_clone = pm.clone();\
+        let db_path = std::env::var("DB_URL").unwrap_or("./db_v2.sqlite3".to_string());\
+        tokio::spawn(async move {\
+            if let Err(e) = crate::http_api::start_api_server(db_path, api_port, Arc::new(pm_clone)).await {\
+                log::error!("HTTP API server failed: {}", e);\
+            }\
+        });' src/rendezvous_server.rs
+
+echo -e "${GREEN}✓ HTTP API server support added${NC}"
 
 # NEW CRITICAL PATCH 3: Block RelayResponse - THE actual message relay
 echo ""

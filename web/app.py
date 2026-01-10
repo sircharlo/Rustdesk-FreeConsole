@@ -10,7 +10,8 @@ app = Flask(__name__)
 # Configuration
 DB_PATH = '/opt/rustdesk/db_v2.sqlite3'
 PUB_KEY_PATH = '/opt/rustdesk/id_ed25519.pub'
-HBBS_API_URL = 'http://localhost:21114/api'
+# API is on localhost-only port 21120 (not exposed to internet)
+HBBS_API_URL = 'http://localhost:21120/api'
 
 # Validation rules
 MAX_NOTE_LENGTH = 500
@@ -112,15 +113,15 @@ def get_devices():
             device_id = row['id']
             
             # Determine online status
-            # Priority: 1. API says online, 2. Database status, 3. Assume offline
-            if device_id in online_ids:
-                online = True
-            elif device_id in api_device_info:
-                # Device known to API but not marked as online
-                online = False
+            # Use ONLY the API status (same logic as RustDesk desktop client)
+            # This ensures consistency between web console and desktop client
+            if device_id in api_device_info:
+                # Device found in API - use the API's online status
+                online = api_device_info[device_id].get('online', False)
             else:
-                # Not in API, use database status
-                online = row['status'] == 1
+                # Device not found in API - consider it offline
+                # (If API is unreachable, fall back to database status)
+                online = row['status'] == 1 if not api_device_info else False
             
             device = {
                 'guid': row['guid'].hex() if row['guid'] else '',

@@ -3,11 +3,10 @@
 
 use flexi_logger::*;
 use hbb_common::{bail, config::RENDEZVOUS_PORT, ResultType};
-use hbbs::{common::*, http_api::start_api_server, *};
-use std::thread;
+use hbbs::{common::*, *};
 
 const RMEM: usize = 0;
-const API_PORT: u16 = 21114;
+const API_PORT: u16 = 21120;  // Localhost-only API port (not exposed to internet)
 
 fn main() -> ResultType<()> {
     let _logger = Logger::try_with_env_or_str("info")?
@@ -34,7 +33,7 @@ fn main() -> ResultType<()> {
     }
     let rmem = get_arg("rmem").parse::<usize>().unwrap_or(RMEM);
     let serial: i32 = get_arg("serial").parse().unwrap_or(0);
-    let api_port: u16 = get_arg_or("api-port", API_PORT.to_string()).parse()?;
+    let api_port = get_arg("api-port").parse::<u16>().unwrap_or(API_PORT);
     
     crate::common::check_software_update();
     RendezvousServer::start(port, serial, &get_arg_or("key", "-".to_owned()), rmem, api_port)?;

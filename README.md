@@ -5,7 +5,8 @@
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![RustDesk](https://img.shields.io/badge/RustDesk-1.1.14-green.svg)
 ![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)
-![Version](https://img.shields.io/badge/version-1.2.0--v8-blue.svg)
+![Version](https://img.shields.io/badge/version-1.3.0--secure-brightgreen.svg)
+![Security](https://img.shields.io/badge/API-localhost--only-orange.svg)
 
 **A modern, feature-rich web management console for RustDesk with real-time device monitoring and bidirectional ban enforcement**
 
@@ -62,7 +63,7 @@
 
 ### 🔧 Enhanced HBBS Server
 
-- **HTTP API**: RESTful API on port 21114 (configurable)
+- **HTTP API**: RESTful API on port 21120 (localhost only, not exposed to internet)
 - **Real-Time Status**: Memory-based device status (no database lag)
 - **Authentic Algorithm**: Uses RustDesk's official 30-second timeout logic
 - **Thread-Safe**: Shared PeerMap with Arc/RwLock for concurrent access
@@ -158,7 +159,8 @@
          ▼                     ▼
 ┌────────────────┐   ┌─────────────────┐
 │  HTTP API      │   │  SQLite DB      │
-│  (Port 21114)  │   │  (Persistence)  │
+│  (Port 21120)  │   │  (Persistence)  │
+│  (Localhost)   │   │                 │
 └────────┬───────┘   └─────────────────┘
          │
          ▼
@@ -185,57 +187,61 @@
 
 ### Prerequisites
 
-- **Operating System**: Linux (Ubuntu 20.04+, Debian 11+, CentOS 8+)
-- **Existing RustDesk**: Working RustDesk HBBS installation (optional - can be fresh install)
-- **Dependencies**: python3, pip3, curl, systemd
+- **Linux**: Ubuntu 20.04+, Debian 11+, CentOS 8+
+- **Windows**: Windows 10+, Windows Server 2016+
+- **Existing RustDesk**: Working HBBS installation (optional - can be fresh install)
+- **Linux Dependencies**: python3, pip3, curl, systemd
+- **Windows Dependencies**: Python 3.8+, PowerShell 5.1+
 - **No Compilation Required**: Uses precompiled binaries
 
-### New Installation
+### 🐧 Linux Installation
 
-For fresh installations or upgrades, use the main installer:
+Enhanced installer with Docker support and custom path detection:
 
 ```bash
 # Clone the repository
-git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
-cd Rustdesk-FreeConsole
+git clone https://github.com/UNITRONIX/BetterDesk-Console.git
+cd BetterDesk-Console
 
 # Make the installer executable
-chmod +x install.sh
+chmod +x install-improved.sh
 
 # Run as root (creates backup automatically)
-sudo ./install.sh
+sudo ./install-improved.sh
 ```
 
-**Installation takes approximately 2-3 minutes** (using precompiled binaries).
+**Features:**
+- ✅ Automatic Docker/containerized environment detection
+- ✅ Custom RustDesk path detection (searches /opt, /usr/local, /home)
+- ✅ `--break-system-packages` support for Debian 3.11+
+- ✅ File validation and verification
 
-### Updating to v8
+### 🪟 Windows Installation
 
-If you already have BetterDesk Console installed, use the update scripts:
-
-#### Linux (Direct Update)
-
-```bash
-# Navigate to project directory
-cd Rustdesk-FreeConsole
-
-# Make update script executable
-chmod +x update.sh
-
-# Run with sudo
-sudo ./update.sh
-```
-
-#### Windows (Remote Update via SSH)
+Enhanced installer with automatic path detection:
 
 ```powershell
-# Navigate to project directory
-cd Rustdesk-FreeConsole
+# Clone the repository
+git clone https://github.com/UNITRONIX/BetterDesk-Console.git
+cd BetterDesk-Console
 
-# Run update script
-.\update.ps1 -RemoteHost YOUR_SERVER_IP -RemoteUser YOUR_SSH_USER
+# Run as Administrator
+.\install-improved.ps1
 ```
 
-**See [UPDATE_GUIDE.md](UPDATE_GUIDE.md) for detailed update instructions, troubleshooting, and rollback procedures.**
+**Features:**
+- ✅ Automatic RustDesk installation detection
+- ✅ Multiple installation path support
+- ✅ File validation and verification
+- ✅ Windows service configuration
+
+### ⚠️ Important: Platform-Specific Binaries
+
+The installers automatically use the correct binaries for your platform:
+- **Linux**: Uses `hbbs-patch/bin-with-api/hbbs-v8-api` (Linux ELF binary)
+- **Windows**: Uses `hbbs-patch/bin-with-api/hbbs-v8-api.exe` (Windows PE binary)
+
+**Do not mix binaries between platforms!** Each installer is designed to work only on its respective operating system.
 
 ### What's New in v1.1.0
 
@@ -244,13 +250,60 @@ cd Rustdesk-FreeConsole
 - **Enhanced Security**: Input validation, XSS protection, SQL injection prevention
 - **Improved UI**: Visual ban indicators, new statistics card, confirmation dialogs
 
+### 🔒 Manual Installation on SSH Server (Security Update)
+
+If you compiled new binaries with security fixes on your SSH server:
+
+```bash
+# Upload the manual installation script
+scp hbbs-patch/MANUAL_INSTALL.sh your-user@your-server:~/
+
+# SSH to server and run
+ssh your-user@your-server
+sudo bash ~/MANUAL_INSTALL.sh
+```
+
+**The script will:**
+1. Stop HBBS/HBBR services
+2. Backup old binaries (timestamped)
+3. Install new binaries from `~/build/hbbs-patch/rustdesk-server/target/release/`
+4. Restart services
+5. Verify:
+   - HTTP API listening on `127.0.0.1:21120` (localhost only)
+   - RustDesk ports 21115-21117 operational
+   - Port 21120 NOT accessible from external network
+
+**Post-installation verification:**
+```bash
+# On server (should work)
+curl http://localhost:21120/api/health
+
+# From outside (should FAIL with "Connection refused")
+curl http://SERVER_IP:21120/api/health
+```
+
+**To access API remotely, use SSH tunnel:**
+```bash
+# Create tunnel
+ssh -L 21120:localhost:21120 your-user@your-server
+
+# Then access locally
+curl http://localhost:21120/api/health
+```
+
 ---
 
 ## ⚙️ Configuration
 
 ### HBBS API Port
 
-Default: `21114`
+Default: `21120` (localhost only - not exposed to internet)
+
+**Security**: The API is bound to `127.0.0.1` (localhost) by design. This means:
+- ✅ API is only accessible from the same machine
+- ✅ Cannot be accessed from network/internet even without firewall
+- ✅ Web console connects locally or via SSH tunnel
+- ✅ No risk of unauthorized data exposure
 
 To change, edit `/etc/systemd/system/rustdesksignal.service`:
 ```ini
@@ -273,7 +326,12 @@ app.run(host='0.0.0.0', port=5000)
 sudo ufw allow 5000/tcp
 
 # HBBS API (usually internal only)
-sudo ufw allow 21114/tcp
+# Port 21120 does NOT need to be opened - it's localhost only!
+# Only open RustDesk ports:
+sudo ufw allow 21115/tcp
+sudo ufw allow 21116/tcp
+sudo ufw allow 21116/udp
+sudo ufw allow 21117/tcp
 ```
 
 ---
@@ -282,8 +340,9 @@ sudo ufw allow 21114/tcp
 
 ### Base URL
 ```
-http://localhost:21114/api
+http://localhost:21120/api
 ```
+**Note**: API is bound to localhost only and cannot be accessed from external networks.
 
 ### Endpoints
 
@@ -410,7 +469,7 @@ cargo build --release --bin hbbs
 
 ```bash
 # Test HBBS API
-curl http://localhost:21114/api/health
+curl http://localhost:21120/api/health
 
 # Test Web Console
 curl http://localhost:5000

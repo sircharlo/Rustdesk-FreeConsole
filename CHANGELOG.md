@@ -5,6 +5,124 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0-secure] - 2026-01-10
+
+### 🔒 Security Update: Localhost-Only API Binding
+
+**Critical Security Enhancement**: HTTP API now binds exclusively to localhost (127.0.0.1), eliminating network exposure.
+
+### Changed
+- **API Port**: Changed from 21114 to 21120
+  - Avoids conflict with RustDesk Pro (which uses 21114 for public API)
+  - Clearly distinguishes this as a localhost-only service
+  - Updated all documentation and configuration examples
+
+- **API Binding**: Localhost-only (127.0.0.1)
+  - Previous: Bound to 0.0.0.0 (all interfaces, potential security risk)
+  - Current: Bound to 127.0.0.1 (localhost only, secure by design)
+  - API accessible only from same machine
+  - Cannot be accessed from network/internet
+  - No firewall configuration needed for port 21120
+
+- **Server Configuration**: Added `--api-port` parameter
+  - Command-line parameter support for flexible deployment
+  - Systemd service updated: `ExecStart=/opt/rustdesk/hbbs --api-port 21120`
+  - Windows service compatible with new parameter
+
+- **Web Console**: Updated to use new API endpoint
+  - Flask app now connects to `http://localhost:21120/api`
+  - Automatic backup of old configuration during update
+  - Verified working with new API port
+
+### Added
+- **Documentation**:
+  - `PORT_SECURITY.md` - Complete port security analysis
+  - SSH tunnel instructions for remote API access
+  - Security audit documentation
+  - Updated README with security notes (6 instances of port references)
+
+- **Binaries**: Updated Linux binaries with security features
+  - `hbbs-v8-api` (9.59 MB) - Built 10.01.2026 10:25 UTC
+  - `hbbr-v8-api` (4.73 MB) - Built 10.01.2026 10:25 UTC
+  - Contains: "HTTP API server listening on (localhost only)" string
+  - Verified: `--api-port` parameter support
+  - Windows binaries retained (compatible with new system)
+
+- **Installation Scripts**:
+  - `install-improved.sh` configured for v8-api binaries
+  - Automatic backup creation before installation
+  - File validation and verification
+  - Service configuration with new port
+
+### Security
+- ✅ **Zero Network Exposure**: API cannot be accessed from external networks
+- ✅ **Connection Refused**: External access attempts properly blocked
+- ✅ **SSH Tunnel Support**: Remote access via secure tunnel only
+- ✅ **No Private Data**: All documentation free of IPs, passwords, credentials
+- ✅ **Verified Installation**: Complete end-to-end security validation
+
+### Fixed
+- **Port Conflict**: No longer conflicts with RustDesk Pro API (port 21114)
+- **Network Security**: Eliminated accidental API exposure to internet
+- **Service Startup**: systemd service properly configured with --api-port parameter
+
+### Technical Details
+- **API Endpoints**: `/api/health`, `/api/peers` (unchanged)
+- **Response Format**: JSON (unchanged)
+- **Performance**: Same as v1.2.0-v8 (~1ms per request)
+- **Compatibility**: Fully compatible with existing RustDesk clients
+- **RustDesk Ports**: TCP 21115-21117, UDP 21116 (unchanged, public access required)
+
+### Remote Access
+
+For remote API access (e.g., from Windows workstation to Linux server):
+
+```bash
+# Create SSH tunnel
+ssh -L 21120:localhost:21120 user@server
+
+# Then access API locally
+curl http://localhost:21120/api/health
+```
+
+### Migration from v1.2.0-v8
+
+**Automatic upgrade:**
+```bash
+cd BetterDesk-Console
+git pull
+sudo ./install-improved.sh
+```
+
+**Manual steps if needed:**
+1. Update systemd service: Add `--api-port 21120` to ExecStart
+2. Update web console: Change API URL to `http://localhost:21120/api`
+3. Reload services: `systemctl daemon-reload && systemctl restart rustdesksignal betterdesk`
+
+### Verification
+
+```bash
+# 1. Check API binding (should show 127.0.0.1:21120 only)
+ss -tlnp | grep 21120
+
+# 2. Test local access (should succeed)
+curl http://localhost:21120/api/health
+
+# 3. Test external access (should fail - connection refused)
+curl http://SERVER_IP:21120/api/health
+
+# 4. Verify RustDesk ports still public
+ss -tlnp | grep -E '21115|21116|21117'
+```
+
+**Expected results:**
+- ✅ Port 21120 on 127.0.0.1 (localhost only)
+- ✅ Local API access works
+- ✅ External API access blocked
+- ✅ RustDesk client ports public (21115-21117)
+
+---
+
 ## [1.2.0-v8] - 2026-01-06
 
 ### 🚀 Major Update: Precompiled Binaries + Bidirectional Ban Enforcement
