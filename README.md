@@ -635,12 +635,21 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 - **[CONTRIBUTING.md](docs/CONTRIBUTING.md)** - How to contribute
 - **[DEPRECATION_NOTICE.md](docs/DEPRECATION_NOTICE.md)** - Deprecated features info
 - **[RELEASE_NOTES_v1.2.0.md](docs/RELEASE_NOTES_v1.2.0.md)** - Latest release notes
+- **[RELEASE_NOTES_v1.3.0.md](docs/RELEASE_NOTES_v1.3.0.md)** - Version 1.3.0 release notes
 - **[UPDATE_GUIDE.md](docs/UPDATE_GUIDE.md)** - Update instructions
 - **[DEVELOPMENT_ROADMAP.md](docs/DEVELOPMENT_ROADMAP.md)** - Future plans
+- **[PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)** - Project structure overview
+- **[PROJECT_ORGANIZATION.md](docs/PROJECT_ORGANIZATION.md)** - Project organization details
+- **[PORT_SECURITY.md](docs/PORT_SECURITY.md)** - Port security information
+- **[GITHUB_RELEASE_GUIDE.md](docs/GITHUB_RELEASE_GUIDE.md)** - GitHub release guide
+- **[RELEASE_READY.md](docs/RELEASE_READY.md)** - Release readiness checklist
+- **[SECURITY_CLEANUP_REPORT.md](docs/SECURITY_CLEANUP_REPORT.md)** - Security cleanup report
+- **[SECURITY_PLACEHOLDERS.md](docs/SECURITY_PLACEHOLDERS.md)** - Security placeholders
+- **[SECURITY_URGENT.md](docs/SECURITY_URGENT.md)** - Urgent security items
 
 ### Technical Documentation
 - **[hbbs-patch/](hbbs-patch/)** - HBBS modification documentation
-- **[deprecated/](deprecated/)** - Old components (not recommended)
+- **[archive/](archive/)** - Archived scripts and old files
 - **[dev_modules/](dev_modules/)** - Development and testing tools
 
 ---

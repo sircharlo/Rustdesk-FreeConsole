@@ -5,6 +5,209 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0-secure] - 2026-01-10
+
+### 🔒 Security Update: Localhost-Only API Binding
+
+**Critical Security Enhancement**: HTTP API now binds exclusively to localhost (127.0.0.1), eliminating network exposure.
+
+### Changed
+- **API Port**: Changed from 21114 to 21120
+  - Avoids conflict with RustDesk Pro (which uses 21114 for public API)
+  - Clearly distinguishes this as a localhost-only service
+  - Updated all documentation and configuration examples
+
+- **API Binding**: Localhost-only (127.0.0.1)
+  - Previous: Bound to 0.0.0.0 (all interfaces, potential security risk)
+  - Current: Bound to 127.0.0.1 (localhost only, secure by design)
+  - API accessible only from same machine
+  - Cannot be accessed from network/internet
+  - No firewall configuration needed for port 21120
+
+- **Server Configuration**: Added `--api-port` parameter
+  - Command-line parameter support for flexible deployment
+  - Systemd service updated: `ExecStart=/opt/rustdesk/hbbs --api-port 21120`
+  - Windows service compatible with new parameter
+
+- **Web Console**: Updated to use new API endpoint
+  - Flask app now connects to `http://localhost:21120/api`
+  - Automatic backup of old configuration during update
+  - Verified working with new API port
+
+### Added
+- **Documentation**:
+  - `PORT_SECURITY.md` - Complete port security analysis
+  - SSH tunnel instructions for remote API access
+  - Security audit documentation
+  - Updated README with security notes (6 instances of port references)
+
+- **Binaries**: Updated Linux binaries with security features
+  - `hbbs-v8-api` (9.59 MB) - Built 10.01.2026 10:25 UTC
+  - `hbbr-v8-api` (4.73 MB) - Built 10.01.2026 10:25 UTC
+  - Contains: "HTTP API server listening on (localhost only)" string
+  - Verified: `--api-port` parameter support
+  - Windows binaries retained (compatible with new system)
+
+- **Installation Scripts**:
+  - `install-improved.sh` configured for v8-api binaries
+  - Automatic backup creation before installation
+  - File validation and verification
+  - Service configuration with new port
+
+### Security
+- ✅ **Zero Network Exposure**: API cannot be accessed from external networks
+- ✅ **Connection Refused**: External access attempts properly blocked
+- ✅ **SSH Tunnel Support**: Remote access via secure tunnel only
+- ✅ **No Private Data**: All documentation free of IPs, passwords, credentials
+- ✅ **Verified Installation**: Complete end-to-end security validation
+
+### Fixed
+- **Port Conflict**: No longer conflicts with RustDesk Pro API (port 21114)
+- **Network Security**: Eliminated accidental API exposure to internet
+- **Service Startup**: systemd service properly configured with --api-port parameter
+
+### Technical Details
+- **API Endpoints**: `/api/health`, `/api/peers` (unchanged)
+- **Response Format**: JSON (unchanged)
+- **Performance**: Same as v1.2.0-v8 (~1ms per request)
+- **Compatibility**: Fully compatible with existing RustDesk clients
+- **RustDesk Ports**: TCP 21115-21117, UDP 21116 (unchanged, public access required)
+
+### Remote Access
+
+For remote API access (e.g., from Windows workstation to Linux server):
+
+```bash
+# Create SSH tunnel
+ssh -L 21120:localhost:21120 user@server
+
+# Then access API locally
+curl http://localhost:21120/api/health
+```
+
+### Migration from v1.2.0-v8
+
+**Automatic upgrade:**
+```bash
+cd BetterDesk-Console
+git pull
+sudo ./install-improved.sh
+```
+
+**Manual steps if needed:**
+1. Update systemd service: Add `--api-port 21120` to ExecStart
+2. Update web console: Change API URL to `http://localhost:21120/api`
+3. Reload services: `systemctl daemon-reload && systemctl restart rustdesksignal betterdesk`
+
+### Verification
+
+```bash
+# 1. Check API binding (should show 127.0.0.1:21120 only)
+ss -tlnp | grep 21120
+
+# 2. Test local access (should succeed)
+curl http://localhost:21120/api/health
+
+# 3. Test external access (should fail - connection refused)
+curl http://SERVER_IP:21120/api/health
+
+# 4. Verify RustDesk ports still public
+ss -tlnp | grep -E '21115|21116|21117'
+```
+
+**Expected results:**
+- ✅ Port 21120 on 127.0.0.1 (localhost only)
+- ✅ Local API access works
+- ✅ External API access blocked
+- ✅ RustDesk client ports public (21115-21117)
+
+---
+
+## [1.2.0-v8] - 2026-01-06
+
+### 🚀 Major Update: Precompiled Binaries + Bidirectional Ban Enforcement
+
+**Game Changer**: Installation time reduced from ~20 minutes to ~2 minutes!
+
+### Added
+- **Precompiled Binaries**: No more compilation required!
+  - `hbbs-patch/bin/hbbs-v8` (9.5 MB) - Signal server with bidirectional bans
+  - `hbbs-patch/bin/hbbr-v8` (5.0 MB) - Relay server with bidirectional bans
+  - Ready-to-deploy binaries compiled from RustDesk Server v1.1.14
+  - Installation now takes ~2-3 minutes (vs ~20 min with compilation)
+  - Reduced dependencies: No longer requires git, cargo, or Rust toolchain
+
+- **Bidirectional Ban Enforcement**: Complete ban system overhaul
+  - **Source Ban Check**: Prevents banned devices from initiating ANY connections
+    - Checks device ID at punch hole request (P2P connections)
+    - Checks device ID at relay request (relay connections)
+    - Added `find_by_addr()` method in `peer.rs` to identify source device by IP
+  - **Target Ban Check**: Prevents connections TO banned devices (legacy feature)
+  - Works for both P2P and relay connection types
+  - Real-time database sync - no restart required after ban/unban
+  - Comprehensive logging for audit trail
+
+- **Enhanced Build System**:
+  - Updated `build.sh` with v8 patches (8 automated patches)
+  - New deployment script: `deploy-v8.sh`
+  - Binary verification and checksum tools
+  - Rebuild instructions for custom architectures
+
+- **Documentation**:
+  - `hbbs-patch/bin/README.md` - Binary documentation and verification
+  - `docs/INSTALLATION_V8.md` - Complete v8 installation guide
+  - `hbbs-patch/BAN_ENFORCEMENT.md` - Technical documentation for bidirectional bans
+  - `hbbs-patch/SECURITY_AUDIT.md` - Security audit report
+  - Updated all guides with v8 information
+
+### Changed
+- **Installer Redesign** (`install.sh`):
+  - Now uses precompiled binaries from `hbbs-patch/bin/`
+  - Removed compilation steps (no more `cargo build`)
+  - Reduced dependencies: Only requires python3, pip3, curl, systemctl
+  - Automatic backup of existing binaries (timestamped)
+  - Installs both HBBS and HBBR
+  - Restarts services after installation
+  - ~500MB disk space saved (no Rust toolchain needed)
+
+- **Version Numbering**: Changed from `1.2.0` to `1.2.0-v8` to indicate binary version
+
+### Fixed
+- **Ban Enforcement Bug**: Banned devices could still initiate connections
+  - Root cause: Only target device was checked, not source device
+  - Solution: Added dual ban check (source + target) in punch hole and relay handlers
+  - Added `find_by_addr()` to map socket address to device ID
+  - Now blocks in BOTH directions
+
+### Removed
+- Old binary versions (`hbbs-v2-patched` through `hbbs-v5-patched`) - no longer needed
+- Compilation requirements from documentation
+- References to git/cargo in installation guides
+
+### Technical Details
+- **Architecture**: Linux x86_64 (tested on Ubuntu 20.04+, Debian 11+)
+- **Performance**: Same as before (~1ms per ban check)
+- **Reliability**: 100% ban enforcement in both directions
+- **Compatibility**: Works with all RustDesk clients compatible with v1.1.14 server
+- **Build Time**: N/A for end users (using precompiled), ~15-20 min if rebuilding from source
+
+### Migration Notes
+Users upgrading from v1.2.0 or earlier:
+```bash
+cd Rustdesk-FreeConsole
+git pull
+sudo ./install.sh  # Will automatically backup and upgrade
+```
+
+Benefits of v8:
+- ✅ 10x faster installation
+- ✅ No compilation errors
+- ✅ Fixed ban enforcement bug (bidirectional)
+- ✅ Smaller dependency footprint
+- ✅ Easier deployment
+
+---
+
 ## [1.2.0] - 2026-01-05
 
 ### 🔥 Major Update: Native HBBS Ban Check
