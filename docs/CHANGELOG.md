@@ -89,7 +89,7 @@ curl http://localhost:21120/api/health
 
 **Automatic upgrade:**
 ```bash
-cd BetterDesk-Console
+cd Rustdesk-FreeConsole
 git pull
 sudo ./install-improved.sh
 ```

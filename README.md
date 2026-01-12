@@ -200,8 +200,8 @@ Enhanced installer with Docker support and custom path detection:
 
 ```bash
 # Clone the repository
-git clone https://github.com/UNITRONIX/BetterDesk-Console.git
-cd BetterDesk-Console
+git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
+cd Rustdesk-FreeConsole
 
 # Make the installer executable
 chmod +x install-improved.sh
@@ -222,8 +222,8 @@ Enhanced installer with automatic path detection:
 
 ```powershell
 # Clone the repository
-git clone https://github.com/UNITRONIX/BetterDesk-Console.git
-cd BetterDesk-Console
+git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
+cd Rustdesk-FreeConsole
 
 # Run as Administrator
 .\install-improved.ps1

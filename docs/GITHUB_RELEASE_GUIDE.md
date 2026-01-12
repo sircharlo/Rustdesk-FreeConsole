@@ -219,15 +219,15 @@ This release eliminates network exposure of the HTTP API.
 
 **Linux:**
 ```bash
-git clone https://github.com/UNITRONIX/BetterDesk-Console.git
-cd BetterDesk-Console
+git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
+cd Rustdesk-FreeConsole
 sudo ./install-improved.sh
 ```
 
 **Windows:**
 ```powershell
-git clone https://github.com/UNITRONIX/BetterDesk-Console.git
-cd BetterDesk-Console
+git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
+cd Rustdesk-FreeConsole
 .\install-improved.ps1  # Run as Administrator
 ```
 
@@ -235,7 +235,7 @@ cd BetterDesk-Console
 
 Automatic:
 ```bash
-cd BetterDesk-Console
+cd Rustdesk-FreeConsole
 git pull
 sudo ./install-improved.sh
 ```
@@ -319,8 +319,8 @@ sudo ./install-improved.sh
 
 ## 📞 Kontakt
 
-**Issues:** https://github.com/UNITRONIX/BetterDesk-Console/issues  
-**Discussions:** https://github.com/UNITRONIX/BetterDesk-Console/discussions
+**Issues:** https://github.com/UNITRONIX/Rustdesk-FreeConsole/issues  
+**Discussions:** https://github.com/UNITRONIX/Rustdesk-FreeConsole/discussions
 
 ---
 

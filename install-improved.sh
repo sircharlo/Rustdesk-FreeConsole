@@ -122,6 +122,38 @@ check_dependencies() {
 detect_rustdesk_directory() {
     print_header "Detecting RustDesk Installation"
     
+    # Check for Docker containers first
+    if command -v docker &> /dev/null; then
+        local docker_containers=$(docker ps --filter "ancestor=rustdesk/rustdesk-server" --format "{{.Names}}" 2>/dev/null)
+        if [ -z "$docker_containers" ]; then
+            # Also check for containers with hbbs/hbbr in the name
+            docker_containers=$(docker ps --format "{{.Names}}" | grep -E "(hbbs|hbbr|rustdesk)" 2>/dev/null || true)
+        fi
+        
+        if [ -n "$docker_containers" ]; then
+            print_warning "Docker RustDesk installation detected!"
+            echo ""
+            echo "Found running RustDesk containers:"
+            echo "$docker_containers" | while read -r container; do
+                echo "  - $container"
+            done
+            echo ""
+            print_error "This installation script is designed for native RustDesk installations."
+            print_info "For Docker installations, please use Docker-specific management tools."
+            echo ""
+            echo "To manage your Docker RustDesk:"
+            echo "  • Access container: docker exec -it <container_name> /bin/sh"
+            echo "  • View logs: docker logs <container_name>"
+            echo "  • Restart: docker restart <container_name>"
+            echo ""
+            read -p "Do you want to continue with native installation anyway? [y/N]: " continue_anyway
+            if [[ ! "$continue_anyway" =~ ^[Yy]$ ]]; then
+                print_info "Installation cancelled"
+                exit 0
+            fi
+        fi
+    fi
+    
     # Common installation directories
     local common_dirs=(
         "/opt/rustdesk"
@@ -151,7 +183,7 @@ detect_rustdesk_directory() {
     fi
     
     if [ ${#found_dirs[@]} -eq 0 ]; then
-        print_warning "No existing RustDesk installation found"
+        print_warning "No existing native RustDesk installation found"
         echo ""
         echo "Options:"
         echo "  1) Install to default location: /opt/rustdesk"

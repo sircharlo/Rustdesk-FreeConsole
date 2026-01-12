@@ -51,8 +51,8 @@
 ### For Linux (Ubuntu 20.04+, Debian 11+)
 
 ```bash
-git clone https://github.com/UNITRONIX/BetterDesk-Console.git
-cd BetterDesk-Console
+git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
+cd Rustdesk-FreeConsole
 chmod +x install-improved.sh
 sudo ./install-improved.sh
 ```
@@ -64,8 +64,8 @@ sudo ./install-improved.sh
 ### For Windows (Windows 10+, Server 2016+)
 
 ```powershell
-git clone https://github.com/UNITRONIX/BetterDesk-Console.git
-cd BetterDesk-Console
+git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
+cd Rustdesk-FreeConsole
 # Run as Administrator
 .\install-improved.ps1
 ```
@@ -104,7 +104,7 @@ RustDesk client ports remain publicly accessible (required):
 ### Automatic Upgrade (Recommended)
 
 ```bash
-cd BetterDesk-Console
+cd Rustdesk-FreeConsole
 git pull
 sudo ./install-improved.sh
 ```
@@ -278,7 +278,7 @@ See [CHANGELOG.md](CHANGELOG.md) for complete version history.
 Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 **Report issues:**
-- GitHub Issues: https://github.com/UNITRONIX/BetterDesk-Console/issues
+- GitHub Issues: https://github.com/UNITRONIX/Rustdesk-FreeConsole/issues
 
 ---
 
@@ -298,7 +298,7 @@ MIT License - See [LICENSE](LICENSE) file for details.
 
 ## 🔗 Links
 
-- **Repository:** https://github.com/UNITRONIX/BetterDesk-Console
+- **Repository:** https://github.com/UNITRONIX/Rustdesk-FreeConsole
 - **Documentation:** [README.md](README.md)
 - **Security:** [PORT_SECURITY.md](PORT_SECURITY.md)
 - **RustDesk:** https://rustdesk.com/
