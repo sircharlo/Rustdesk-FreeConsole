@@ -1,1 +1,33 @@
-1.3.0-secure
+v9 (1.3.0-secure)
+
+BetterDesk Console Version 9
+Enhanced Installation Script with Encryption Key Protection
+
+New in v9:
+- 🔑 Comprehensive encryption key protection
+- 🔍 Dynamic .pub file scanning (works with any key filename)
+- 💾 Enhanced backup system with multiple options
+- 🐳 Improved Docker detection and handling
+- 🔧 New repair-keys.sh diagnostic tool
+- 📚 Complete troubleshooting documentation
+- ⚠️ Visual warnings for dangerous operations
+- ✅ Pre-flight validation checks
+
+Critical Fixes:
+- Fixed "keys do not match" errors after installation
+- Fixed public key mismatch in WebConsole
+- Fixed accidental key regeneration
+- Fixed Docker installation conflicts
+- Added automatic key backup verification
+
+Installation:
+sudo bash install-improved.sh
+
+Repair Tool:
+sudo bash repair-keys.sh
+
+Documentation:
+- docs/KEY_TROUBLESHOOTING.md - Complete guide
+- docs/QUICK_FIX.md - Fast solutions
+- docs/RELEASE_NOTES_v9.md - Full changelog
+

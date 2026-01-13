@@ -25,6 +25,8 @@
 - [Installation](#-installation)
   - [Automatic Installation](#automatic-installation)
   - [Manual Installation](#manual-installation)
+  - [🔑 Key Protection](#-key-protection-important)
+- [Troubleshooting](#-troubleshooting)
 - [Configuration](#-configuration)
 - [API Documentation](#-api-documentation)
 - [Development](#-development)
@@ -215,6 +217,10 @@ sudo ./install-improved.sh
 - ✅ Custom RustDesk path detection (searches /opt, /usr/local, /home)
 - ✅ `--break-system-packages` support for Debian 3.11+
 - ✅ File validation and verification
+- ✅ **🔑 Encryption key protection** - preserves existing keys
+- ✅ **Dynamic .pub file scanning** - works with any public key filename
+- ✅ **Multiple backup options** - automatic, manual, or existing backup
+- ✅ **Key regeneration with warnings** - prevents accidental key changes
 
 ### 🪟 Windows Installation
 
@@ -242,6 +248,60 @@ The installers automatically use the correct binaries for your platform:
 - **Windows**: Uses `hbbs-patch/bin-with-api/hbbs-v8-api.exe` (Windows PE binary)
 
 **Do not mix binaries between platforms!** Each installer is designed to work only on its respective operating system.
+
+### 🔑 Key Protection (IMPORTANT!)
+
+**v9+ includes comprehensive encryption key protection:**
+
+⚠️ **Your RustDesk encryption keys are CRITICAL!**
+- Losing keys = ALL clients disconnected
+- Changing keys = "Key mismatch" errors on all devices
+- Keys must be backed up before any installation
+
+**BetterDesk v9+ automatically:**
+- ✅ Detects existing encryption keys
+- ✅ Scans for ANY `.pub` file (not just `id_ed25519.pub`)
+- ✅ Offers multiple backup options (automatic, manual, existing)
+- ✅ Warns before any key changes
+- ✅ Never regenerates keys without explicit confirmation
+
+**During installation, you'll see:**
+```
+🔑 EXISTING ENCRYPTION KEYS DETECTED 🔑
+Found: id_ed25519.pub
+
+Options:
+  1) Keep existing keys (RECOMMENDED)
+  2) Regenerate keys (⚠️ BREAKS client connections)
+  3) Show key information
+```
+
+**Always choose Option 1 unless you know what you're doing!**
+
+**If you experience "Key mismatch" errors:**
+```bash
+# Use the repair tool
+sudo bash repair-keys.sh
+
+# Or restore from automatic backup
+BACKUP=$(ls -d /opt/rustdesk-backup-* | sort | tail -1)
+sudo cp $BACKUP/id_ed25519* /opt/rustdesk/
+sudo systemctl restart rustdesksignal
+```
+
+📖 **Full guide**: [docs/KEY_TROUBLESHOOTING.md](docs/KEY_TROUBLESHOOTING.md)  
+🚑 **Quick fixes**: [docs/QUICK_FIX.md](docs/QUICK_FIX.md)
+
+### What's New in v1.3.0 (Latest)
+
+- **🔑 Encryption Key Protection**: Automatic detection and preservation of existing keys
+- **🔍 Dynamic Key Scanning**: Web console finds any `.pub` file automatically
+- **💾 Enhanced Backup System**: Multiple backup options with verification
+- **🐳 Improved Docker Support**: Better detection and handling of Docker installations
+- **🔧 Key Repair Tool**: New `repair-keys.sh` utility for troubleshooting
+- **📚 Comprehensive Documentation**: KEY_TROUBLESHOOTING.md and QUICK_FIX.md guides
+- **⚠️ Visual Warnings**: Clear indicators for dangerous operations
+- **✅ Pre-flight Checks**: Validation before any destructive operations
 
 ### What's New in v1.1.0
 
@@ -290,6 +350,93 @@ ssh -L 21120:localhost:21120 your-user@your-server
 # Then access locally
 curl http://localhost:21120/api/health
 ```
+
+---
+
+## 🔧 Troubleshooting
+
+### 🚨 "The keys do not match" Error
+
+This is the most common issue after installation. **Don't panic!**
+
+**Quick Fix:**
+```bash
+cd /path/to/Rustdesk-FreeConsole
+sudo bash repair-keys.sh
+# Select option 5: Restore from backup
+```
+
+**If BetterDesk broke your setup:**
+```bash
+# Find most recent backup
+BACKUP=$(ls -d /opt/rustdesk-backup-* | sort | tail -1)
+
+# Restore keys
+sudo systemctl stop rustdesksignal rustdeskrelay
+sudo cp $BACKUP/id_ed25519* /opt/rustdesk/
+sudo chmod 600 /opt/rustdesk/id_ed25519
+sudo chmod 644 /opt/rustdesk/id_ed25519.pub
+sudo systemctl start rustdesksignal rustdeskrelay
+
+# Verify
+cat /opt/rustdesk/id_ed25519.pub
+```
+
+### 📚 Comprehensive Troubleshooting Guides
+
+- **[QUICK_FIX.md](docs/QUICK_FIX.md)** - Fast solutions for common issues
+- **[KEY_TROUBLESHOOTING.md](docs/KEY_TROUBLESHOOTING.md)** - Complete key management guide
+- **[UPDATE_GUIDE.md](docs/UPDATE_GUIDE.md)** - Updating existing installations
+
+### 🔧 Using the Repair Tool
+
+The `repair-keys.sh` tool can fix most key-related issues:
+
+```bash
+sudo bash repair-keys.sh
+```
+
+**Available options:**
+1. 📋 Show current key information
+2. 🔐 Verify and fix key permissions
+3. 📤 Export public key
+4. 🔄 Regenerate keys (⚠️ BREAKS connections)
+5. 💾 Restore keys from backup
+
+### 🐳 Docker Issues
+
+**Problem**: "Docker RustDesk installation detected" message
+
+**Solutions:**
+1. **Use Docker-compose** (recommended for Docker setups)
+2. **Install web console only** (option 2 during installation)
+3. **Continue with native installation** (if intentional)
+
+### Common Issues & Solutions
+
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| "Key mismatch" | Keys changed during install | Restore from backup or use repair tool |
+| Wrong key in WebConsole | Multiple `.pub` files | Remove incorrect files or upgrade to v9+ |
+| Services won't start | Permission issues | Run `sudo bash repair-keys.sh` → option 2 |
+| Can't find backups | Skipped backup during install | Check `/opt/rustdesk-backup-*` directories |
+| Docker detected | Running RustDesk in container | Choose "Web Console only" option |
+
+### 📞 Getting Help
+
+**Before asking for help:**
+1. Check the troubleshooting guides above
+2. Try the repair tool: `sudo bash repair-keys.sh`
+3. Collect diagnostics:
+   ```bash
+   sudo journalctl -u rustdesksignal -n 50 > ~/rustdesk_logs.txt
+   ls -lah /opt/rustdesk/*.pub >> ~/rustdesk_logs.txt
+   ```
+
+**Where to get help:**
+- 🐛 [GitHub Issues](https://github.com/UNITRONIX/Rustdesk-FreeConsole/issues)
+- 📖 [Documentation](docs/)
+- 💬 [RustDesk Discussions](https://github.com/rustdesk/rustdesk/discussions)
 
 ---
 

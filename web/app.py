@@ -50,10 +50,26 @@ def get_db_connection():
     return conn
 
 def get_public_key():
-    """Read the RustDesk public key from file."""
+    """Read the RustDesk public key from file - scans for any .pub file."""
     try:
-        with open(PUB_KEY_PATH, 'r') as f:
-            return f.read().strip()
+        # First try default path
+        if os.path.exists(PUB_KEY_PATH):
+            with open(PUB_KEY_PATH, 'r') as f:
+                key_content = f.read().strip()
+                return f"[id_ed25519.pub] {key_content}"
+        
+        # If default doesn't exist, scan for any .pub file in directory
+        rustdesk_dir = os.path.dirname(PUB_KEY_PATH)
+        if os.path.exists(rustdesk_dir):
+            pub_files = [f for f in os.listdir(rustdesk_dir) if f.endswith('.pub')]
+            if pub_files:
+                # Use the first .pub file found
+                pub_file_path = os.path.join(rustdesk_dir, pub_files[0])
+                with open(pub_file_path, 'r') as f:
+                    key_content = f.read().strip()
+                    return f"[{pub_files[0]}] {key_content}"
+        
+        return "❌ No public key file (.pub) found in RustDesk directory"
     except Exception as e:
         return f"Error reading key: {str(e)}"
 

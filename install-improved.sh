@@ -138,19 +138,46 @@ detect_rustdesk_directory() {
                 echo "  - $container"
             done
             echo ""
-            print_error "This installation script is designed for native RustDesk installations."
-            print_info "For Docker installations, please use Docker-specific management tools."
+            print_error "⚠️  CRITICAL: This script installs native binaries, NOT for Docker!"
+            print_info "Docker installations require different setup approach."
             echo ""
-            echo "To manage your Docker RustDesk:"
-            echo "  • Access container: docker exec -it <container_name> /bin/sh"
-            echo "  • View logs: docker logs <container_name>"
-            echo "  • Restart: docker restart <container_name>"
+            echo "Installation options:"
+            echo "  1) Exit and use Docker-compose setup (RECOMMENDED)"
+            echo "  2) Install ONLY Web Console for existing Docker RustDesk"
+            echo "  3) Continue with native installation (WILL NOT WORK WITH DOCKER)"
             echo ""
-            read -p "Do you want to continue with native installation anyway? [y/N]: " continue_anyway
-            if [[ ! "$continue_anyway" =~ ^[Yy]$ ]]; then
-                print_info "Installation cancelled"
-                exit 0
-            fi
+            read -p "Choose option [1-3]: " docker_choice
+            
+            case $docker_choice in
+                1)
+                    print_info "Installation cancelled"
+                    echo ""
+                    print_info "For Docker setup, see: docs/DOCKER_SUPPORT.md"
+                    echo "Or run: docker-compose up -d"
+                    exit 0
+                    ;;
+                2)
+                    print_info "Web Console only mode selected"
+                    print_warning "This will install ONLY the web interface"
+                    print_warning "Make sure your Docker RustDesk is properly configured!"
+                    DOCKER_MODE=true
+                    detect_docker_volumes
+                    return
+                    ;;
+                3)
+                    print_warning "Proceeding with native installation..."
+                    print_error "This WILL NOT integrate with your Docker containers!"
+                    read -p "Type 'UNDERSTAND' to continue: " confirm
+                    if [ "$confirm" != "UNDERSTAND" ]; then
+                        print_info "Installation cancelled"
+                        exit 0
+                    fi
+                    ;;
+                *)
+                    print_error "Invalid option"
+                    exit 1
+                    ;;
+            esac
         fi
     fi
     
@@ -243,6 +270,26 @@ detect_rustdesk_directory() {
     fi
 }
 
+detect_docker_volumes() {
+    print_info "Detecting Docker RustDesk volumes..."
+    # Try to find Docker volume mount points
+    local volume_path=$(docker inspect $(docker ps --format "{{.Names}}" | grep -E "(hbbs|rustdesk)" | head -1) 2>/dev/null | grep -oP '"Source": "\K[^"]+' | grep -E "(rustdesk|hbbs)" | head -1)
+    
+    if [ -n "$volume_path" ] && [ -d "$volume_path" ]; then
+        RUSTDESK_DIR="$volume_path"
+        print_success "Detected Docker volume at: $RUSTDESK_DIR"
+    else
+        print_warning "Could not auto-detect Docker volume"
+        read -p "Enter Docker volume path (e.g., /var/lib/docker/volumes/...): " docker_vol
+        if [ -d "$docker_vol" ]; then
+            RUSTDESK_DIR="$docker_vol"
+        else
+            print_error "Invalid path: $docker_vol"
+            exit 1
+        fi
+    fi
+}
+
 verify_rustdesk_files() {
     print_header "Verifying RustDesk Installation"
     
@@ -256,20 +303,16 @@ verify_rustdesk_files() {
     if [ -d "$RUSTDESK_DIR" ] && [ "$(ls -A $RUSTDESK_DIR 2>/dev/null)" ]; then
         print_info "Checking existing installation..."
         
-        local required_files=("id_ed25519" "id_ed25519.pub")
-        local missing_files=()
-        
-        for file in "${required_files[@]}"; do
-            if [ ! -f "$RUSTDESK_DIR/$file" ]; then
-                missing_files+=("$file")
-            fi
-        done
-        
-        if [ ${#missing_files[@]} -ne 0 ]; then
-            print_warning "Missing RustDesk key files: ${missing_files[*]}"
-            print_info "These files will be generated automatically when HBBS first starts"
+        # Check for ANY .pub file, not just id_ed25519.pub
+        local pub_files=$(find "$RUSTDESK_DIR" -maxdepth 1 -name "*.pub" 2>/dev/null)
+        if [ -n "$pub_files" ]; then
+            print_success "Found public key files:"
+            echo "$pub_files" | while read -r pubfile; do
+                echo "  - $(basename $pubfile)"
+            done
         else
-            print_success "RustDesk key files found"
+            print_warning "No public key files (.pub) found"
+            print_info "Keys will be generated automatically when HBBS first starts"
         fi
         
         # Check for database
@@ -293,6 +336,194 @@ verify_rustdesk_files() {
     print_success "Installation directory verified: $RUSTDESK_DIR"
 }
 
+verify_and_protect_keys() {
+    print_header "Verifying Encryption Keys"
+    
+    # Skip in Docker mode
+    if [ "$DOCKER_MODE" = true ]; then
+        print_info "Docker mode - skipping key verification"
+        return 0
+    fi
+    
+    local key_files=("$RUSTDESK_DIR/id_ed25519" "$RUSTDESK_DIR/id_ed25519.pub")
+    local keys_exist=false
+    local found_keys=()
+    
+    # Check for standard keys
+    for key_file in "${key_files[@]}"; do
+        if [ -f "$key_file" ]; then
+            keys_exist=true
+            found_keys+=("$(basename $key_file)")
+        fi
+    done
+    
+    # Also check for any other .pub files
+    local other_pub_files=$(find "$RUSTDESK_DIR" -maxdepth 1 -name "*.pub" ! -name "id_ed25519.pub" 2>/dev/null)
+    if [ -n "$other_pub_files" ]; then
+        keys_exist=true
+        while IFS= read -r pubfile; do
+            found_keys+=("$(basename $pubfile)")
+        done <<< "$other_pub_files"
+    fi
+    
+    if [ "$keys_exist" = true ]; then
+        echo -e "${YELLOW}════════════════════════════════════════${NC}"
+        echo -e "${YELLOW}🔑 EXISTING ENCRYPTION KEYS DETECTED 🔑${NC}"
+        echo -e "${YELLOW}════════════════════════════════════════${NC}"
+        echo ""
+        print_success "Found existing key files:"
+        for key in "${found_keys[@]}"; do
+            echo "  🔑 $key"
+        done
+        echo ""
+        echo -e "${RED}⚠️  CRITICAL INFORMATION:${NC}"
+        echo "  • These keys authenticate your RustDesk server"
+        echo "  • Clients are configured with your current public key"
+        echo "  • Changing keys = ALL clients will be disconnected"
+        echo "  • Clients will show 'Key mismatch' errors"
+        echo ""
+        echo -e "${GREEN}RECOMMENDATION: KEEP existing keys${NC}"
+        echo ""
+        echo "Options:"
+        echo "  1) 🔒 Keep existing keys (RECOMMENDED - no client disruption)"
+        echo "  2) 🔄 Backup and regenerate keys (⚠️  WILL BREAK all client connections)"
+        echo "  3) ℹ️  Show key information"
+        echo ""
+        read -p "Choose option [1-3]: " key_choice
+        
+        case $key_choice in
+            1)
+                print_success "✓ Keeping existing keys - clients will continue working"
+                ;;
+            2)
+                echo ""
+                print_error "⚠️  WARNING: KEY REGENERATION IMPACT ⚠️"
+                echo ""
+                echo "After regenerating keys, you MUST:"
+                echo "  1. Update ALL client configurations"
+                echo "  2. Distribute new public key to all users"
+                echo "  3. Reconfigure each RustDesk client individually"
+                echo ""
+                echo "Estimated impact:"
+                echo "  • Downtime: Until all clients are reconfigured"
+                echo "  • User impact: HIGH - manual reconfiguration required"
+                echo ""
+                read -p "Are you ABSOLUTELY SURE? Type 'REGENERATE' to confirm: " confirm
+                if [ "$confirm" = "REGENERATE" ]; then
+                    backup_and_regenerate_keys
+                else
+                    print_info "Keeping existing keys"
+                fi
+                ;;
+            3)
+                show_key_information
+                # Ask again after showing info
+                read -p "Keep existing keys? [Y/n]: " keep_keys
+                if [[ "$keep_keys" =~ ^[Nn]$ ]]; then
+                    backup_and_regenerate_keys
+                else
+                    print_success "Keeping existing keys"
+                fi
+                ;;
+            *)
+                print_info "Invalid option - keeping existing keys"
+                ;;
+        esac
+    else
+        print_info "No existing keys found"
+        print_info "New keys will be automatically generated on first HBBS start"
+        echo ""
+        print_warning "Remember to:"
+        echo "  1. Note the generated public key from web console"
+        echo "  2. Configure it in all RustDesk clients"
+    fi
+    
+    echo ""
+}
+
+show_key_information() {
+    echo ""
+    print_header "Current Key Information"
+    echo ""
+    
+    # List all key files
+    echo "Key files in $RUSTDESK_DIR:"
+    ls -lh "$RUSTDESK_DIR"/*.pub 2>/dev/null | awk '{print "  " $9 " (" $5 ")"}'
+    ls -lh "$RUSTDESK_DIR"/id_ed25519 2>/dev/null | awk '{print "  " $9 " (" $5 ")" " [private]"}'
+    echo ""
+    
+    # Show public key content
+    if [ -f "$RUSTDESK_DIR/id_ed25519.pub" ]; then
+        echo "Public key content (id_ed25519.pub):"
+        echo "═══════════════════════════════════════════════════════════"
+        cat "$RUSTDESK_DIR/id_ed25519.pub"
+        echo "═══════════════════════════════════════════════════════════"
+    fi
+    
+    # Show other .pub files
+    local other_pubs=$(find "$RUSTDESK_DIR" -maxdepth 1 -name "*.pub" ! -name "id_ed25519.pub" 2>/dev/null)
+    if [ -n "$other_pubs" ]; then
+        echo ""
+        echo "Other public key files found:"
+        while IFS= read -r pubfile; do
+            echo ""
+            echo "File: $(basename $pubfile)"
+            echo "───────────────────────────────────────────────────────────"
+            cat "$pubfile"
+            echo "───────────────────────────────────────────────────────────"
+        done <<< "$other_pubs"
+    fi
+    
+    echo ""
+}
+
+backup_and_regenerate_keys() {
+    print_info "🔒 Backing up existing keys..."
+    local backup_suffix="backup-$(date +%Y%m%d-%H%M%S)"
+    local keys_backed_up=false
+    
+    # Backup all key files
+    for key_pattern in "id_ed25519" "id_ed25519.pub" "*.pub" "id_rsa" "id_rsa.pub"; do
+        for key_file in $RUSTDESK_DIR/$key_pattern; do
+            if [ -f "$key_file" ]; then
+                cp "$key_file" "$key_file.$backup_suffix"
+                print_success "✓ Backed up: $(basename $key_file) → $(basename $key_file).$backup_suffix"
+                keys_backed_up=true
+            fi
+        done
+    done
+    
+    if [ "$keys_backed_up" = false ]; then
+        print_warning "No keys found to backup"
+    fi
+    
+    print_info "🗑️  Removing old keys..."
+    rm -f "$RUSTDESK_DIR/id_ed25519" "$RUSTDESK_DIR/id_ed25519.pub"
+    
+    print_info "🔑 Generating new ED25519 key pair..."
+    if command -v ssh-keygen &>/dev/null; then
+        ssh-keygen -t ed25519 -f "$RUSTDESK_DIR/id_ed25519" -N "" -C "rustdesk-server-$(date +%Y%m%d)" &>/dev/null
+        
+        if [ -f "$RUSTDESK_DIR/id_ed25519.pub" ]; then
+            print_success "✓ New keys generated successfully"
+            echo ""
+            echo "New public key:"
+            echo "═══════════════════════════════════════════════════════════"
+            cat "$RUSTDESK_DIR/id_ed25519.pub"
+            echo "═══════════════════════════════════════════════════════════"
+            echo ""
+            print_warning "⚠️  IMPORTANT: Copy this key and configure it in ALL RustDesk clients!"
+            echo ""
+            read -p "Press ENTER after noting the public key..."
+        else
+            print_error "Failed to generate keys"
+        fi
+    else
+        print_warning "ssh-keygen not found - keys will be generated by HBBS on startup"
+        print_info "You can retrieve the public key from the web console after installation"
+    fi
+}
+
 backup_rustdesk() {
     print_header "Backing Up Existing RustDesk Installation"
     
@@ -304,32 +535,110 @@ backup_rustdesk() {
     
     BACKUP_DIR="/opt/rustdesk-backup-$(date +%Y%m%d-%H%M%S)"
     
-    echo -e "${YELLOW}Found existing RustDesk installation${NC}"
+    echo -e "${RED}═══════════════════════════════════════════════════${NC}"
+    echo -e "${RED}⚠️  CRITICAL: BACKUP REQUIRED BEFORE PROCEEDING ⚠️${NC}"
+    echo -e "${RED}═══════════════════════════════════════════════════${NC}"
     echo ""
-    echo "Options:"
-    echo "  1) Create automatic backup to $BACKUP_DIR"
-    echo "  2) I have already created a manual backup"
-    echo "  3) Skip backup (not recommended)"
+    echo -e "${YELLOW}Found existing RustDesk installation at:${NC}"
+    echo -e "  📁 $RUSTDESK_DIR"
     echo ""
-    read -p "Choose option [1-3]: " backup_choice
+    echo -e "${YELLOW}⚠️  This installation will:${NC}"
+    echo "  • Replace HBBS/HBBR binaries"
+    echo "  • Modify systemd services"
+    echo "  • Update database schema"
+    echo ""
+    echo -e "${RED}🔑 ENCRYPTION KEYS WARNING:${NC}"
+    echo "  Your encryption keys (.pub files) are CRITICAL!"
+    echo "  Losing them will break ALL existing client connections!"
+    echo ""
+    echo -e "${GREEN}═══════════════════════════════════════════════════${NC}"
+    echo -e "${GREEN}BACKUP OPTIONS:${NC}"
+    echo -e "${GREEN}═══════════════════════════════════════════════════${NC}"
+    echo ""
+    echo "  1) 🔒 Create AUTOMATIC backup (RECOMMENDED)"
+    echo "     → Backup location: $BACKUP_DIR"
+    echo ""
+    echo "  2) 📋 Create MANUAL backup first, then continue"
+    echo "     → Commands to run:"
+    echo "       sudo cp -r $RUSTDESK_DIR ${RUSTDESK_DIR}-manual-backup-$(date +%Y%m%d)"
+    echo "       [Press Enter after creating backup]"
+    echo ""
+    echo "  3) ✅ I already have a backup (verify before selecting!)"
+    echo ""
+    echo "  4) ⛔ Skip backup (DANGEROUS - NOT RECOMMENDED)"
+    echo ""
+    read -p "Choose option [1-4]: " backup_choice
     
     case $backup_choice in
         1)
-            print_info "Creating backup..."
-            cp -r "$RUSTDESK_DIR" "$BACKUP_DIR"
-            print_success "Backup created at: $BACKUP_DIR"
+            print_info "Creating automatic backup..."
+            if cp -r "$RUSTDESK_DIR" "$BACKUP_DIR"; then
+                print_success "✓ Backup created successfully!"
+                print_success "Backup location: $BACKUP_DIR"
+                
+                # Verify backup
+                if [ -d "$BACKUP_DIR" ]; then
+                    local backup_size=$(du -sh "$BACKUP_DIR" | cut -f1)
+                    print_info "Backup size: $backup_size"
+                    
+                    # Check for keys in backup
+                    if ls "$BACKUP_DIR"/*.pub &>/dev/null; then
+                        print_success "✓ Encryption keys backed up"
+                    else
+                        print_warning "⚠ No .pub files in backup"
+                    fi
+                fi
+            else
+                print_error "Backup failed!"
+                print_error "Cannot proceed without backup"
+                exit 1
+            fi
             ;;
         2)
-            print_info "Using manual backup"
-            BACKUP_DIR=""
+            echo ""
+            print_info "Please create manual backup now..."
+            echo ""
+            echo -e "${YELLOW}Run these commands in another terminal:${NC}"
+            echo ""
+            echo "  sudo cp -r $RUSTDESK_DIR ${RUSTDESK_DIR}-manual-backup-$(date +%Y%m%d)"
+            echo "  ls -lah ${RUSTDESK_DIR}-manual-backup-$(date +%Y%m%d)/*.pub"
+            echo ""
+            read -p "Press ENTER after creating backup (or Ctrl+C to cancel)..." 
+            print_info "Proceeding with installation..."
+            BACKUP_DIR="Manual backup"
             ;;
         3)
-            print_warning "Skipping backup - YOU ARE RESPONSIBLE FOR ANY DATA LOSS"
-            read -p "Are you SURE? Type 'yes' to continue: " confirm
-            if [ "$confirm" != "yes" ]; then
+            print_warning "Using existing backup"
+            echo ""
+            read -p "Confirm backup location (or press Enter to skip): " manual_backup_path
+            if [ -n "$manual_backup_path" ] && [ -d "$manual_backup_path" ]; then
+                print_success "Verified backup exists at: $manual_backup_path"
+                BACKUP_DIR="$manual_backup_path"
+            else
+                print_warning "Could not verify backup location"
+                read -p "Continue anyway? [y/N]: " confirm_continue
+                if [[ ! "$confirm_continue" =~ ^[Yy]$ ]]; then
+                    print_error "Installation cancelled"
+                    exit 1
+                fi
+                BACKUP_DIR="User confirmed backup"
+            fi
+            ;;
+        4)
+            print_error "⛔ SKIPPING BACKUP IS EXTREMELY DANGEROUS!"
+            echo ""
+            print_warning "You will be SOLELY RESPONSIBLE for:"
+            echo "  • Lost encryption keys"
+            echo "  • Broken client connections"
+            echo "  • Database corruption"
+            echo "  • Complete data loss"
+            echo ""
+            read -p "Type 'I ACCEPT THE RISK' to continue: " confirm_risk
+            if [ "$confirm_risk" != "I ACCEPT THE RISK" ]; then
                 print_error "Installation cancelled"
                 exit 1
             fi
+            print_warning "Proceeding WITHOUT backup - you have been warned!"
             BACKUP_DIR=""
             ;;
         *)
@@ -337,6 +646,8 @@ backup_rustdesk() {
             exit 1
             ;;
     esac
+    
+    echo ""
 }
 
 install_binaries() {
@@ -720,6 +1031,7 @@ main() {
     detect_rustdesk_directory
     verify_rustdesk_files
     backup_rustdesk
+    verify_and_protect_keys
     install_binaries
     run_database_migrations
     install_web_console
