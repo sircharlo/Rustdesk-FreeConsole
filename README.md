@@ -41,6 +41,8 @@
 
 **BetterDesk Console** is an enhanced web management interface for [RustDesk](https://github.com/rustdesk/rustdesk) - the open-source remote desktop solution. It extends the standard RustDesk HBBS (HBB Signal Server) with a powerful HTTP API and provides a beautiful, modern web interface for managing your RustDesk infrastructure.
 
+> **🤖 AI-Assisted Development**: This project was developed with significant assistance from AI coding tools (Claude/GitHub Copilot). While all code has been reviewed, tested, and validated for production use, users should be aware of this development approach.
+
 ### Why BetterDesk Console?
 
 - **Real-Time Monitoring**: See which devices are online/offline instantly
