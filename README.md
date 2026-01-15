@@ -1,12 +1,13 @@
-# 🚀 BetterDesk Console
+﻿# 🚀 BetterDesk Console
 
 <div align="center">
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![RustDesk](https://img.shields.io/badge/RustDesk-1.1.14-green.svg)
 ![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)
-![Version](https://img.shields.io/badge/version-1.3.0--secure-brightgreen.svg)
-![Security](https://img.shields.io/badge/API-localhost--only-orange.svg)
+![Version](https://img.shields.io/badge/version-1.5.0-brightgreen.svg)
+![Security](https://img.shields.io/badge/API-X--API--Key--Auth-green.svg)
+![Access](https://img.shields.io/badge/LAN-Accessible-blue.svg)
 
 **A modern, feature-rich web management console for RustDesk with real-time device monitoring and bidirectional ban enforcement**
 
@@ -60,14 +61,14 @@
 
 - **Glassmorphism Design**: Sleek, modern UI with blur effects and gradients
 - **Material Icons**: Google Material Design icons (fully offline)
-- **Responsive Layout**: Works on desktop, tablet, and mobile
+- **Responsive Layout**: Works on desktop and tablet
 - **Dark Theme**: Easy on the eyes, perfect for NOC environments
 - **Real-Time Updates**: Auto-refresh device status
 - **Search & Filter**: Quickly find devices in large deployments
 
 ### 🔧 Enhanced HBBS Server
 
-- **HTTP API**: RESTful API on port 21120 (localhost only, not exposed to internet)
+- **HTTP API**: RESTful API on port 21120 with X-API-Key authentication (LAN accessible)
 - **Real-Time Status**: Memory-based device status (no database lag)
 - **Authentic Algorithm**: Uses RustDesk's official 30-second timeout logic
 - **Thread-Safe**: Shared PeerMap with Arc/RwLock for concurrent access
@@ -98,6 +99,21 @@
 
 ### 🛡️ Security & Reliability
 
+- **Authentication System (v1.5.0)**:
+  - User login with bcrypt password hashing
+  - Role-based access control (Admin, Operator, Viewer)
+  - Session management with 24-hour tokens
+  - **\ud83c\udf10 Sidebar navigation** with 5 main sections (Dashboard, Public Key, Settings, User Management, About)
+  - **\ud83d\udd11 Password-protected public key access** - requires password verification
+  - **\u2699\ufe0f Settings page** with password change functionality
+  - **\ud83d\udc65 User management panel** (admin only) - create, edit, delete, activate/deactivate users
+  - **\ud83d\udcdd Extended About page** with open source credits and license information
+  - Audit logging for all actions
+- **API Security (v1.4.0)**:
+  - X-API-Key header authentication for HBBS API
+  - 64-character random API keys
+  - Secure key storage with 600 permissions
+  - LAN accessible (0.0.0.0) with authentication protection
 - **Input Validation**: Comprehensive validation for all user inputs
 - **XSS Protection**: Sanitization of user-provided content
 - **SQL Injection Prevention**: Parameterized queries throughout
@@ -131,9 +147,21 @@
 ![Details](screenshots/device-details.png)
 *Detailed device information modal*
 
-### Mobile Responsive
-![Mobile](screenshots/mobile-view.png)
-*Fully responsive design for mobile devices*
+### Public Key Management
+![Public Key](screenshots/public_key_page.png)
+*Secure public key access with password protection*
+
+### Settings
+![Settings](screenshots/settings_page.png)
+*User settings and password management*
+
+### User Management
+![User Management](screenshots/user_mgmt.png)
+*Multi-user administration panel*
+
+### About
+![About](screenshots/about.png)
+*System information and version details*
 
 ---
 
@@ -142,7 +170,7 @@
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                   RustDesk Clients                      │
-│              (Desktop, Mobile, Web)                      │
+│              (Desktop, Tablet, Web)                      │
 └──────────────────────┬──────────────────────────────────┘
                        │ Heartbeat (~30-45s)
                        ▼
@@ -164,7 +192,7 @@
 ┌────────────────┐   ┌─────────────────┐
 │  HTTP API      │   │  SQLite DB      │
 │  (Port 21120)  │   │  (Persistence)  │
-│  (Localhost)   │   │                 │
+│  (LAN Access)  │   │                 │
 └────────┬───────┘   └─────────────────┘
          │
          ▼
@@ -223,6 +251,31 @@ sudo ./install-improved.sh
 - ✅ **Dynamic .pub file scanning** - works with any public key filename
 - ✅ **Multiple backup options** - automatic, manual, or existing backup
 - ✅ **Key regeneration with warnings** - prevents accidental key changes
+- ✅ **API key generation** - automatic X-API-Key authentication setup
+- ✅ **LAN access configuration** - web console and API accessible on network
+
+### 🔄 Updating Existing Installation
+
+If you already have BetterDesk Console installed and want to upgrade to v1.4.0 with authentication:
+
+```bash
+cd Rustdesk-FreeConsole
+
+# Make the update script executable
+chmod +x update-to-v1.4.0.sh
+
+# Run as root
+sudo ./update-to-v1.4.0.sh
+```
+
+**Update features:**
+- ✅ Automatic backup before changes
+- ✅ Database migration to add authentication tables
+- ✅ API key generation and configuration
+- ✅ Preserves existing configuration
+- ✅ Creates default admin user (if needed)
+- ✅ Updates systemd services for LAN access
+- ✅ Rollback capability if update fails
 
 ### 🪟 Windows Installation
 
@@ -253,14 +306,14 @@ The installers automatically use the correct binaries for your platform:
 
 ### 🔑 Key Protection (IMPORTANT!)
 
-**v9+ includes comprehensive encryption key protection:**
+**v1.5.0+ includes comprehensive encryption key protection:**
 
 ⚠️ **Your RustDesk encryption keys are CRITICAL!**
 - Losing keys = ALL clients disconnected
 - Changing keys = "Key mismatch" errors on all devices
 - Keys must be backed up before any installation
 
-**BetterDesk v9+ automatically:**
+**BetterDesk v1.5.0+ automatically:**
 - ✅ Detects existing encryption keys
 - ✅ Scans for ANY `.pub` file (not just `id_ed25519.pub`)
 - ✅ Offers multiple backup options (automatic, manual, existing)
@@ -282,35 +335,25 @@ Options:
 
 **If you experience "Key mismatch" errors:**
 ```bash
-# Use the repair tool
-sudo bash repair-keys.sh
-
-# Or restore from automatic backup
+# Restore from automatic backup
 BACKUP=$(ls -d /opt/rustdesk-backup-* | sort | tail -1)
 sudo cp $BACKUP/id_ed25519* /opt/rustdesk/
 sudo systemctl restart rustdesksignal
 ```
 
-📖 **Full guide**: [docs/KEY_TROUBLESHOOTING.md](docs/KEY_TROUBLESHOOTING.md)  
-🚑 **Quick fixes**: [docs/QUICK_FIX.md](docs/QUICK_FIX.md)
+📖 **Full guide**: [docs/KEY_TROUBLESHOOTING.md](docs/KEY_TROUBLESHOOTING.md)
 
-### What's New in v1.3.0 (Latest)
+### What's New in v1.5.0 (Latest)
 
-- **🔑 Encryption Key Protection**: Automatic detection and preservation of existing keys
-- **🔍 Dynamic Key Scanning**: Web console finds any `.pub` file automatically
-- **💾 Enhanced Backup System**: Multiple backup options with verification
-- **🐳 Improved Docker Support**: Better detection and handling of Docker installations
-- **🔧 Key Repair Tool**: New `repair-keys.sh` utility for troubleshooting
-- **📚 Comprehensive Documentation**: KEY_TROUBLESHOOTING.md and QUICK_FIX.md guides
-- **⚠️ Visual Warnings**: Clear indicators for dangerous operations
-- **✅ Pre-flight Checks**: Validation before any destructive operations
-
-### What's New in v1.1.0
-
-- **Device Banning System**: Ban/unban devices with reason tracking
-- **Soft Delete**: Devices marked as deleted instead of permanent removal
-- **Enhanced Security**: Input validation, XSS protection, SQL injection prevention
-- **Improved UI**: Visual ban indicators, new statistics card, confirmation dialogs
+- **🔐 Authentication System**: User login with bcrypt password hashing
+- **👥 Role-Based Access Control**: Admin, Operator, and Viewer roles
+- **🌐 Sidebar Navigation**: Modern UI with 5 main sections
+- **🔑 Password-Protected Public Key**: Requires verification to view
+- **⚙️ Settings Page**: Change password functionality with token regeneration
+- **👤 User Management**: Admin panel to create, edit, delete users
+- **📝 Extended About Page**: Open source credits and license info
+- **🛡️ CSRF Protection**: Flask-WTF security
+- **⏱️ Rate Limiting**: 5 login attempts per minute
 
 ### 🔒 Manual Installation on SSH Server (Security Update)
 
@@ -330,28 +373,7 @@ sudo bash ~/MANUAL_INSTALL.sh
 2. Backup old binaries (timestamped)
 3. Install new binaries from `~/build/hbbs-patch/rustdesk-server/target/release/`
 4. Restart services
-5. Verify:
-   - HTTP API listening on `127.0.0.1:21120` (localhost only)
-   - RustDesk ports 21115-21117 operational
-   - Port 21120 NOT accessible from external network
-
-**Post-installation verification:**
-```bash
-# On server (should work)
-curl http://localhost:21120/api/health
-
-# From outside (should FAIL with "Connection refused")
-curl http://SERVER_IP:21120/api/health
-```
-
-**To access API remotely, use SSH tunnel:**
-```bash
-# Create tunnel
-ssh -L 21120:localhost:21120 your-user@your-server
-
-# Then access locally
-curl http://localhost:21120/api/health
-```
+5. Verify API is responding on port 21120
 
 ---
 
@@ -446,22 +468,32 @@ sudo bash repair-keys.sh
 
 ### HBBS API Port
 
-Default: `21120` (localhost only - not exposed to internet)
+Default: `21120` (LAN accessible with X-API-Key authentication)
 
-**Security**: The API is bound to `127.0.0.1` (localhost) by design. This means:
-- ✅ API is only accessible from the same machine
-- ✅ Cannot be accessed from network/internet even without firewall
-- ✅ Web console connects locally or via SSH tunnel
-- ✅ No risk of unauthorized data exposure
+**Security (v1.4.0)**: The API now supports LAN access with proper authentication:
+- \u2705 Binds to `0.0.0.0:21120` (accessible on LAN)
+- \u2705 Requires X-API-Key header for all requests
+- \u2705 64-character random API key generated during installation
+- \u2705 Key stored securely in `/opt/rustdesk/.api_key` with 600 permissions
+- \u2705 Web console automatically uses API key
+- \u2705 No authentication = no access (secure by design)
 
-To change, edit `/etc/systemd/system/rustdesksignal.service`:
+**API Key Location**: `/opt/rustdesk/.api_key`
+
+To change port, edit `/etc/systemd/system/rustdesksignal.service`:
 ```ini
-ExecStart=/opt/rustdesk/hbbs -k _ -p 21115 --api-port 21115
+ExecStart=/opt/rustdesk/hbbs -k _ -p 21115 --api-port 21120
 ```
 
 ### Web Console Port
 
-Default: `5000`
+Default: `5000` (accessible on LAN)
+
+The web console binds to `0.0.0.0:5000` for LAN access and includes:
+- User authentication (bcrypt passwords)
+- Session management (24-hour tokens)
+- Role-based access control
+- Audit logging
 
 To change, edit `/opt/BetterDeskConsole/app.py`:
 ```python
@@ -471,12 +503,13 @@ app.run(host='0.0.0.0', port=5000)
 ### Firewall Configuration
 
 ```bash
-# Allow web console (if needed externally)
-sudo ufw allow 5000/tcp
+# Allow web console on LAN
+sudo ufw allow from 192.168.0.0/16 to any port 5000 proto tcp
 
-# HBBS API (usually internal only)
-# Port 21120 does NOT need to be opened - it's localhost only!
-# Only open RustDesk ports:
+# Allow HBBS API on LAN (if needed for external tools)
+sudo ufw allow from 192.168.0.0/16 to any port 21120 proto tcp
+
+# Standard RustDesk ports
 sudo ufw allow 21115/tcp
 sudo ufw allow 21116/tcp
 sudo ufw allow 21116/udp
@@ -489,15 +522,29 @@ sudo ufw allow 21117/tcp
 
 ### Base URL
 ```
-http://localhost:21120/api
+http://<server-ip>:21120/api
 ```
-**Note**: API is bound to localhost only and cannot be accessed from external networks.
+
+### Authentication
+
+**All API requests require X-API-Key header:**
+```bash
+curl -H "X-API-Key: YOUR_API_KEY_HERE" http://192.168.1.100:21120/api/health
+```
+
+**API Key Location**: `/opt/rustdesk/.api_key`
+
+To retrieve your API key:
+```bash
+sudo cat /opt/rustdesk/.api_key
+```
 
 ### Endpoints
 
 #### Health Check
 ```http
 GET /api/health
+Headers: X-API-Key: <your-api-key>
 ```
 
 **Response**:
@@ -512,6 +559,7 @@ GET /api/health
 #### List All Peers
 ```http
 GET /api/peers
+Headers: X-API-Key: <your-api-key>
 ```
 
 **Response**:
@@ -533,6 +581,14 @@ GET /api/peers
   "error": null
 }
 ```
+
+**Error Response (No/Invalid API Key)**:
+```json
+{
+  "error": "Unauthorized: Invalid or missing API key"
+}
+```
+Status Code: 401
 
 ### Status Detection Algorithm
 
@@ -574,7 +630,10 @@ BetterDeskConsole/
 │   ├── dashboard.png
 │   ├── devices-list.png
 │   ├── device-details.png
-│   └── mobile-view.png
+│   ├── public_key_page.png
+│   ├── settings_page.png
+│   ├── user_mgmt.png
+│   └── about.png
 ├── web/                         # Web console
 │   ├── app.py                   # Flask application
 │   ├── app_demo.py              # Demo with mock data
@@ -782,23 +841,14 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 ### Additional Documentation ([docs/](docs/))
 - **[CHANGELOG.md](docs/CHANGELOG.md)** - Complete version history
 - **[CONTRIBUTING.md](docs/CONTRIBUTING.md)** - How to contribute
-- **[DEPRECATION_NOTICE.md](docs/DEPRECATION_NOTICE.md)** - Deprecated features info
-- **[RELEASE_NOTES_v1.2.0.md](docs/RELEASE_NOTES_v1.2.0.md)** - Latest release notes
-- **[RELEASE_NOTES_v1.3.0.md](docs/RELEASE_NOTES_v1.3.0.md)** - Version 1.3.0 release notes
+- **[INSTALLATION_V1.4.0.md](docs/INSTALLATION_V1.4.0.md)** - Detailed installation guide
 - **[UPDATE_GUIDE.md](docs/UPDATE_GUIDE.md)** - Update instructions
-- **[DEVELOPMENT_ROADMAP.md](docs/DEVELOPMENT_ROADMAP.md)** - Future plans
-- **[PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)** - Project structure overview
-- **[PROJECT_ORGANIZATION.md](docs/PROJECT_ORGANIZATION.md)** - Project organization details
+- **[KEY_TROUBLESHOOTING.md](docs/KEY_TROUBLESHOOTING.md)** - Key troubleshooting guide
 - **[PORT_SECURITY.md](docs/PORT_SECURITY.md)** - Port security information
-- **[GITHUB_RELEASE_GUIDE.md](docs/GITHUB_RELEASE_GUIDE.md)** - GitHub release guide
-- **[RELEASE_READY.md](docs/RELEASE_READY.md)** - Release readiness checklist
-- **[SECURITY_CLEANUP_REPORT.md](docs/SECURITY_CLEANUP_REPORT.md)** - Security cleanup report
-- **[SECURITY_PLACEHOLDERS.md](docs/SECURITY_PLACEHOLDERS.md)** - Security placeholders
-- **[SECURITY_URGENT.md](docs/SECURITY_URGENT.md)** - Urgent security items
+- **[PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)** - Project structure overview
 
 ### Technical Documentation
 - **[hbbs-patch/](hbbs-patch/)** - HBBS modification documentation
-- **[archive/](archive/)** - Archived scripts and old files
 - **[dev_modules/](dev_modules/)** - Development and testing tools
 
 ---

@@ -21,7 +21,7 @@ The enhanced installer is primarily designed for **native RustDesk installations
 #### Option 1: Continue with Native Installation (Not Recommended)
 
 You can choose to install BetterDesk Console alongside your Docker installation, but this may cause conflicts:
-- Port conflicts (21115, 21116, 21117, 21114)
+- Port conflicts (21115, 21116, 21117, 21120)
 - Database access issues
 - Service management complexity
 
@@ -62,7 +62,7 @@ services:
       - "21115:21115"
       - "21116:21116/tcp"
       - "21116:21116/udp"
-      - "21114:21114"  # API port
+      - "21120:21120"  # API port
 ```
 
 ### Detecting Your Setup

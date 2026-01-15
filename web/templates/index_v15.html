@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BetterDesk Console v1.5</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Sidebar Styles */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            height: 100vh;
+            width: 260px;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 20px 0;
+            z-index: 1000;
+            overflow-y: auto;
+        }
+
+        .sidebar-header {
+            padding: 0 20px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 20px;
+        }
+
+        .sidebar-logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #fff;
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .sidebar-logo i {
+            font-size: 1.5rem;
+            color: var(--primary-color, #667eea);
+        }
+
+        .sidebar-user {
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            font-size: 0.85rem;
+        }
+
+        .sidebar-user-name {
+            color: #fff;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .sidebar-user-role {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+        }
+
+        .sidebar-menu {
+            padding: 0 10px;
+        }
+
+        .sidebar-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 15px;
+            margin-bottom: 4px;
+            color: rgba(255, 255, 255, 0.7);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+
+        .sidebar-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+
+        .sidebar-item.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+        }
+
+        .sidebar-item i {
+            width: 20px;
+            text-align: center;
+        }
+
+        .sidebar-footer {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 15px 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(15, 23, 42, 0.95);
+        }
+
+        .logout-btn {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 15px;
+            background: rgba(231, 76, 60, 0.1);
+            color: #e74c3c;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+        }
+
+        .logout-btn:hover {
+            background: rgba(231, 76, 60, 0.2);
+        }
+
+        /* Main Content */
+        .main-content {
+            margin-left: 260px;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .content-section {
+            display: none;
+        }
+
+        .content-section.active {
+            display: block;
+        }
+
+        /* Public Key Section */
+        .public-key-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .password-prompt {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 400px;
+            margin: 50px auto;
+            text-align: center;
+        }
+
+        .password-prompt h3 {
+            margin-bottom: 20px;
+            color: #fff;
+        }
+
+        .password-prompt input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(0, 0, 0, 0.3);
+            color: #fff;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .key-display-box {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            margin: 20px 0;
+        }
+
+        .key-display-box code {
+            color: #4facfe;
+            word-break: break-all;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+        }
+
+        /* Settings Section */
+        .settings-container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .settings-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 20px;
+        }
+
+        .settings-card h3 {
+            margin-bottom: 20px;
+            color: #fff;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            color: rgba(255, 255, 255, 0.8);
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(0, 0, 0, 0.3);
+            color: #fff;
+            border-radius: 8px;
+            font-size: 0.95rem;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--primary-color, #667eea);
+        }
+
+        /* User Management Section */
+        .users-table-container {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .users-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .users-table th {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.9rem;
+        }
+
+        .users-table td {
+            padding: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            color: #fff;
+        }
+
+        .role-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .role-admin {
+            background: rgba(231, 76, 60, 0.2);
+            color: #e74c3c;
+        }
+
+        .role-operator {
+            background: rgba(52, 152, 219, 0.2);
+            color: #3498db;
+        }
+
+        .role-viewer {
+            background: rgba(149, 165, 166, 0.2);
+            color: #95a5a6;
+        }
+
+        /* About Section */
+        .about-container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .about-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 20px;
+        }
+
+        .about-card h3 {
+            color: #fff;
+            margin-bottom: 15px;
+        }
+
+        .about-card p {
+            color: rgba(255, 255, 255, 0.8);
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+
+        .about-card a {
+            color: var(--primary-color, #667eea);
+            text-decoration: none;
+        }
+
+        .about-card a:hover {
+            text-decoration: underline;
+        }
+
+        .license-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .license-list li {
+            padding: 10px;
+            margin-bottom: 8px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .license-list li strong {
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <!-- Background gradient -->
+    <div class="bg-gradient"></div>
+    
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-logo">
+                <i class="fas fa-shield-halved"></i>
+                <span>BetterDesk v1.5</span>
+            </div>
+            <div class="sidebar-user">
+                <div class="sidebar-user-name" id="sidebarUsername">Loading...</div>
+                <div class="sidebar-user-role" id="sidebarRole">...</div>
+            </div>
+        </div>
+        
+        <div class="sidebar-menu">
+            <a class="sidebar-item active" data-section="dashboard">
+                <i class="fas fa-th-large"></i>
+                <span>Dashboard</span>
+            </a>
+            <a class="sidebar-item" data-section="publickey">
+                <i class="fas fa-key"></i>
+                <span>Public Key</span>
+            </a>
+            <a class="sidebar-item" data-section="settings">
+                <i class="fas fa-cog"></i>
+                <span>Settings</span>
+            </a>
+            <a class="sidebar-item admin-only" data-section="users" style="display: none;">
+                <i class="fas fa-users-cog"></i>
+                <span>User Management</span>
+            </a>
+            <a class="sidebar-item" data-section="about">
+                <i class="fas fa-info-circle"></i>
+                <span>About</span>
+            </a>
+        </div>
+        
+        <div class="sidebar-footer">
+            <button class="logout-btn" onclick="logout()">
+                <i class="fas fa-sign-out-alt"></i>
+                <span>Logout</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Dashboard Section -->
+        <div class="content-section active" id="dashboard">
+            <!-- Navigation -->
+            <nav class="navbar glass-effect">
+                <div class="nav-content">
+                    <div class="nav-brand">
+                        <i class="fas fa-desktop"></i>
+                        <span>Device Management</span>
+                    </div>
+                    <div class="nav-stats">
+                        <div class="stat-badge" id="totalDevices">
+                            <i class="fas fa-server"></i>
+                            <span>0</span>
+                        </div>
+                        <div class="stat-badge active" id="activeDevices">
+                            <i class="fas fa-circle-check"></i>
+                            <span>0</span>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+
+            <!-- Container -->
+            <div class="container">
+                <!-- Header Section -->
+                <div class="header-section">
+                    <h1 class="page-title fade-in">Device Dashboard</h1>
+                    <div class="action-buttons">
+                        <button class="btn btn-secondary" onclick="refreshDevices()">
+                            <i class="fas fa-sync-alt"></i>
+                            Refresh
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Stats Cards -->
+                <div class="stats-grid fade-in" style="animation-delay: 0.1s;">
+                    <div class="stat-card glass-effect">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                            <i class="fas fa-server"></i>
+                        </div>
+                        <div class="stat-info">
+                            <div class="stat-label">Total Devices</div>
+                            <div class="stat-value" id="statTotal">0</div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card glass-effect">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                            <i class="fas fa-circle-check"></i>
+                        </div>
+                        <div class="stat-info">
+                            <div class="stat-label">Active</div>
+                            <div class="stat-value" id="statActive">0</div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card glass-effect">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                            <i class="fas fa-circle-xmark"></i>
+                        </div>
+                        <div class="stat-info">
+                            <div class="stat-label">Inactive</div>
+                            <div class="stat-value" id="statInactive">0</div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card glass-effect">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
+                            <i class="fas fa-ban"></i>
+                        </div>
+                        <div class="stat-info">
+                            <div class="stat-label">Banned</div>
+                            <div class="stat-value" id="statBanned">0</div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card glass-effect">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                            <i class="fas fa-sticky-note"></i>
+                        </div>
+                        <div class="stat-info">
+                            <div class="stat-label">With Notes</div>
+                            <div class="stat-value" id="statNotes">0</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Devices Table -->
+                <div class="table-container glass-effect fade-in" style="animation-delay: 0.2s;">
+                    <div class="table-header">
+                        <h2><i class="fas fa-list"></i> Connected Devices</h2>
+                        <div class="search-box">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="searchInput" placeholder="Search devices..." onkeyup="filterDevices()">
+                        </div>
+                    </div>
+                    
+                    <div class="table-wrapper">
+                        <table class="devices-table" id="devicesTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Note</th>
+                                    <th>Status</th>
+                                    <th>Created</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="devicesTableBody">
+                                <tr>
+                                    <td colspan="5" class="loading">
+                                        <div class="spinner"></div>
+                                        <span>Loading devices...</span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Public Key Section -->
+        <div class="content-section" id="publickey">
+            <div class="public-key-container">
+                <h1 class="page-title">Server Public Key</h1>
+                
+                <div id="keyPasswordPrompt" class="password-prompt">
+                    <h3><i class="fas fa-lock"></i> Protected Content</h3>
+                    <p style="color: rgba(255, 255, 255, 0.7); margin-bottom: 20px;">
+                        Enter your password to view the server public key
+                    </p>
+                    <input type="password" id="keyPassword" placeholder="Enter your password" onkeypress="if(event.key==='Enter') verifyPasswordForKey()">
+                    <button class="btn btn-primary" onclick="verifyPasswordForKey()">
+                        <i class="fas fa-unlock"></i> Unlock Key
+                    </button>
+                </div>
+
+                <div id="keyContent" style="display: none;">
+                    <div class="key-display-box">
+                        <h3 style="margin-bottom: 15px;">RustDesk Public Key</h3>
+                        <code id="publicKeyDisplay"></code>
+                    </div>
+                    <button class="btn btn-primary btn-block" onclick="copyPublicKey()">
+                        <i class="fas fa-copy"></i> Copy to Clipboard
+                    </button>
+                    <button class="btn btn-secondary btn-block" onclick="lockKey()" style="margin-top: 10px;">
+                        <i class="fas fa-lock"></i> Lock Key
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Section -->
+        <div class="content-section" id="settings">
+            <div class="settings-container">
+                <h1 class="page-title">Account Settings</h1>
+                
+                <div class="settings-card">
+                    <h3><i class="fas fa-key"></i> Change Password</h3>
+                    <form id="passwordForm" onsubmit="changePassword(event)">
+                        <div class="form-group">
+                            <label for="currentPassword">Current Password</label>
+                            <input type="password" id="currentPassword" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="newPassword">New Password</label>
+                            <input type="password" id="newPassword" required minlength="8">
+                            <small style="color: rgba(255, 255, 255, 0.6); font-size: 0.8rem;">
+                                Minimum 8 characters, must contain letters and numbers
+                            </small>
+                        </div>
+                        <div class="form-group">
+                            <label for="confirmPassword">Confirm New Password</label>
+                            <input type="password" id="confirmPassword" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Update Password
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- User Management Section (Admin Only) -->
+        <div class="content-section admin-only" id="users" style="display: none;">
+            <div class="container">
+                <h1 class="page-title">User Management</h1>
+                
+                <div class="header-section">
+                    <h2></h2>
+                    <button class="btn btn-primary" onclick="showAddUserModal()">
+                        <i class="fas fa-user-plus"></i> Add User
+                    </button>
+                </div>
+
+                <div class="users-table-container">
+                    <table class="users-table">
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Role</th>
+                                <th>Last Login</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody">
+                            <tr>
+                                <td colspan="5" class="loading">
+                                    <div class="spinner"></div>
+                                    <span>Loading users...</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- About Section -->
+        <div class="content-section" id="about">
+            <div class="about-container">
+                <h1 class="page-title">About BetterDesk Console</h1>
+                
+                <div class="about-card">
+                    <h3><i class="fas fa-info-circle"></i> Project Information</h3>
+                    <p>
+                        <strong>BetterDesk Console v1.5.0</strong> - Advanced management interface for RustDesk Server
+                    </p>
+                    <p>
+                        A powerful, secure web console for managing RustDesk remote desktop server. Features include
+                        device management, user authentication with role-based access control, ban enforcement with
+                        fail-closed security policy, and comprehensive audit logging.
+                    </p>
+                </div>
+
+                <div class="about-card">
+                    <h3><i class="fab fa-github"></i> Source Code</h3>
+                    <p>
+                        This project is open source and available on GitHub:
+                    </p>
+                    <p>
+                        <a href="https://github.com/UNITRONIX/Rustdesk-FreeConsole" target="_blank">
+                            <i class="fas fa-external-link-alt"></i> github.com/UNITRONIX/Rustdesk-FreeConsole
+                        </a>
+                    </p>
+                    <p style="margin-top: 15px; font-size: 0.9rem; color: rgba(255, 255, 255, 0.7);">
+                        Issues, feature requests, and contributions are welcome!
+                    </p>
+                </div>
+
+                <div class="about-card">
+                    <h3><i class="fas fa-code-branch"></i> Open Source Components</h3>
+                    <p>This project is built with the following open source software:</p>
+                    <ul class="license-list">
+                        <li>
+                            <strong>RustDesk Server</strong> - AGPL-3.0 License<br>
+                            <small>Open source remote desktop server</small><br>
+                            <a href="https://github.com/rustdesk/rustdesk-server" target="_blank">github.com/rustdesk/rustdesk-server</a>
+                        </li>
+                        <li>
+                            <strong>Flask</strong> - BSD-3-Clause License<br>
+                            <small>Lightweight web application framework for Python</small><br>
+                            <a href="https://flask.palletsprojects.com/" target="_blank">flask.palletsprojects.com</a>
+                        </li>
+                        <li>
+                            <strong>Flask-WTF</strong> - BSD License<br>
+                            <small>CSRF protection and form validation</small><br>
+                            <a href="https://flask-wtf.readthedocs.io/" target="_blank">flask-wtf.readthedocs.io</a>
+                        </li>
+                        <li>
+                            <strong>Flask-Limiter</strong> - MIT License<br>
+                            <small>Rate limiting extension for Flask</small><br>
+                            <a href="https://flask-limiter.readthedocs.io/" target="_blank">flask-limiter.readthedocs.io</a>
+                        </li>
+                        <li>
+                            <strong>bcrypt</strong> - Apache License 2.0<br>
+                            <small>Password hashing library</small><br>
+                            <a href="https://github.com/pyca/bcrypt/" target="_blank">github.com/pyca/bcrypt</a>
+                        </li>
+                        <li>
+                            <strong>SQLite</strong> - Public Domain<br>
+                            <small>Embedded database engine</small><br>
+                            <a href="https://www.sqlite.org/" target="_blank">sqlite.org</a>
+                        </li>
+                        <li>
+                            <strong>Font Awesome</strong> - SIL OFL 1.1 / MIT License<br>
+                            <small>Icon library</small><br>
+                            <a href="https://fontawesome.com/" target="_blank">fontawesome.com</a>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="about-card">
+                    <h3><i class="fas fa-shield-alt"></i> Security Features</h3>
+                    <ul class="license-list">
+                        <li><i class="fas fa-check" style="color: #27ae60;"></i> <strong>Authentication System</strong> - Secure login with bcrypt password hashing</li>
+                        <li><i class="fas fa-check" style="color: #27ae60;"></i> <strong>Role-Based Access Control</strong> - Admin, Operator, and Viewer roles</li>
+                        <li><i class="fas fa-check" style="color: #27ae60;"></i> <strong>CSRF Protection</strong> - Cross-Site Request Forgery prevention</li>
+                        <li><i class="fas fa-check" style="color: #27ae60;"></i> <strong>Rate Limiting</strong> - Protection against brute force attacks</li>
+                        <li><i class="fas fa-check" style="color: #27ae60;"></i> <strong>Fail-Closed Policy</strong> - Banned devices cannot connect even if service restarts</li>
+                        <li><i class="fas fa-check" style="color: #27ae60;"></i> <strong>Audit Logging</strong> - Complete history of user actions</li>
+                        <li><i class="fas fa-check" style="color: #27ae60;"></i> <strong>Content Security Policy</strong> - Protection against XSS attacks</li>
+                    </ul>
+                </div>
+
+                <div class="about-card">
+                    <h3><i class="fas fa-heart"></i> Credits</h3>
+                    <p>
+                        Developed by <strong>UNITRONIX</strong><br>
+                        Special thanks to the RustDesk team and open source community.
+                    </p>
+                    <p style="margin-top: 15px; font-size: 0.85rem; color: rgba(255, 255, 255, 0.6);">
+                        © 2026 UNITRONIX. Released under AGPL-3.0 License.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Device Modal -->
+    <div id="editModal" class="modal">
+        <div class="modal-content glass-effect">
+            <div class="modal-header">
+                <h2><i class="fas fa-edit"></i> Edit Device</h2>
+                <button class="modal-close" onclick="closeEditModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="editDeviceId">Device ID</label>
+                    <input type="text" id="editDeviceId" readonly class="form-control">
+                </div>
+                <div class="form-group">
+                    <label for="editNewId">New Device ID (optional)</label>
+                    <input type="text" id="editNewId" class="form-control" placeholder="Leave empty to keep current ID">
+                </div>
+                <div class="form-group">
+                    <label for="editNote">Note</label>
+                    <textarea id="editNote" class="form-control" rows="3" placeholder="Enter device note..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeEditModal()">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <button class="btn btn-primary" onclick="saveDevice()">
+                    <i class="fas fa-save"></i> Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-content glass-effect">
+            <div class="modal-header">
+                <h2><i class="fas fa-trash-alt"></i> Confirm Delete</h2>
+                <button class="modal-close" onclick="closeDeleteModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete device <strong id="deleteDeviceId"></strong>?</p>
+                <p class="warning-text">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeDeleteModal()">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <button class="btn btn-danger" onclick="confirmDelete()">
+                    <i class="fas fa-trash-alt"></i> Delete
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Details Modal -->
+    <div id="detailsModal" class="modal">
+        <div class="modal-content glass-effect modal-large">
+            <div class="modal-header">
+                <h2><i class="fas fa-info-circle"></i> Device Details</h2>
+                <button class="modal-close" onclick="closeDetailsModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="detailsContent" class="details-grid"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeDetailsModal()">
+                    <i class="fas fa-times"></i> Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add User Modal (Admin) -->
+    <div id="addUserModal" class="modal">
+        <div class="modal-content glass-effect">
+            <div class="modal-header">
+                <h2><i class="fas fa-user-plus"></i> Add New User</h2>
+                <button class="modal-close" onclick="closeAddUserModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="newUsername">Username</label>
+                    <input type="text" id="newUsername" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="newUserPassword">Password</label>
+                    <input type="password" id="newUserPassword" class="form-control" required minlength="8">
+                    <small style="color: rgba(255, 255, 255, 0.6); font-size: 0.8rem;">
+                        Minimum 8 characters, must contain letters and numbers
+                    </small>
+                </div>
+                <div class="form-group">
+                    <label for="newUserRole">Role</label>
+                    <select id="newUserRole" class="form-control">
+                        <option value="viewer">Viewer (Read-only)</option>
+                        <option value="operator">Operator (Can ban/unban, edit devices)</option>
+                        <option value="admin">Admin (Full access)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeAddUserModal()">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <button class="btn btn-primary" onclick="createUser()">
+                    <i class="fas fa-user-plus"></i> Create User
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast glass-effect">
+        <i class="fas fa-check-circle"></i>
+        <span id="toastMessage"></span>
+    </div>
+
+    <script src="{{ url_for('static', filename='script_v15.js') }}"></script>
+</body>
+</html>

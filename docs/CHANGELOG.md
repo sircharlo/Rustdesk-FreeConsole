@@ -5,6 +5,168 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-01-11
+
+### 🔐 Security & Authentication Update
+
+**Major Security Enhancement**: Added comprehensive authentication system for both web console and HBBS HTTP API, plus LAN access capabilities.
+
+### Added
+
+#### Authentication System
+- **User Login System**:
+  - bcrypt password hashing (cost 12)
+  - 24-hour session tokens stored in database
+  - Login page with secure password handling
+  - Session validation on all protected routes
+  
+- **Role-Based Access Control (RBAC)**:
+  - Three roles: admin, operator, viewer
+  - Role-specific permissions for device management
+  - Admin-only access to user management
+  - Audit logging for all actions
+
+- **User Management Panel**:
+  - Create/edit/delete users
+  - Activate/deactivate accounts
+  - Role assignment
+  - Password reset functionality
+  - User list with status indicators
+
+#### API Security
+- **X-API-Key Authentication**:
+  - 64-character random API keys generated during installation
+  - Middleware verification on all HBBS API endpoints
+  - Stored securely in `/opt/rustdesk/.api_key` with 600 permissions
+  - Automatic key injection by web console
+  - 401 Unauthorized for missing/invalid keys
+
+- **LAN Access**:
+  - HBBS API now binds to `0.0.0.0:21120` (accessible on LAN)
+  - Web console binds to `0.0.0.0:5000` (accessible on LAN)
+  - Protected by authentication (API key + user login)
+  - External tools can use API with X-API-Key header
+
+#### Web Console Features
+- **Sidebar Navigation**: Modern sidebar menu with icon-based navigation
+- **Password-Protected Key Access**: Public key requires password verification
+- **Password Change**: Users can change their passwords in Settings
+- **Removed Devices Tab**: Simplified interface, devices managed on Dashboard
+- **Expanded About Page**: Credits, GitHub links, open source information
+- **Enhanced Settings**: Password change, session management, preferences
+
+#### Installation & Updates
+- **API Key Generation**: Automatic during installation via `openssl rand`
+- **Environment Variables**: HBBS_API_KEY, FLASK_HOST, FLASK_PORT, FLASK_DEBUG
+- **Service Configuration**: Updated systemd services with new environment vars
+- **Update Script**: `update-to-v1.4.0.sh` for existing installations
+- **Backward Compatibility**: Preserves existing configurations during update
+
+### Changed
+
+- **API Binding**: Changed from `127.0.0.1` (localhost-only) to `0.0.0.0` (LAN-accessible)
+- **Authentication Required**: All API endpoints now require X-API-Key header
+- **Web Console Access**: Requires user login instead of open access
+- **Session Management**: 24-hour sessions instead of permanent access
+- **Database Schema**: Added `users`, `sessions`, `audit_log` tables
+
+### Security
+
+- ✅ **Authentication**: All services protected by authentication
+- ✅ **Encrypted Passwords**: bcrypt hashing for user passwords
+- ✅ **API Key Auth**: X-API-Key header prevents unauthorized API access
+- ✅ **Session Tokens**: Time-limited tokens with automatic expiration
+- ✅ **Audit Trail**: All administrative actions logged
+- ✅ **Secure Storage**: API keys with 600 permissions
+- ✅ **XSS Protection**: Input sanitization throughout
+- ✅ **SQL Injection Prevention**: Parameterized queries only
+- ✅ **CSRF Protection**: Session-based validation
+
+### Technical Details
+
+- **Files Modified**:
+  - `hbbs-patch/src/http_api.rs` - Added X-API-Key middleware
+  - `web/app_v14.py` - Added authentication, user management, API key loading
+  - `web/auth.py` - Password hashing, session management, user CRUD
+  - `web/templates/login.html` - New login page
+  - `web/templates/index_v14.html` - Sidebar navigation, user management UI
+  - `web/static/script_v14.js` - User management, password change, key verification
+  - `install-improved.sh` - API key generation and service configuration
+  - `update-to-v1.4.0.sh` - Update script for existing installations
+
+- **Database Migration**: `migrations/v1.4.0_auth_system.py`
+  - Creates `users` table with roles
+  - Creates `sessions` table for session management
+  - Creates `audit_log` table for action tracking
+  - Generates default admin user
+
+- **API Endpoints** (all require X-API-Key):
+  - `GET /api/health` - Health check
+  - `GET /api/peers` - List all peers with online status
+
+- **Web Endpoints** (all require login except `/login`):
+  - `GET /login` - Login page
+  - `POST /login` - Authenticate user
+  - `GET /logout` - End session
+  - `GET /` - Dashboard
+  - `GET /api/users` - List users (admin only)
+  - `POST /api/users` - Create user (admin only)
+  - `PUT /api/users/<id>` - Update user (admin only)
+  - `DELETE /api/users/<id>` - Delete user (admin only)
+  - `POST /api/change-password` - Change password
+  - `POST /api/verify-password` - Verify password for key access
+
+### Migration Path
+
+**For new installations:**
+```bash
+sudo ./install-improved.sh
+```
+- Automatically generates API key
+- Configures services for LAN access
+- Creates default admin user
+
+**For existing installations:**
+```bash
+sudo ./update-to-v1.4.0.sh
+```
+- Creates automatic backup
+- Runs database migration
+- Generates API key if not exists
+- Updates systemd services
+- Preserves existing configuration
+- Rollback capability on failure
+
+### Documentation
+
+- Updated `README.md` with authentication instructions
+- Updated `hbbs-patch/README.md` with API security documentation
+- Updated `hbbs-patch/SECURITY_AUDIT.md` with v1.4.0 security review
+- Updated `docs/PORT_SECURITY.md` with LAN access notes
+- Added API key retrieval instructions
+
+### Known Issues
+
+- 26 Pylance type warnings in `app_v14.py` for `log_audit()` parameters (non-critical)
+- API key must be manually distributed to external tools
+
+### Upgrade Notes
+
+**Breaking Changes:**
+- Existing API clients must add `X-API-Key` header
+- Web console now requires user login
+- Sessions expire after 24 hours
+
+**Recommended Actions After Upgrade:**
+1. Login with default admin credentials (shown after migration)
+2. Change admin password immediately
+3. Delete `/opt/BetterDeskConsole/admin_credentials.txt`
+4. Create additional users with appropriate roles
+5. Update external tools with API key from `/opt/rustdesk/.api_key`
+6. Configure firewall for LAN access if needed
+
+---
+
 ## [1.3.0-secure] - 2026-01-10
 
 ### 🔒 Security Update: Localhost-Only API Binding

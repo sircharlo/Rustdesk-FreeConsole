@@ -64,7 +64,7 @@ This matches the **exact same mechanism** used by the RustDesk desktop client to
 **Purpose**: Entry point for HBBS server
 
 **Modifications**:
-- Added `api_port` parameter (default: 21114)
+- Added `api_port` parameter (default: 21120)
 - Passes API port to `RendezvousServer::start()`
 - No changes to core HBBS functionality
 
@@ -76,7 +76,7 @@ RendezvousServer::start(
     serial, 
     &get_arg_or("key", "-".to_owned()), 
     rmem,
-    21114  // API port
+    21120  // API port
 )?;
 ```
 
@@ -175,7 +175,7 @@ RendezvousServer::start(
                       ▼
         ┌─────────────────────────────┐
         │   HTTP API Server           │
-        │   (Port 21114)              │
+        │   (Port 21120)              │
         └─────────────┬───────────────┘
                       │ Query status
                       ▼
@@ -248,7 +248,7 @@ Binary output: `target/release/hbbs`
 
 ### Health Check:
 ```bash
-curl http://localhost:21114/api/health
+curl http://localhost:21120/api/health
 ```
 
 Response:
@@ -262,7 +262,7 @@ Response:
 
 ### List Peers:
 ```bash
-curl http://localhost:21114/api/peers
+curl http://localhost:21120/api/peers
 ```
 
 Response:
@@ -298,16 +298,62 @@ Response:
 
 ## Security Considerations
 
-1. **API Binding**: By default, API listens on `0.0.0.0:21114`
-   - Consider using a firewall to restrict access
-   - Or modify `http_api.rs` to bind to `127.0.0.1` only
+### API Authentication (v1.4.0+)
 
-2. **No Authentication**: Current implementation has no API authentication
-   - Suitable for internal networks
-   - For public exposure, add authentication middleware
+**X-API-Key Authentication**: The HBBS API now requires authentication for all requests:
 
-3. **CORS**: Enabled for all origins (`*`)
-   - Modify `http_api.rs` CORS settings if needed
+1. **API Key Generation**: During installation, a 64-character random API key is generated:
+   ```bash
+   openssl rand -base64 48 | tr -d '/+=' | cut -c1-64
+   ```
+
+2. **Key Storage**: Stored securely in `/opt/rustdesk/.api_key` with 600 permissions
+
+3. **Usage**: All API requests must include the `X-API-Key` header:
+   ```bash
+   curl -H "X-API-Key: YOUR_API_KEY" http://192.168.1.100:21120/api/health
+   ```
+
+4. **Verification**: Middleware checks the header against stored key:
+   ```rust
+   async fn verify_api_key(
+       State(state): State<Arc<ApiState>>,
+       headers: HeaderMap,
+       request: Request,
+       next: Next,
+   ) -> Result<Response, StatusCode> {
+       let api_key = headers
+           .get("X-API-Key")
+           .and_then(|v| v.to_str().ok())
+           .ok_or(StatusCode::UNAUTHORIZED)?;
+       
+       if api_key != state.api_key {
+           return Err(StatusCode::UNAUTHORIZED);
+       }
+       
+       Ok(next.run(request).await)
+   }
+   ```
+
+### Network Access
+
+1. **API Binding**: API listens on `0.0.0.0:21120` (LAN accessible)
+   - Protected by X-API-Key authentication
+   - Web console automatically provides key
+   - External tools need API key from `/opt/rustdesk/.api_key`
+
+2. **Firewall Recommendations**:
+   ```bash
+   # Allow API on LAN only
+   sudo ufw allow from 192.168.0.0/16 to any port 21120 proto tcp
+   
+   # Or allow web console only (API via localhost)
+   sudo ufw allow 5000/tcp
+   ```
+
+3. **CORS**: Enabled for all origins with credentials support
+   - Safe due to API key requirement
+   - Modify `http_api.rs` if stricter CORS needed
 
 ---
 

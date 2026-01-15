@@ -158,19 +158,19 @@ function showDetails(deviceId) {
         </div>
         <div class="detail-item">
             <div class="detail-label">GUID:</div>
-            <div class="detail-value">${device.guid || 'N/A'}</div>
+            <div class="detail-value">${escapeHtml(device.guid) || 'N/A'}</div>
         </div>
         <div class="detail-item">
             <div class="detail-label">UUID:</div>
-            <div class="detail-value">${device.uuid || 'N/A'}</div>
+            <div class="detail-value">${escapeHtml(device.uuid) || 'N/A'}</div>
         </div>
         <div class="detail-item">
             <div class="detail-label">Public Key:</div>
-            <div class="detail-value">${device.pk || 'N/A'}</div>
+            <div class="detail-value">${escapeHtml(device.pk) || 'N/A'}</div>
         </div>
         <div class="detail-item">
             <div class="detail-label">User:</div>
-            <div class="detail-value">${device.user || 'N/A'}</div>
+            <div class="detail-value">${escapeHtml(device.user) || 'N/A'}</div>
         </div>
         <div class="detail-item">
             <div class="detail-label">Status:</div>

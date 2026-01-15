@@ -1,9 +1,14 @@
-# BetterDesk Console - Windows Installation Script v9
+# BetterDesk Console - Windows Installation Script v1.5.0
 # 
 # This script installs the enhanced RustDesk HBBS/HBBR servers with 
 # bidirectional ban enforcement, HTTP API, and web management console.
 #
-# NEW in v9:
+# NEW in v1.5.0:
+# - Authentication system with bcrypt password hashing
+# - Role-based access control (Admin, Operator, Viewer)
+# - Sidebar navigation with multiple sections
+# - Password-protected public key access
+# - User management panel (admin only)
 # - Support for custom RustDesk installation directories
 # - Automatic verification of required RustDesk files
 # - Improved error handling and validation
@@ -35,7 +40,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$VERSION = "v9"
+$VERSION = "v1.5.0"
 $BINARY_VERSION = "v8-api"
 $HBBS_API_PORT = 21114
 

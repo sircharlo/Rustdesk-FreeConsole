@@ -1,16 +1,21 @@
 #!/bin/bash
 
 #############################################################################
-# BetterDesk Console - Enhanced Installation Script v9
+# BetterDesk Console - Enhanced Installation Script v1.5.0
 # 
 # This script installs the enhanced RustDesk HBBS/HBBR servers with 
 # bidirectional ban enforcement, HTTP API, and web management console.
 #
-# NEW in v9:
+# NEW in v1.5.0:
+# - Authentication system with bcrypt password hashing
+# - Role-based access control (Admin, Operator, Viewer)
+# - Sidebar navigation with multiple sections
+# - Password-protected public key access
+# - User management panel (admin only)
+# - CSRF protection and rate limiting
 # - Support for custom RustDesk installation directories
 # - Automatic verification of required RustDesk files
 # - --break-system-packages support for Docker/containerized environments
-# - Improved error handling and validation
 #
 # Features:
 # - Automatic backup of existing RustDesk installation
@@ -21,8 +26,9 @@
 # - Configures systemd services
 # - Uses Google Material Icons (offline)
 #
-# Author: GitHub Copilot
-# License: MIT
+# Author: UNITRONIX
+# Repository: https://github.com/UNITRONIX/Rustdesk-FreeConsole
+# License: AGPL-3.0
 #############################################################################
 
 set -e  # Exit on error
@@ -40,9 +46,10 @@ BACKUP_DIR=""
 CONSOLE_DIR="/opt/BetterDeskConsole"
 TEMP_DIR="/tmp/betterdesk-install"
 HBBS_API_PORT=21114
-VERSION="v9"  # Current version with HTTP API
+VERSION="v1.5.0"  # Current version with Authentication & User Management
 BINARY_VERSION="v8-api"  # Binary file suffix
 PIP_EXTRA_ARGS=""  # Will be set to --break-system-packages if needed
+FLASK_SECRET_KEY=""  # Will be generated during installation
 
 # Helper functions
 print_header() {
@@ -836,12 +843,31 @@ run_database_migrations() {
         fi
     fi
     
+    # Run v1.4.0 migration (authentication system)
+    if [ -f "$migrations_dir/v1.4.0_auth_system.py" ]; then
+        print_info "Running migration v1.4.0 (authentication system)..."
+        if python3 "$migrations_dir/v1.4.0_auth_system.py"; then
+            print_success "Migration v1.4.0 completed"
+            print_info "Default admin credentials created (check output above)"
+        else
+            print_warning "Migration v1.4.0 skipped (may be already applied)"
+        fi
+    fi
+    
     print_success "Database migrations completed"
     echo ""
 }
 
+generate_secret_key() {
+    print_header "Generating Flask Secret Key"
+    
+    # Generate a secure random secret key
+    FLASK_SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+    print_success "Secret key generated"
+}
+
 install_web_console() {
-    print_header "Installing Web Management Console"
+    print_header "Installing Web Management Console v1.5.0"
     
     local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     local web_dir="$script_dir/web"
@@ -853,17 +879,39 @@ install_web_console() {
     
     # Create console directory
     mkdir -p "$CONSOLE_DIR"
+    mkdir -p "$CONSOLE_DIR/templates"
+    mkdir -p "$CONSOLE_DIR/static"
     
     # Copy files
     print_info "Copying web console files..."
-    cp -r "$web_dir"/* "$CONSOLE_DIR/"
+    cp "$web_dir/app_v14.py" "$CONSOLE_DIR/app.py"
+    cp "$web_dir/auth.py" "$CONSOLE_DIR/auth.py"
+    cp "$web_dir/requirements.txt" "$CONSOLE_DIR/requirements.txt"
+    
+    # Copy templates (use v1.5.0 interface)
+    print_info "Installing v1.5.0 user interface..."
+    cp "$web_dir/templates/index_v15.html" "$CONSOLE_DIR/templates/index_v15.html"
+    cp "$web_dir/templates/login.html" "$CONSOLE_DIR/templates/login.html"
+    
+    # Copy static files
+    print_info "Installing JavaScript and CSS..."
+    if [ -d "$web_dir/static" ]; then
+        cp -r "$web_dir/static"/* "$CONSOLE_DIR/static/" 2>/dev/null || true
+    fi
+    cp "$web_dir/static/script_v15.js" "$CONSOLE_DIR/static/script_v15.js"
     
     # Update app.py with correct RustDesk path
     if [ "$RUSTDESK_DIR" != "/opt/rustdesk" ]; then
         print_info "Updating console configuration for custom RustDesk path..."
         sed -i "s|'/opt/rustdesk/db_v2.sqlite3'|'$RUSTDESK_DIR/db_v2.sqlite3'|g" "$CONSOLE_DIR/app.py"
         sed -i "s|'/opt/rustdesk/id_ed25519.pub'|'$RUSTDESK_DIR/id_ed25519.pub'|g" "$CONSOLE_DIR/app.py"
+        sed -i "s|'/opt/rustdesk/.api_key'|'$RUSTDESK_DIR/.api_key'|g" "$CONSOLE_DIR/app.py"
+        sed -i "s|DB_PATH = '/opt/rustdesk/db_v2.sqlite3'|DB_PATH = '$RUSTDESK_DIR/db_v2.sqlite3'|g" "$CONSOLE_DIR/auth.py"
     fi
+    
+    # Generate and configure Flask secret key
+    print_info "Configuring Flask security..."
+    generate_secret_key
     
     # Install Python dependencies
     print_info "Installing Python dependencies..."
@@ -874,11 +922,11 @@ install_web_console() {
         pip3 install -r "$CONSOLE_DIR/requirements.txt"
     fi
     
-    # Create systemd service
+    # Create systemd service with environment variables
     print_info "Creating systemd service..."
     cat > /etc/systemd/system/betterdesk.service <<EOF
 [Unit]
-Description=BetterDesk Console - RustDesk Web Management
+Description=BetterDesk Console v1.5.0 - RustDesk Web Management
 After=network.target rustdesksignal.service
 
 [Service]
@@ -891,6 +939,17 @@ RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
+EOF
+
+    # Create systemd override for environment variables
+    print_info "Configuring Flask environment..."
+    mkdir -p /etc/systemd/system/betterdesk.service.d
+    cat > /etc/systemd/system/betterdesk.service.d/override.conf <<EOF
+[Service]
+Environment="FLASK_SECRET_KEY=$FLASK_SECRET_KEY"
+Environment="FLASK_HOST=0.0.0.0"
+Environment="FLASK_PORT=5000"
+Environment="FLASK_DEBUG=False"
 EOF
 
     # Enable and start service
@@ -971,12 +1030,19 @@ show_summary() {
     echo -e "${GREEN}BetterDesk Console $VERSION has been successfully installed!${NC}"
     echo ""
     echo "Installation details:"
+    echo "  • Version:            BetterDesk Console v1.5.0"
     echo "  • RustDesk Directory: $RUSTDESK_DIR"
     echo "  • Console Directory:  $CONSOLE_DIR"
     echo ""
     echo "Access points:"
     echo "  • Web Console:  http://$(hostname -I | awk '{print $1}'):5000"
     echo "  • HBBS API:     http://localhost:$HBBS_API_PORT/api/health"
+    echo ""
+    echo "Authentication:"
+    echo "  • Login page:   http://$(hostname -I | awk '{print $1}'):5000/login"
+    echo "  • Default user: admin"
+    echo "  • Check logs for initial password:"
+    echo "    sudo journalctl -u betterdesk.service | grep 'Admin password'"
     echo ""
     echo "Services:"
     echo "  • HBBS:         sudo systemctl status rustdesksignal.service"
@@ -999,17 +1065,29 @@ show_summary() {
     echo "  • $HBBS_API_PORT - HTTP API"
     echo ""
     
+    echo "New features in v1.5.0:"
+    echo "  ✓ User authentication with bcrypt password hashing"
+    echo "  ✓ Role-based access control (Admin/Operator/Viewer)"
+    echo "  ✓ Sidebar navigation (Dashboard, Public Key, Settings, Users, About)"
+    echo "  ✓ Password-protected public key access"
+    echo "  ✓ User management panel (admin only)"
+    echo "  ✓ Password change functionality"
+    echo "  ✓ CSRF protection and rate limiting"
+    echo "  ✓ Audit logging for all actions"
+    echo ""
     echo "Useful commands:"
     echo "  • View HBBS logs:    sudo journalctl -u rustdesksignal -f"
     echo "  • View console logs: sudo journalctl -u betterdesk -f"
     echo "  • Restart HBBS:      sudo systemctl restart rustdesksignal"
     echo "  • Restart console:   sudo systemctl restart betterdesk"
+    echo "  • View admin pass:   sudo journalctl -u betterdesk | grep 'Admin password'"
     echo ""
     
-    print_info "Enjoy your enhanced RustDesk experience!"
+    print_info "🎉 Enjoy your enhanced RustDesk experience!"
     echo ""
     echo "For support and documentation:"
     echo "  • GitHub: https://github.com/UNITRONIX/Rustdesk-FreeConsole"
+    echo "  • Issues: https://github.com/UNITRONIX/Rustdesk-FreeConsole/issues"
 }
 
 # Main installation flow

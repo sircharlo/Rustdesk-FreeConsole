@@ -1,7 +1,76 @@
 # Audyt Bezpieczeństwa - Modyfikacje RustDesk Server
-**Data:** 6 stycznia 2026  
-**Wersja:** v8 (dwukierunkowe blokowanie banów)  
+**Data audytu:** 6 stycznia 2026  
+**Ostatnia aktualizacja:** 11 stycznia 2026 (v1.4.0 - dodano autentykację API)  
+**Wersja:** v8 (dwukierunkowe blokowanie banów) + v1.4.0 (API key authentication)  
 **Audytor:** GitHub Copilot
+
+---
+
+## ✅ Zmiany Bezpieczeństwa v1.4.0 (11 stycznia 2026)
+
+### 🔐 Autentykacja API (X-API-Key)
+
+**Rozwiązane zagrożenie:** Brak autentykacji HTTP API
+
+**Implementacja:**
+1. **Generowanie klucza API**:
+   - 64-znakowy losowy klucz przy instalacji
+   - Algorytm: `openssl rand -base64 48 | tr -d '/+=' | cut -c1-64`
+   - Przechowywany w `/opt/rustdesk/.api_key` z uprawnieniami 600
+
+2. **Middleware weryfikacji** (http_api.rs):
+```rust
+async fn verify_api_key(
+    State(state): State<Arc<ApiState>>,
+    headers: HeaderMap,
+    request: Request,
+    next: Next,
+) -> Result<Response, StatusCode> {
+    let api_key = headers
+        .get("X-API-Key")
+        .and_then(|v| v.to_str().ok())
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    
+    if api_key != state.api_key {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    
+    Ok(next.run(request).await)
+}
+```
+
+3. **Wszystkie endpointy chronione**:
+   - `/api/health` - wymaga X-API-Key
+   - `/api/peers` - wymaga X-API-Key
+   - Brak klucza = 401 Unauthorized
+   - Nieprawidłowy klucz = 401 Unauthorized
+
+4. **Dostęp LAN**:
+   - API nasłuchuje na `0.0.0.0:21120` (dostępne w sieci LAN)
+   - Konsola web automatycznie dodaje X-API-Key do wszystkich żądań
+   - Zewnętrzne narzędzia muszą pobrać klucz z `/opt/rustdesk/.api_key`
+
+**Status:** ✅ ZAIMPLEMENTOWANE
+
+### 🌐 Konsola Web - System Uwierzytelniania
+
+**Funkcje bezpieczeństwa:**
+1. **Logowanie użytkowników**:
+   - Hashowanie haseł bcrypt (cost 12)
+   - Tokeny sesji (24 godziny)
+   - Kontrola dostępu oparta na rolach (admin/operator/viewer)
+
+2. **Zarządzanie użytkownikami**:
+   - Panel administracyjny do tworzenia/edycji/usuwania użytkowników
+   - Audit log dla wszystkich akcji
+   - Ochrona hasłem dostępu do klucza publicznego
+
+3. **Ochrona danych**:
+   - Parametryzowane zapytania SQL
+   - Walidacja danych wejściowych
+   - Ochrona XSS/CSRF
+
+**Status:** ✅ ZAIMPLEMENTOWANE
 
 ---
 
@@ -11,6 +80,8 @@
 ### 🟠 Wysokie zagrożenia: 3
 ### 🟡 Średnie zagrożenia: 2
 ### 🟢 Niskie zagrożenia: 3
+
+**Uwaga:** Zagrożenia poniżej dotyczą głównie mechanizmu banowania urządzeń, nie API HTTP.
 
 ---
 

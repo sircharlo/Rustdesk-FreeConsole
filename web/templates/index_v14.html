@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BetterDesk Console - Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='sidebar.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="has-sidebar">
+    <!-- Background gradient -->
+    <div class="bg-gradient"></div>
+    
+    <!-- Sidebar -->
+    <aside class="sidebar glass-effect" id="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-brand">
+                <i class="fas fa-desktop"></i>
+                <span class="brand-text">BetterDesk</span>
+            </div>
+        </div>
+
+        <div class="sidebar-user">
+            <div class="user-avatar">
+                <i class="fas fa-user-circle"></i>
+            </div>
+            <div class="user-info">
+                <div class="user-name" id="sidebarUsername">Admin</div>
+                <div class="user-role" id="sidebarUserRole">Administrator</div>
+            </div>
+        </div>
+
+        <nav class="sidebar-menu">
+            <a href="#" class="menu-item active" data-page="dashboard">
+                <i class="fas fa-gauge"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="#" class="menu-item" data-page="users" id="menuUsers" style="display: none;">
+                <i class="fas fa-users"></i>
+                <span>User Management</span>
+            </a>
+            <a href="#" class="menu-item" data-page="audit" id="menuAudit" style="display: none;">
+                <i class="fas fa-clipboard-list"></i>
+                <span>Audit Log</span>
+            </a>
+            <a href="#" class="menu-item" data-page="settings" id="menuSettings">
+                <i class="fas fa-cog"></i>
+                <span>Settings</span>
+            </a>
+            <a href="#" class="menu-item" data-page="key" id="menuKey">
+                <i class="fas fa-key"></i>
+                <span>Public Key</span>
+            </a>
+            <a href="#" class="menu-item" data-page="about">
+                <i class="fas fa-info-circle"></i>
+                <span>About</span>
+            </a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <button class="menu-item logout-btn" onclick="logout()">
+                <i class="fas fa-sign-out-alt"></i>
+                <span>Logout</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Top Navigation -->
+        <nav class="top-navbar glass-effect">
+            <div class="nav-content">
+                <button class="mobile-menu-toggle" id="mobileMenuToggle">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <h1 class="page-title" id="pageTitle">Device Management</h1>
+                <div class="nav-stats">
+                    <div class="stat-badge" id="topTotalDevices">
+                        <i class="fas fa-server"></i>
+                        <span>0</span>
+                    </div>
+                    <div class="stat-badge active" id="topActiveDevices">
+                        <i class="fas fa-circle-check"></i>
+                        <span>0</span>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Content Container -->
+        <div class="content-container">
+            <!-- Dashboard Page -->
+            <div class="page-content active" id="dashboardPage">
+                <!-- Action Buttons -->
+                <div class="action-bar">
+                    <button class="btn btn-primary" onclick="refreshDevices()">
+                        <i class="fas fa-sync-alt"></i>
+                        Refresh
+                    </button>
+                </div>
+
+                <!-- Stats Cards -->
+                <div class="stats-grid fade-in">
+                    <div class="stat-card glass-effect">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                            <i class="fas fa-server"></i>
+                        </div>
+                        <div class="stat-info">
+                            <div class="stat-label">Total Devices</div>
+                            <div class="stat-value" id="statTotal">0</div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card glass-effect">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                            <i class="fas fa-circle-check"></i>
+                        </div>
+                        <div class="stat-info">
+                            <div class="stat-label">Active</div>
+                            <div class="stat-value" id="statActive">0</div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card glass-effect">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                            <i class="fas fa-circle-xmark"></i>
+                        </div>
+                        <div class="stat-info">
+                            <div class="stat-label">Inactive</div>
+                            <div class="stat-value" id="statInactive">0</div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card glass-effect">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
+                            <i class="fas fa-ban"></i>
+                        </div>
+                        <div class="stat-info">
+                            <div class="stat-label">Banned</div>
+                            <div class="stat-value" id="statBanned">0</div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card glass-effect">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                            <i class="fas fa-sticky-note"></i>
+                        </div>
+                        <div class="stat-info">
+                            <div class="stat-label">With Notes</div>
+                            <div class="stat-value" id="statNotes">0</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Devices Table -->
+                <div class="table-container glass-effect">
+                    <div class="table-header">
+                        <h2><i class="fas fa-list"></i> Devices</h2>
+                        <div class="search-box">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="searchInput" placeholder="Search devices..." onkeyup="filterDevices()">
+                        </div>
+                    </div>
+                    
+                    <div class="table-wrapper">
+                        <table class="devices-table" id="devicesTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Note</th>
+                                    <th>Status</th>
+                                    <th>Created</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="devicesTableBody">
+                                <tr>
+                                    <td colspan="5" class="loading">
+                                        <div class="spinner"></div>
+                                        <span>Loading devices...</span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Other pages will be added here -->
+            <div class="page-content" id="devicesPage">
+                <p>Devices management page (to be implemented)</p>
+            </div>
+
+            <div class="page-content" id="usersPage">
+                <div class="users-container glass-effect">
+                    <h2><i class="fas fa-users"></i> User Management</h2>
+                    <div class="action-bar" style="margin-bottom: 20px;">
+                        <button class="btn btn-primary" onclick="showAddUserModal()">
+                            <i class="fas fa-user-plus"></i> Add New User
+                        </button>
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="devices-table">
+                            <thead>
+                                <tr>
+                                    <th>Username</th>
+                                    <th>Role</th>
+                                    <th>Status</th>
+                                    <th>Created</th>
+                                    <th>Last Login</th>
+                                    <th class="actions-column">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTableBody">
+                                <tr>
+                                    <td colspan="6" class="no-data">Loading users...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="page-content" id="auditPage">
+                <div class="audit-container glass-effect">
+                    <h2><i class="fas fa-clipboard-list"></i> Audit Log</h2>
+                    <p>Audit log page (to be implemented)</p>
+                </div>
+            </div>
+
+            <div class="page-content" id="settingsPage">
+                <div class="settings-container glass-effect">
+                    <h2><i class="fas fa-cog"></i> Settings</h2>
+                    <div class="settings-section">
+                        <h3>Account Security</h3>
+                        <p>Change your account password to keep your account secure.</p>
+                        <button class="btn btn-primary" onclick="showChangePasswordModal()">
+                            <i class="fas fa-lock"></i> Change Password
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="page-content" id="keyPage">
+                <div class="key-container glass-effect">
+                    <h2><i class="fas fa-key"></i> RustDesk Public Key</h2>
+                    <p style="margin-bottom: 20px;">For security reasons, please verify your password to view the public key.</p>
+                    <div class="form-group" id="keyPasswordForm">
+                        <label for="keyPassword">Enter Your Password</label>
+                        <input type="password" id="keyPassword" class="form-control" placeholder="Your password">
+                        <button class="btn btn-primary" onclick="verifyPasswordForKey()" style="margin-top: 15px;">
+                            <i class="fas fa-unlock"></i> Show Public Key
+                        </button>
+                    </div>
+                    <div id="keyDisplay" style="display: none;">
+                        <div class="key-display">
+                            <code id="publicKeyDisplay"></code>
+                        </div>
+                        <button class="btn btn-primary" onclick="copyPublicKey()">
+                            <i class="fas fa-copy"></i> Copy to Clipboard
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="page-content" id="aboutPage">
+                <div class="about-container glass-effect">
+                    <h2><i class="fas fa-info-circle"></i> About BetterDesk Console</h2>
+                    
+                    <div class="about-section">
+                        <h3>Version Information</h3>
+                        <p><strong>Version:</strong> 1.4.0</p>
+                        <p><strong>Build:</strong> v9</p>
+                    </div>
+
+                    <div class="about-section">
+                        <h3>Features</h3>
+                        <ul>
+                            <li><i class="fas fa-check-circle"></i> Real-time device monitoring and management</li>
+                            <li><i class="fas fa-check-circle"></i> Bidirectional ban enforcement (source + target)</li>
+                            <li><i class="fas fa-check-circle"></i> User authentication & role-based access control</li>
+                            <li><i class="fas fa-check-circle"></i> Comprehensive audit logging</li>
+                            <li><i class="fas fa-check-circle"></i> HTTP API for device status</li>
+                            <li><i class="fas fa-check-circle"></i> Modern glassmorphism UI design</li>
+                        </ul>
+                    </div>
+
+                    <div class="about-section">
+                        <h3>Built With Open Source</h3>
+                        <p>This project is built using the following open source technologies:</p>
+                        <ul>
+                            <li><strong>RustDesk</strong> - Open source remote desktop software (AGPL-3.0)</li>
+                            <li><strong>Flask</strong> - Python web framework (BSD-3-Clause)</li>
+                            <li><strong>SQLite</strong> - Embedded database (Public Domain)</li>
+                            <li><strong>bcrypt</strong> - Password hashing library (Apache-2.0)</li>
+                            <li><strong>Font Awesome</strong> - Icon library (Font Awesome Free License)</li>
+                        </ul>
+                    </div>
+
+                    <div class="about-section">
+                        <h3>Repository & Documentation</h3>
+                        <p><strong>GitHub Repository:</strong></p>
+                        <p>
+                            <a href="https://github.com/UNITRONIX/Rustdesk-FreeConsole" target="_blank" class="github-link">
+                                <i class="fab fa-github"></i> github.com/UNITRONIX/Rustdesk-FreeConsole
+                            </a>
+                        </p>
+                        <p style="margin-top: 15px;">
+                            Find documentation, installation guides, and source code in the repository.
+                        </p>
+                    </div>
+
+                    <div class="about-section">
+                        <h3>License</h3>
+                        <p>MIT License - Free to use and modify</p>
+                    </div>
+
+                    <div class="about-section">
+                        <h3>Author</h3>
+                        <p>Developed by <strong>UNITRONIX</strong></p>
+                        <p>With contributions from the open source community</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals (same as before) -->
+    <div id="editModal" class="modal">
+        <div class="modal-content glass-effect">
+            <div class="modal-header">
+                <h2><i class="fas fa-edit"></i> Edit Device</h2>
+                <button class="modal-close" onclick="closeEditModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="editDeviceId">Device ID</label>
+                    <input type="text" id="editDeviceId" readonly class="form-control">
+                </div>
+                <div class="form-group">
+                    <label for="editNewId">New Device ID (optional)</label>
+                    <input type="text" id="editNewId" class="form-control" placeholder="Leave empty to keep current ID">
+                </div>
+                <div class="form-group">
+                    <label for="editNote">Note</label>
+                    <textarea id="editNote" class="form-control" rows="3" placeholder="Enter device note..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeEditModal()">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <button class="btn btn-primary" onclick="saveDevice()">
+                    <i class="fas fa-save"></i> Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="deleteModal" class="modal">
+        <div class="modal-content glass-effect">
+            <div class="modal-header">
+                <h2><i class="fas fa-trash-alt"></i> Confirm Delete</h2>
+                <button class="modal-close" onclick="closeDeleteModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete device <strong id="deleteDeviceId"></strong>?</p>
+                <p class="warning-text">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeDeleteModal()">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <button class="btn btn-danger" onclick="confirmDelete()">
+                    <i class="fas fa-trash-alt"></i> Delete
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="detailsModal" class="modal">
+        <div class="modal-content glass-effect modal-large">
+            <div class="modal-header">
+                <h2><i class="fas fa-info-circle"></i> Device Details</h2>
+                <button class="modal-close" onclick="closeDetailsModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="detailsContent" class="details-grid"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeDetailsModal()">
+                    <i class="fas fa-times"></i> Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Change Password Modal -->
+    <div id="changePasswordModal" class="modal">
+        <div class="modal-content glass-effect">
+            <div class="modal-header">
+                <h2><i class="fas fa-lock"></i> Change Password</h2>
+                <button class="modal-close" onclick="closeChangePasswordModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="currentPassword">Current Password</label>
+                    <input type="password" id="currentPassword" class="form-control" placeholder="Enter current password">
+                </div>
+                <div class="form-group">
+                    <label for="newPassword">New Password</label>
+                    <input type="password" id="newPassword" class="form-control" placeholder="Enter new password (min 6 characters)">
+                </div>
+                <div class="form-group">
+                    <label for="confirmPassword">Confirm New Password</label>
+                    <input type="password" id="confirmPassword" class="form-control" placeholder="Confirm new password">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeChangePasswordModal()">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <button class="btn btn-primary" onclick="confirmChangePassword()">
+                    <i class="fas fa-save"></i> Change Password
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add User Modal -->
+    <div id="addUserModal" class="modal">
+        <div class="modal-content glass-effect">
+            <div class="modal-header">
+                <h2><i class="fas fa-user-plus"></i> Add New User</h2>
+                <button class="modal-close" onclick="closeAddUserModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="newUsername">Username</label>
+                    <input type="text" id="newUsername" class="form-control" placeholder="Enter username">
+                </div>
+                <div class="form-group">
+                    <label for="newUserPassword">Password</label>
+                    <input type="password" id="newUserPassword" class="form-control" placeholder="Enter password (min 6 characters)">
+                </div>
+                <div class="form-group">
+                    <label for="newUserRole">Role</label>
+                    <select id="newUserRole" class="form-control">
+                        <option value="viewer">Viewer (Read-only)</option>
+                        <option value="operator">Operator (Can ban/unban devices)</option>
+                        <option value="admin">Administrator (Full access)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeAddUserModal()">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <button class="btn btn-primary" onclick="confirmAddUser()">
+                    <i class="fas fa-save"></i> Create User
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit User Modal -->
+    <div id="editUserModal" class="modal">
+        <div class="modal-content glass-effect">
+            <div class="modal-header">
+                <h2><i class="fas fa-user-edit"></i> Edit User</h2>
+                <button class="modal-close" onclick="closeEditUserModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editUserId">
+                <div class="form-group">
+                    <label for="editUserUsername">Username</label>
+                    <input type="text" id="editUserUsername" class="form-control" readonly>
+                </div>
+                <div class="form-group">
+                    <label for="editUserRole">Role</label>
+                    <select id="editUserRole" class="form-control">
+                        <option value="viewer">Viewer (Read-only)</option>
+                        <option value="operator">Operator (Can ban/unban devices)</option>
+                        <option value="admin">Administrator (Full access)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="resetUserPassword">Reset Password (optional)</label>
+                    <input type="password" id="resetUserPassword" class="form-control" placeholder="Leave empty to keep current password">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeEditUserModal()">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <button class="btn btn-primary" onclick="confirmEditUser()">
+                    <i class="fas fa-save"></i> Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete User Modal -->
+    <div id="deleteUserModal" class="modal">
+        <div class="modal-content glass-effect">
+            <div class="modal-header">
+                <h2><i class="fas fa-user-times"></i> Delete User</h2>
+                <button class="modal-close" onclick="closeDeleteUserModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="deleteUserId">
+                <p>Are you sure you want to delete user <strong id="deleteUserUsername"></strong>?</p>
+                <p class="warning-text">This action cannot be undone. All user sessions will be terminated.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeDeleteUserModal()">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <button class="btn btn-danger" onclick="confirmDeleteUser()">
+                    <i class="fas fa-trash-alt"></i> Delete User
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast glass-effect">
+        <i class="fas fa-check-circle"></i>
+        <span id="toastMessage"></span>
+    </div>
+
+    <script src="{{ url_for('static', filename='script_v14.js') }}"></script>
+    <script src="{{ url_for('static', filename='sidebar.js') }}"></script>
+</body>
+</html>

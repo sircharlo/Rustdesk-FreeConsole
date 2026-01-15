@@ -713,7 +713,9 @@ impl RendezvousServer {
                 log::debug!("Target ban check passed for device {}", id);
             }
             Err(e) => {
-                log::error!("Failed to check target ban status for {}: {}", id, e);
+                log::error!("SECURITY: Database unavailable, blocking connection for safety: {}", e);
+                // Return empty response to block connection (fail-closed)
+                return Ok((RendezvousMessage::new(), None));
             }
         }
         
@@ -734,7 +736,9 @@ impl RendezvousServer {
                     log::debug!("Source ban check passed for device {}", source_id);
                 }
                 Err(e) => {
-                    log::error!("Failed to check source ban status for {}: {}", source_id, e);
+                    log::error!("SECURITY: Database unavailable, blocking source connection for safety: {}", e);
+                    // Return empty response to block connection (fail-closed)
+                    return Ok((RendezvousMessage::new(), None));
                 }
             }
         } else {
