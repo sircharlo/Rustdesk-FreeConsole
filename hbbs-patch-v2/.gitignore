@@ -1,0 +1,39 @@
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+Cargo.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Build outputs
+*.o
+*.so
+*.a
+*.exe
+*.dll
+
+# Backup files
+*.backup
+*.backup.*
+*.bak
+
+# Logs
+*.log
+
+# Database
+*.sqlite3
+*.sqlite3-journal
+*.db
+
+# API keys
+.api_key
+
+# Test files
+test_*.sqlite3

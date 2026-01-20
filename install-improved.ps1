@@ -20,9 +20,9 @@
 # - Bidirectional ban checking (source + target devices)
 # - Real-time device status via HTTP API (port 21114)
 # - Installs Flask web console with glassmorphism UI
-# - Configures Windows services
+# - Manual server startup (no Windows services)
 #
-# Author: GitHub Copilot
+# Author: UNITRONIX Team
 # License: MIT
 
 param(
@@ -368,7 +368,7 @@ function Install-RustDeskBinaries {
     Write-Success "Binaries installed successfully"
     
     # Create/update Windows services
-    Write-Info "Configuring Windows services..."
+    Write-Info "RustDesk servers will run as standard executables"
     
     # Create log directory
     $logDir = Join-Path $TargetPath "logs"
@@ -376,16 +376,7 @@ function Install-RustDeskBinaries {
         New-Item -ItemType Directory -Path $logDir -Force | Out-Null
     }
     
-    # Install NSSM if not present (for service management)
-    $nssmPath = Join-Path $env:ProgramData "nssm"
-    if (-not (Test-Path $nssmPath)) {
-        Write-Info "NSSM not found - services need to be configured manually"
-        Write-Info "Or download NSSM from: https://nssm.cc/download"
-    }
-    else {
-        Write-Info "Configuring services with NSSM..."
-        # TODO: Add NSSM service configuration
-    }
+    Write-Success "Binaries ready for manual startup"
     
     Write-Success "Installation complete"
     
@@ -504,9 +495,10 @@ function Test-Installation {
     Write-Host "Next steps:" -ForegroundColor Yellow
     Write-Host "  1. Start HBBS: cd $RustDeskPath ; .\hbbs.exe"
     Write-Host "  2. Start HBBR: cd $RustDeskPath ; .\hbbr.exe"
-    Write-Host "  3. Start Web Console: cd $ConsolePath ; python app.py"
+    Write-Host "  3. Start Web Console: cd $ConsolePath ; python app_v14.py"
     Write-Host ""
-    Write-Host "Or configure them as Windows services for automatic startup"
+    Write-Host "Web Console will be available at: http://localhost:5000" -ForegroundColor Cyan
+    Write-Host "Run servers in separate PowerShell windows for best results" -ForegroundColor Yellow
 }
 
 function Show-Summary {
@@ -541,6 +533,20 @@ function Show-Summary {
     Write-Host "  • 21118 - WebSocket"
     Write-Host "  • 21119 - Relay (additional)"
     Write-Host "  • $HBBS_API_PORT - HTTP API"
+    Write-Host ""
+    
+    Write-Host "Usage Instructions:" -ForegroundColor Yellow
+    Write-Host "  1. Open PowerShell as Administrator"
+    Write-Host "  2. Navigate to: cd $RustDeskPath"
+    Write-Host "  3. Start HBBS: .\hbbs.exe"
+    Write-Host "  4. Open second PowerShell window"
+    Write-Host "  5. Start HBBR: .\hbbr.exe"
+    Write-Host "  6. Open third PowerShell window"
+    Write-Host "  7. Start Console: cd $ConsolePath ; python app_v14.py"
+    Write-Host ""
+    Write-Host "Access Points:" -ForegroundColor Cyan
+    Write-Host "  • Web Console: http://localhost:5000"
+    Write-Host "  • HTTP API: http://localhost:$HBBS_API_PORT"
     Write-Host ""
     
     Write-Info "For support and documentation:"

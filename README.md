@@ -69,7 +69,9 @@
 ### 🔧 Enhanced HBBS Server
 
 - **HTTP API**: RESTful API on port 21120 with X-API-Key authentication (LAN accessible)
-- **Real-Time Status**: Memory-based device status (no database lag)
+- **Real-Time Status**: Memory-based device status (no database lag)  
+- **Database Fallback**: Web console automatically falls back to SQLite database when API unavailable
+- **Smart Status Detection**: HBBS automatically updates device status in database during connections
 - **Authentic Algorithm**: Uses RustDesk's official 30-second timeout logic
 - **Thread-Safe**: Shared PeerMap with Arc/RwLock for concurrent access
 - **Zero Breaking Changes**: Fully compatible with existing RustDesk clients
@@ -226,7 +228,37 @@
 - **Windows Dependencies**: Python 3.8+, PowerShell 5.1+
 - **No Compilation Required**: Uses precompiled binaries
 
-### 🐧 Linux Installation
+### � Docker Installation
+
+For Docker users, we provide a comprehensive Docker setup:
+
+```bash
+# Clone the repository
+git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
+cd Rustdesk-FreeConsole
+
+# Quick setup (recommended)
+chmod +x docker-quickstart.sh
+./docker-quickstart.sh
+
+# OR: Custom installation with path selection
+chmod +x install-docker.sh
+sudo ./install-docker.sh
+```
+
+**Docker installation features:**
+- ✅ Works with existing RustDesk Docker containers
+- ✅ Custom path selection for RustDesk data  
+- ✅ Volume mounting support
+- ✅ Container or host installation modes
+- ✅ Automatic binary deployment
+- ✅ Database migration included
+- ✅ Complete docker-compose setup
+- ✅ Nginx reverse proxy (optional)
+
+**Full Docker guide**: [DOCKER_SUPPORT.md](DOCKER_SUPPORT.md)
+
+### �🐧 Linux Installation
 
 Enhanced installer with Docker support and custom path detection:
 
@@ -256,26 +288,61 @@ sudo ./install-improved.sh
 
 ### 🔄 Updating Existing Installation
 
-If you already have BetterDesk Console installed and want to upgrade to v1.4.0 with authentication:
+If you already have BetterDesk Console installed and want to upgrade to v1.5.0:
 
 ```bash
 cd Rustdesk-FreeConsole
 
 # Make the update script executable
-chmod +x update-to-v1.4.0.sh
+chmod +x update-to-v1.5.0.sh
 
 # Run as root
-sudo ./update-to-v1.4.0.sh
+sudo ./update-to-v1.5.0.sh
 ```
 
 **Update features:**
 - ✅ Automatic backup before changes
-- ✅ Database migration to add authentication tables
+- ✅ Database migration (adds `last_online`, `is_deleted` columns)
+- ✅ Authentication tables creation
 - ✅ API key generation and configuration
 - ✅ Preserves existing configuration
 - ✅ Creates default admin user (if needed)
-- ✅ Updates systemd services for LAN access
+- ✅ Updates HBBS/HBBR binaries
 - ✅ Rollback capability if update fails
+
+### 🐳 Docker Installation & Update
+
+For users running RustDesk in Docker containers:
+
+```bash
+# Docker installation/update with path selection
+chmod +x install-docker.sh
+sudo ./install-docker.sh
+
+# Quick Docker setup (new installations)
+chmod +x docker-quickstart.sh
+./docker-quickstart.sh
+```
+
+**Docker installer features:**
+- ✅ Detects existing RustDesk containers
+- ✅ Custom path selection for Docker volumes  
+- ✅ Works with mounted volumes or inside containers
+- ✅ Automatic binary deployment
+- ✅ Database migration support
+- ✅ Full docker-compose configuration
+
+#### Quick Database Fix (if devices show as offline)
+
+If devices appear offline even though they're connected, run the database migration:
+
+```bash
+# Run migration script
+python3 migrations/v1.5.0_fix_online_status.py
+
+# Restart services
+sudo systemctl restart hbbs betterdesk
+```
 
 ### 🪟 Windows Installation
 
@@ -445,6 +512,80 @@ sudo bash repair-keys.sh
 | Services won't start | Permission issues | Run `sudo bash repair-keys.sh` → option 2 |
 | Can't find backups | Skipped backup during install | Check `/opt/rustdesk-backup-*` directories |
 | Docker detected | Running RustDesk in container | Choose "Web Console only" option |
+| **All devices offline** | Missing `last_online` column | Run `python3 migrations/v1.5.0_fix_online_status.py` |
+| **API not responding** | Binaries not updated | Copy binaries from `hbbs-patch/bin-with-api/` |
+| **Update script not found** | Old version cloned | Run `git pull` to get latest files |
+| **Connect button not working** | Custom RustDesk client | Set custom scheme via browser console (see below) |
+
+### 🚨 Known Issues (v1.5.0)
+
+#### 1. Devices Show as Offline After Update
+
+**Symptoms:** All devices appear offline in the console, even though they can connect to each other.
+
+**Cause:** Database is missing the `last_online` column required for status detection.
+
+**Solution:**
+```bash
+# Option 1: Run migration script
+python3 migrations/v1.5.0_fix_online_status.py
+
+# Option 2: Add column manually
+sqlite3 /opt/rustdesk/db_v2.sqlite3 "ALTER TABLE peer ADD COLUMN last_online TEXT;"
+sqlite3 /opt/rustdesk/db_v2.sqlite3 "ALTER TABLE peer ADD COLUMN is_deleted INTEGER DEFAULT 0;"
+
+# Restart services
+sudo systemctl restart hbbs betterdesk
+```
+
+#### 2. Connect Button Not Working (Custom Clients)
+
+**Symptoms:** Clicking "Connect" does nothing or opens wrong application.
+
+**Cause:** You have a personalized RustDesk client with custom URL scheme.
+
+**Solution:** Set your custom scheme via browser console (F12):
+```javascript
+// Replace 'mycompany-rustdesk' with your scheme
+setCustomScheme('mycompany-rustdesk');
+
+// To revert to default:
+clearCustomScheme();
+```
+
+#### 3. API Health Endpoint Not Responding
+
+**Symptoms:** Console cannot determine device status, shows connection errors.
+
+**Cause:** Old HBBS binary without API support.
+
+**Solution:**
+```bash
+# Copy new binary
+sudo cp hbbs-patch/bin-with-api/hbbs-v8-api /opt/rustdesk/
+sudo chmod +x /opt/rustdesk/hbbs-v8-api
+
+# Update service to use new binary
+sudo sed -i 's/hbbs/hbbs-v8-api/g' /etc/systemd/system/hbbs.service
+sudo systemctl daemon-reload
+sudo systemctl restart hbbs
+```
+
+#### 4. Update Script Cannot Find Installation
+
+**Symptoms:** `update-to-v1.5.0.sh` reports "Installation directory not found"
+
+**Cause:** Non-standard installation path.
+
+**Solution:**
+```bash
+# Find your installation
+find / -name "app_v14.py" 2>/dev/null
+find / -name "db_v2.sqlite3" 2>/dev/null
+
+# Run migration manually pointing to correct paths
+python3 migrations/v1.5.0_fix_online_status.py /path/to/db_v2.sqlite3
+```
 
 ### 📞 Getting Help
 
@@ -507,7 +648,7 @@ app.run(host='0.0.0.0', port=5000)
 sudo ufw allow from 192.168.0.0/16 to any port 5000 proto tcp
 
 # Allow HBBS API on LAN (if needed for external tools)
-sudo ufw allow from 192.168.0.0/16 to any port 21120 proto tcp
+sudo ufw allow from 192.168.0.0/16 to any port 21114 proto tcp
 
 # Standard RustDesk ports
 sudo ufw allow 21115/tcp

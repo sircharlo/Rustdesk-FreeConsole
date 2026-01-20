@@ -23,7 +23,7 @@
 #   Example: .\update.ps1
 #   Example: .\update.ps1 -RustDeskPath "C:\RustDesk" -ConsolePath "C:\BetterDeskConsole"
 #
-# Author: GitHub Copilot
+# Author: UNITRONIX Team
 # License: MIT
 #############################################################################
 

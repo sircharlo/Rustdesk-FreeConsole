@@ -38,6 +38,7 @@ limiter = Limiter(
 DB_PATH = '/opt/rustdesk/db_v2.sqlite3'
 PUB_KEY_PATH = '/opt/rustdesk/id_ed25519.pub'
 API_KEY_PATH = '/opt/rustdesk/.api_key'
+# HBBS API URL (optional - will fallback to database status if API unavailable)
 HBBS_API_URL = 'http://localhost:21120/api'
 
 # Load HBBS API key
@@ -266,10 +267,16 @@ def get_devices():
         for row in cursor.fetchall():
             device_id = row['id']
             
-            if device_id in api_device_info:
-                online = api_device_info[device_id].get('online', False)
-            else:
-                online = row['status'] == 1 if not api_device_info else False
+            # WAŻNE: API /peers ma bug w http_api.rs:
+            # 1. Query: "WHERE (status IS NULL OR status = 0)" - zwraca tylko offline
+            # 2. Hardcoded: online = false - zawsze false dla wszystkich
+            # Z powodu tych bugów, API nie nadaje się do określania statusu online
+            # 
+            # ROZWIĄZANIE: Używamy TYLKO pola status z bazy danych (aktualizowane przez HBBS)
+            # status = 1 = online, status = 0/NULL = offline
+            # To jest źródło prawdy - HBBS aktualizuje to pole w czasie rzeczywistym
+            
+            online = row['status'] == 1
             
             device = {
                 'guid': row['guid'].hex() if row['guid'] else '',
@@ -408,7 +415,11 @@ def get_stats():
     try:
         online_count = 0
         try:
-            response = requests.get(f'{HBBS_API_URL}/peers', timeout=2)
+            headers = {}
+            if HBBS_API_KEY:
+                headers['X-API-Key'] = HBBS_API_KEY
+            
+            response = requests.get(f'{HBBS_API_URL}/peers', headers=headers, timeout=2)
             if response.status_code == 200:
                 api_data = response.json()
                 if api_data.get('success') and api_data.get('data'):

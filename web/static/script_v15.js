@@ -270,9 +270,37 @@ function filterDevices() {
     renderDevices(filtered);
 }
 
-// Connect to device
+// Get custom URL scheme for RustDesk connections
+// Users with personalized clients can set this via Settings or localStorage
+function getCustomScheme() {
+    // Priority: localStorage > default
+    return localStorage.getItem('rustdeskScheme') || 'rustdesk';
+}
+
+// Set custom URL scheme (call from Settings page or browser console)
+// Example: setCustomScheme('mycompany-rustdesk')
+function setCustomScheme(scheme) {
+    if (!scheme || typeof scheme !== 'string') {
+        console.error('Invalid scheme. Must be a non-empty string.');
+        return false;
+    }
+    // Remove :// if user included it
+    scheme = scheme.replace('://', '').trim();
+    localStorage.setItem('rustdeskScheme', scheme);
+    showToast(`Custom scheme set to: ${scheme}://`);
+    return true;
+}
+
+// Clear custom scheme (revert to default rustdesk://)
+function clearCustomScheme() {
+    localStorage.removeItem('rustdeskScheme');
+    showToast('Reverted to default rustdesk:// scheme');
+}
+
+// Connect to device using configured URL scheme
 function connectDevice(deviceId) {
-    window.location.href = `rustdesk://${deviceId}`;
+    const scheme = getCustomScheme();
+    window.location.href = `${scheme}://${deviceId}`;
     showToast(`Connecting to ${deviceId}...`);
 }
 

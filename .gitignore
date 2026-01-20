@@ -49,6 +49,16 @@ logs/
 *.sqlite3
 *.db
 
+# Sensitive data & reports
+*.key
+*.pem
+*.pub
+*credentials*
+*REPORT*.md
+test_*.sh
+verify_*.sh
+.security_scan_report.md
+
 # Backups
 *.backup
 *backup*/
