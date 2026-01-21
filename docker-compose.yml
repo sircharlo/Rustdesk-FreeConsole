@@ -84,6 +84,10 @@ services:
       - HBBS_API_URL=http://hbbs:21114/api
       - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-$(openssl rand -hex 32)}
       - FLASK_ENV=production
+      # Optional: Set custom admin credentials (remove to use auto-generated)
+      # - ADMIN_USERNAME=admin
+      # - ADMIN_PASSWORD=YourSecurePassword123
+      # - SKIP_AUTO_MIGRATION=false
     networks:
       - betterdesk-net
     restart: unless-stopped

@@ -197,7 +197,6 @@ async function logout() {
 }
 
 function showChangePasswordModal() {
-    // TODO: Implement change password modal
     alert('Change password functionality coming soon!');
 }
 

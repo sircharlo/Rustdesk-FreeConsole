@@ -762,7 +762,6 @@ async function createUser() {
 
 // Edit/Delete User (placeholders - to be implemented with proper modals)
 function showEditUserModal(userId, username, role, isActive) {
-    // TODO: Implement edit user modal
     showToast('Edit user functionality - coming soon');
 }
 

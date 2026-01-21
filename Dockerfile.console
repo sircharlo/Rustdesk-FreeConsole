@@ -17,6 +17,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application files
 COPY web/ .
 
+# Copy startup script
+COPY docker-entrypoint.sh /app/
+RUN chmod +x /app/docker-entrypoint.sh
+
 # Create necessary directories
 RUN mkdir -p /app/data /app/static /app/templates
 
@@ -41,5 +45,5 @@ RUN adduser --disabled-password --gecos '' betterdesk && \
 
 USER betterdesk
 
-# Start application
-CMD ["python3", "app_v14.py"]
+# Start application with automatic migration
+CMD ["/app/docker-entrypoint.sh"]

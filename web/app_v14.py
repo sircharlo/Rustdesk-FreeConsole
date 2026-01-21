@@ -212,6 +212,30 @@ def verify_token():
     })
 
 
+@app.route('/health')
+def health_check():
+    """Health check endpoint for Docker and load balancers"""
+    try:
+        # Test database connection
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        conn.close()
+        
+        return jsonify({
+            'status': 'healthy',
+            'timestamp': datetime.now().isoformat(),
+            'version': '1.5.0',
+            'database': 'accessible'
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'status': 'unhealthy',
+            'timestamp': datetime.now().isoformat(),
+            'error': str(e)
+        }), 503
+
+
 # ============================================================================
 # MAIN ROUTES
 # ============================================================================

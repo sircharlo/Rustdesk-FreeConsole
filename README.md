@@ -503,6 +503,132 @@ sudo bash repair-keys.sh
 2. **Install web console only** (option 2 during installation)
 3. **Continue with native installation** (if intentional)
 
+#### 🔑 Missing Admin Login Credentials (Docker Compose)
+
+**Problem**: After running `docker compose up -d`, the BetterDesk console starts but doesn't show default admin credentials in logs.
+
+**Cause**: Database migration script doesn't run automatically in Docker container.
+
+**Choose Your Solution** (3 options available):
+
+---
+
+##### 🚀 Option 1: One-Click Fix Script (Easiest)
+
+**For Linux/macOS:**
+```bash
+# Make script executable and run
+chmod +x fix-admin.sh
+./fix-admin.sh
+```
+
+**For Windows:**
+```cmd
+# Run the batch file
+fix-admin.bat
+```
+
+**What it does:**
+- ✅ Automatically detects your Docker setup
+- ✅ Creates admin account if missing  
+- ✅ Shows credentials clearly
+- ✅ Works with existing installations
+
+---
+
+##### ⚙️ Option 2: Custom Admin Credentials (Recommended)
+
+Set your own admin password by editing `docker-compose.yml`:
+
+```yaml
+# In docker-compose.yml, under betterdesk-console service:
+environment:
+  # Add these lines (uncomment and customize):
+  - ADMIN_USERNAME=admin
+  - ADMIN_PASSWORD=YourSecurePassword123
+```
+
+**Steps:**
+1. Edit `docker-compose.yml` with your credentials
+2. Restart: `docker compose down && docker compose up -d`
+3. Login with your chosen credentials
+
+**Benefits:**
+- 🔒 You control the password
+- 🔄 Survives container restarts
+- 📝 No need to save random passwords
+
+---
+
+##### 🤖 Option 3: Automatic Migration (Advanced)
+
+Use the improved Dockerfile that auto-creates admin on first startup:
+
+```bash
+# 1. Update to latest files
+git pull
+
+# 2. Rebuild with automatic migration
+docker compose down
+docker compose build betterdesk-console
+docker compose up -d
+
+# 3. Check logs for generated credentials
+docker compose logs betterdesk-console | grep -A5 "DEFAULT ADMIN CREDENTIALS"
+```
+
+**Features:**
+- ✅ Zero configuration needed
+- ✅ Runs migration automatically
+- ✅ Shows credentials in logs
+- ✅ Saves backup to `/app/data/admin_credentials.txt`
+
+---
+
+##### 🛠️ Manual Option (Fallback)
+
+If the above options don't work, run the migration manually:
+##### 🛠️ Manual Option (Fallback)
+
+If the above options don't work, run the migration manually:
+
+```bash
+# Run migration manually in container
+docker compose exec betterdesk-console python3 -c "
+import sqlite3, secrets, bcrypt
+from datetime import datetime
+
+DB_PATH, USERNAME = '/opt/rustdesk/db_v2.sqlite3', 'admin'
+PASSWORD = secrets.token_urlsafe(12)
+conn = sqlite3.connect(DB_PATH)
+cursor = conn.cursor()
+
+# Create tables
+cursor.execute('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username VARCHAR(50) UNIQUE NOT NULL, password_hash TEXT NOT NULL, role VARCHAR(20) NOT NULL DEFAULT \"viewer\", created_at DATETIME NOT NULL, last_login DATETIME, is_active BOOLEAN NOT NULL DEFAULT 1, CHECK (role IN (\"admin\", \"operator\", \"viewer\")))')
+
+# Create admin if missing
+cursor.execute('SELECT id FROM users WHERE username = ?', (USERNAME,))
+if not cursor.fetchone():
+    password_hash = bcrypt.hashpw(PASSWORD.encode(), bcrypt.gensalt()).decode()
+    cursor.execute('INSERT INTO users (username, password_hash, role, created_at, is_active) VALUES (?, ?, \"admin\", ?, 1)', (USERNAME, password_hash, datetime.now()))
+    print(f'🔐 Username: {USERNAME}\\nPassword: {PASSWORD}\\n⚠️  Change after login!')
+else:
+    print('ℹ️  Admin user already exists')
+
+conn.commit()
+conn.close()
+"
+```
+
+---
+
+**After using any option above:**
+1. 🌐 Open: http://localhost:5000
+2. 🔑 Login with the displayed/chosen credentials  
+3. ⚠️ **Immediately change password** in settings!
+
+**Detailed Docker troubleshooting guide**: [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOOTING.md)
+
 ### Common Issues & Solutions
 
 | Symptom | Cause | Solution |
@@ -512,6 +638,7 @@ sudo bash repair-keys.sh
 | Services won't start | Permission issues | Run `sudo bash repair-keys.sh` → option 2 |
 | Can't find backups | Skipped backup during install | Check `/opt/rustdesk-backup-*` directories |
 | Docker detected | Running RustDesk in container | Choose "Web Console only" option |
+| **No admin login (Docker)** | Missing database migration | Run `./fix-admin.sh` or see Docker Issues section |
 | **All devices offline** | Missing `last_online` column | Run `python3 migrations/v1.5.0_fix_online_status.py` |
 | **API not responding** | Binaries not updated | Copy binaries from `hbbs-patch/bin-with-api/` |
 | **Update script not found** | Old version cloned | Run `git pull` to get latest files |

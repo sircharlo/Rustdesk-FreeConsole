@@ -1,24 +1,24 @@
-# Audyt Bezpieczeństwa - Modyfikacje RustDesk Server
-**Data audytu:** 6 stycznia 2026  
-**Ostatnia aktualizacja:** 11 stycznia 2026 (v1.4.0 - dodano autentykację API)  
-**Wersja:** v8 (dwukierunkowe blokowanie banów) + v1.4.0 (API key authentication)  
-**Audytor:** GitHub Copilot
+# Security Audit - RustDesk Server Modifications
+**Audit Date:** January 6, 2026  
+**Last Updated:** January 11, 2026 (v1.4.0 - added API authentication)  
+**Version:** v8 (bidirectional ban blocking) + v1.4.0 (API key authentication)  
+**Auditor:** GitHub Copilot
 
 ---
 
-## ✅ Zmiany Bezpieczeństwa v1.4.0 (11 stycznia 2026)
+## ✅ Security Changes v1.4.0 (January 11, 2026)
 
-### 🔐 Autentykacja API (X-API-Key)
+### 🔐 API Authentication (X-API-Key)
 
-**Rozwiązane zagrożenie:** Brak autentykacji HTTP API
+**Resolved Threat:** Lack of HTTP API authentication
 
-**Implementacja:**
-1. **Generowanie klucza API**:
-   - 64-znakowy losowy klucz przy instalacji
-   - Algorytm: `openssl rand -base64 48 | tr -d '/+=' | cut -c1-64`
-   - Przechowywany w `/opt/rustdesk/.api_key` z uprawnieniami 600
+**Implementation:**
+1. **API Key Generation**:
+   - 64-character random key during installation
+   - Algorithm: `openssl rand -base64 48 | tr -d '/+=' | cut -c1-64`
+   - Stored in `/opt/rustdesk/.api_key` with 600 permissions
 
-2. **Middleware weryfikacji** (http_api.rs):
+2. **Verification Middleware** (http_api.rs):
 ```rust
 async fn verify_api_key(
     State(state): State<Arc<ApiState>>,
@@ -39,60 +39,60 @@ async fn verify_api_key(
 }
 ```
 
-3. **Wszystkie endpointy chronione**:
-   - `/api/health` - wymaga X-API-Key
-   - `/api/peers` - wymaga X-API-Key
-   - Brak klucza = 401 Unauthorized
-   - Nieprawidłowy klucz = 401 Unauthorized
+3. **All endpoints protected**:
+   - `/api/health` - requires X-API-Key
+   - `/api/peers` - requires X-API-Key
+   - No key = 401 Unauthorized
+   - Invalid key = 401 Unauthorized
 
-4. **Dostęp LAN**:
-   - API nasłuchuje na `0.0.0.0:21120` (dostępne w sieci LAN)
-   - Konsola web automatycznie dodaje X-API-Key do wszystkich żądań
-   - Zewnętrzne narzędzia muszą pobrać klucz z `/opt/rustdesk/.api_key`
+4. **LAN Access**:
+   - API listens on `0.0.0.0:21120` (accessible on LAN)
+   - Web console automatically adds X-API-Key to all requests
+   - External tools must retrieve key from `/opt/rustdesk/.api_key`
 
-**Status:** ✅ ZAIMPLEMENTOWANE
+**Status:** ✅ IMPLEMENTED
 
-### 🌐 Konsola Web - System Uwierzytelniania
+### 🌐 Web Console - Authentication System
 
-**Funkcje bezpieczeństwa:**
-1. **Logowanie użytkowników**:
-   - Hashowanie haseł bcrypt (cost 12)
-   - Tokeny sesji (24 godziny)
-   - Kontrola dostępu oparta na rolach (admin/operator/viewer)
+**Security Features:**
+1. **User Login**:
+   - bcrypt password hashing (cost 12)
+   - Session tokens (24 hours)
+   - Role-based access control (admin/operator/viewer)
 
-2. **Zarządzanie użytkownikami**:
-   - Panel administracyjny do tworzenia/edycji/usuwania użytkowników
-   - Audit log dla wszystkich akcji
-   - Ochrona hasłem dostępu do klucza publicznego
+2. **User Management**:
+   - Administrative panel for creating/editing/deleting users
+   - Audit log for all actions
+   - Password protection for public key access
 
-3. **Ochrona danych**:
-   - Parametryzowane zapytania SQL
-   - Walidacja danych wejściowych
-   - Ochrona XSS/CSRF
+3. **Data Protection**:
+   - Parameterized SQL queries
+   - Input data validation
+   - XSS/CSRF protection
 
-**Status:** ✅ ZAIMPLEMENTOWANE
-
----
-
-## 1. Streszczenie Wykonawcze
-
-### 🔴 Krytyczne zagrożenia: 2
-### 🟠 Wysokie zagrożenia: 3
-### 🟡 Średnie zagrożenia: 2
-### 🟢 Niskie zagrożenia: 3
-
-**Uwaga:** Zagrożenia poniżej dotyczą głównie mechanizmu banowania urządzeń, nie API HTTP.
+**Status:** ✅ IMPLEMENTED
 
 ---
 
-## 2. Krytyczne Zagrożenia
+## 1. Executive Summary
 
-### 🔴 CRITICAL-01: SQL Injection w HBBR relay_server.rs
-**Plik:** `build.sh` (linie 306-320)  
-**Lokalizacja:** Patch HBBR relay server  
-**Ważność:** KRYTYCZNA
+### 🔴 Critical threats: 2
+### 🟠 High threats: 3
+### 🟡 Medium threats: 2
+### 🟢 Low threats: 3
 
-**Kod podatny:**
+**Note:** The threats below relate mainly to the device banning mechanism, not the HTTP API.
+
+---
+
+## 2. Critical Threats
+
+### 🔴 CRITICAL-01: SQL Injection in HBBR relay_server.rs
+**File:** `build.sh` (lines 306-320)  
+**Location:** Patch HBBR relay server  
+**Severity:** CRITICAL
+
+**Vulnerable Code:**
 ```rust
 let info_pattern = format!("%{}%", client_ip);
 match conn.prepare(

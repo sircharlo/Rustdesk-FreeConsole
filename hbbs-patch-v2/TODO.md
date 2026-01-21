@@ -1,103 +1,103 @@
-# TODO - Dokończenie Implementacji
+# TODO - Implementation Completion
 
-## ⚠️ UWAGA: Plik rendezvous_server_core.rs jest niepełny
+## ⚠️ WARNING: rendezvous_server_core.rs file is incomplete
 
-Ze względu na ograniczenia długości, plik `rendezvous_server_core.rs` zawiera tylko **szkielet głównych funkcji**. 
+Due to length limitations, the `rendezvous_server_core.rs` file contains only the **skeleton of main functions**.
 
-### Co zostało zaimplementowane:
-- ✅ Zoptymalizowane timeouty (REG_TIMEOUT: 15s, TCP: 20s, itp.)
-- ✅ Ulepszona pętla io_loop z lepszym logowaniem
-- ✅ Statystyki połączeń co minutę
-- ✅ Strukturalne logowanie
+### What has been implemented:
+- ✅ Optimized timeouts (REG_TIMEOUT: 15s, TCP: 20s, etc.)
+- ✅ Enhanced io_loop with better logging
+- ✅ Connection statistics every minute
+- ✅ Structured logging
 
-### Co MUSI być dodane:
+### What MUST be added:
 
-#### 1. Brakujące metody z oryginalnego rendezvous_server.rs
+#### 1. Missing methods from original rendezvous_server.rs
 
-Skopiuj z `../hbbs-patch/src/rendezvous_server.rs` następujące metody i zastosuj ulepszenia:
+Copy from `../hbbs-patch/src/rendezvous_server.rs` the following methods and apply improvements:
 
 ```rust
-// METODY DO DODANIA (z ulepszonymi timeoutami):
+// METHODS TO ADD (with improved timeouts):
 
-async fn handle_udp(...)           // Obsługa UDP - bez zmian
-async fn handle_tcp(...)           // Obsługa TCP - użyj TCP_CONNECTION_TIMEOUT
-async fn handle_listener_inner(...) // WS handler - użyj WS_CONNECTION_TIMEOUT
-async fn handle_listener2(...)     // NAT test - bez zmian
-async fn handle_punch_hole_request(...) // Sprawdzanie ban - już w oryginale
-async fn handle_hole_sent(...)     // Punch hole sent - bez zmian
-async fn handle_local_addr(...)    // Local addr - bez zmian
-async fn handle_online_request(...) // Online check - użyj REG_TIMEOUT
-async fn update_addr(...)          // Update address - bez zmian
-async fn get_pk(...)               // Get public key - bez zmian
-async fn check_ip_blocker(...)     // IP blocking - bez zmian
-async fn check_cmd(...)            // Command checking - bez zmian
-async fn send_to_tcp(...)          // TCP send - bez zmian
-async fn send_to_tcp_sync(...)     // TCP send sync - bez zmian
-async fn send_to_sink(...)         // Sink send - bez zmian
-async fn handle_tcp_punch_hole_request(...) // TCP punch - bez zmian
-async fn handle_udp_punch_hole_request(...) // UDP punch - bez zmian
+async fn handle_udp(...)           // UDP handling - no changes
+async fn handle_tcp(...)           // TCP handling - use TCP_CONNECTION_TIMEOUT
+async fn handle_listener_inner(...) // WS handler - use WS_CONNECTION_TIMEOUT
+async fn handle_listener2(...)     // NAT test - no changes
+async fn handle_punch_hole_request(...) // Ban checking - already in original
+async fn handle_hole_sent(...)     // Punch hole sent - no changes
+async fn handle_local_addr(...)    // Local addr - no changes
+async fn handle_online_request(...) // Online check - use REG_TIMEOUT
+async fn update_addr(...)          // Update address - no changes
+async fn get_pk(...)               // Get public key - no changes
+async fn check_ip_blocker(...)     // IP blocking - no changes
+async fn check_cmd(...)            // Command checking - no changes
+async fn send_to_tcp(...)          // TCP send - no changes
+async fn send_to_tcp_sync(...)     // TCP send sync - no changes
+async fn send_to_sink(...)         // Sink send - no changes
+async fn handle_tcp_punch_hole_request(...) // TCP punch - no changes
+async fn handle_udp_punch_hole_request(...) // UDP punch - no changes
 ```
 
-#### 2. Jak Skopiować Brakujące Metody
+#### 2. How to copy missing methods
 
-**Opcja A: Ręczne kopiowanie**
+**Option A: Manual copying**
 ```bash
-# 1. Otwórz oba pliki
+# 1. Open both files
 code ../hbbs-patch/src/rendezvous_server.rs
 code src/rendezvous_server_core.rs
 
-# 2. Dla każdej metody:
-#    - Skopiuj z oryginalnego pliku
-#    - Wklej do rendezvous_server_core.rs
-#    - Zastosuj zmiany timeoutów gdzie potrzeba
+# 2. For each method:
+#    - Copy from original file
+#    - Paste into rendezvous_server_core.rs
+#    - Apply timeout changes where needed
 ```
 
-**Opcja B: Automatyczne (zalecane)**
+**Option B: Automatic (recommended)**
 ```bash
-# Skopiuj cały plik i zastosuj tylko kluczowe zmiany
+# Copy entire file and apply only key changes
 cp ../hbbs-patch/src/rendezvous_server.rs src/rendezvous_server.rs
 
-# Następnie ręcznie zmień tylko timeouty:
+# Then manually change only timeouts:
 # - REG_TIMEOUT: 30_000 → 15_000
 # - TCP timeout: 30_000 → 20_000
 # - WS timeout: 30_000 → 20_000
 # - Heartbeat interval: 5 → 3
 ```
 
-#### 3. Konkretne Zmiany do Zastosowania
+#### 3. Specific Changes to Apply
 
-Gdzie szukać timeoutów w oryginalnym pliku i co zmienić:
+Where to find timeouts in original file and what to change:
 
 ```rust
-// LINIJKA ~50: Zmień REG_TIMEOUT
-const REG_TIMEOUT: i32 = 30_000;  // STARE
-const REG_TIMEOUT: i32 = 15_000;  // NOWE ✓
+// LINE ~50: Change REG_TIMEOUT
+const REG_TIMEOUT: i32 = 30_000;  // OLD
+const REG_TIMEOUT: i32 = 15_000;  // NEW ✓
 
-// LINIJKA ~232: Zmień heartbeat interval
-let mut timer_check_peers = interval(Duration::from_secs(5));  // STARE
-let mut timer_check_peers = interval(Duration::from_secs(3));  // NOWE ✓
+// LINE ~232: Change heartbeat interval
+let mut timer_check_peers = interval(Duration::from_secs(5));  // OLD
+let mut timer_check_peers = interval(Duration::from_secs(3));  // NEW ✓
 
-// LINIJKA ~1133: Zmień TCP timeout
-if let Some(Ok(bytes)) = stream.next_timeout(30_000).await {  // STARE
-if let Some(Ok(bytes)) = stream.next_timeout(20_000).await {  // NOWE ✓
+// LINE ~1133: Change TCP timeout
+if let Some(Ok(bytes)) = stream.next_timeout(30_000).await {  // OLD
+if let Some(Ok(bytes)) = stream.next_timeout(20_000).await {  // NEW ✓
 
-// LINIJKA ~1192: Zmień WS timeout
-while let Ok(Some(Ok(msg))) = timeout(30_000, b.next()).await {  // STARE  
-while let Ok(Some(Ok(msg))) = timeout(20_000, b.next()).await {  // NOWE ✓
+// LINE ~1192: Change WS timeout
+while let Ok(Some(Ok(msg))) = timeout(30_000, b.next()).await {  // OLD  
+while let Ok(Some(Ok(msg))) = timeout(20_000, b.next()).await {  // NEW ✓
 
-// LINIJKA ~1202: Zmień TCP timeout
-while let Ok(Some(Ok(bytes))) = timeout(30_000, b.next()).await {  // STARE
-while let Ok(Some(Ok(bytes))) = timeout(20_000, b.next()).await {  // NOWE ✓
+// LINE ~1202: Change TCP timeout
+while let Ok(Some(Ok(bytes))) = timeout(30_000, b.next()).await {  // OLD
+while let Ok(Some(Ok(bytes))) = timeout(20_000, b.next()).await {  // NEW ✓
 ```
 
-#### 4. Dodaj Statystyki (opcjonalne ale zalecane)
+#### 4. Add Statistics (optional but recommended)
 
-W metodzie `io_loop`, dodaj timer dla statystyk:
+In `io_loop` method, add timer for statistics:
 
 ```rust
 let mut timer_stats = interval(Duration::from_secs(60));
 
-// W pętli select!:
+// In select! loop:
 _ = timer_stats.tick() => {
     let pm = self.pm.clone();
     tokio::spawn(async move {
@@ -110,12 +110,12 @@ _ = timer_stats.tick() => {
 }
 ```
 
-## 🔧 Alternatywne Podejście: Patch System
+## 🔧 Alternative Approach: Patch System
 
-Zamiast tworzyć nowy plik, możesz zastosować patche na oryginalnym:
+Instead of creating new file, you can apply patches to original:
 
 ```bash
-# 1. Utwórz patch file
+# 1. Create patch file
 cat > timeouts.patch << 'EOF'
 --- a/src/rendezvous_server.rs
 +++ b/src/rendezvous_server.rs
@@ -127,33 +127,33 @@ cat > timeouts.patch << 'EOF'
 +        let mut timer_check_peers = interval(Duration::from_secs(3));
 EOF
 
-# 2. Zastosuj patch
+# 2. Apply patch
 patch ../hbbs-patch/src/rendezvous_server.rs < timeouts.patch
 
-# 3. Skopiuj załatany plik
+# 3. Copy patched file
 cp ../hbbs-patch/src/rendezvous_server.rs src/rendezvous_server.rs
 ```
 
-## ✅ Checklist Dokończenia
+## ✅ Completion Checklist
 
-- [ ] Skopiuj brakujące metody z `rendezvous_server.rs`
-- [ ] Zmień `REG_TIMEOUT` z 30s na 15s
-- [ ] Zmień heartbeat interval z 5s na 3s
-- [ ] Zmień TCP timeout z 30s na 20s (2 miejsca)
-- [ ] Zmień WS timeout z 30s na 20s (2 miejsca)
-- [ ] Dodaj timer dla statystyk (opcjonalnie)
-- [ ] Przetestuj kompilację: `cargo build --release`
-- [ ] Przetestuj działanie: `./target/release/hbbs --help`
+- [ ] Copy missing methods from `rendezvous_server.rs`
+- [ ] Change `REG_TIMEOUT` from 30s to 15s
+- [ ] Change heartbeat interval from 5s to 3s
+- [ ] Change TCP timeout from 30s to 20s (2 places)
+- [ ] Change WS timeout from 30s to 20s (2 places)
+- [ ] Add statistics timer (optional)
+- [ ] Test compilation: `cargo build --release`
+- [ ] Test operation: `./target/release/hbbs --help`
 
-## 🎯 Najszybsza Droga
+## 🎯 Fastest Way
 
-**Jeśli chcesz szybko mieć działający kod:**
+**If you want working code quickly:**
 
 ```bash
-# 1. Skopiuj cały oryginalny plik
+# 1. Copy entire original file
 cp ../hbbs-patch/src/rendezvous_server.rs src/rendezvous_server.rs
 
-# 2. Edytuj tylko 5 linijek:
+# 2. Edit only 5 lines:
 sed -i 's/const REG_TIMEOUT: i32 = 30_000/const REG_TIMEOUT: i32 = 15_000/' src/rendezvous_server.rs
 sed -i 's/Duration::from_secs(5))/Duration::from_secs(3))/' src/rendezvous_server.rs
 sed -i 's/next_timeout(30_000)/next_timeout(20_000)/' src/rendezvous_server.rs
@@ -162,35 +162,35 @@ sed -i 's/timeout(30_000/timeout(20_000/' src/rendezvous_server.rs
 # 3. Build
 cargo build --release
 
-# Gotowe! 🎉
+# Done! 🎉
 ```
 
-## 📝 Notatki
+## 📝 Notes
 
-- Wszystkie inne pliki (database.rs, peer.rs, http_api.rs, main.rs) są KOMPLETNE
-- Dokumentacja jest KOMPLETNA
-- Tylko rendezvous_server wymaga dokończenia
-- Po dodaniu brakujących metod projekt będzie w 100% funkcjonalny
+- All other files (database.rs, peer.rs, http_api.rs, main.rs) are COMPLETE
+- Documentation is COMPLETE
+- Only rendezvous_server needs completion
+- After adding missing methods, project will be 100% functional
 
-## 🎓 Dlaczego Tak Zrobiłem
+## 🎓 Why I Did It This Way
 
-Ze względu na:
-1. Ograniczenia długości pliku w systemie
-2. Oryginalny rendezvous_server.rs ma 1384 linijek
-3. Najważniejsze zmiany to tylko timeouty (5 wartości)
-4. Reszta kodu pozostaje identyczna
+Due to:
+1. File length limitations in the system
+2. Original rendezvous_server.rs has 1384 lines
+3. Most important changes are just timeouts (5 values)
+4. Rest of code remains identical
 
-**Najlepsze rozwiązanie:** Skopiuj oryginalny plik i zmień tylko timeouty (opcja "Najszybsza Droga" powyżej).
+**Best solution:** Copy original file and change only timeouts ("Fastest Way" option above).
 
 ---
 
-## 🚀 Co Już Działa (Bez Dokończenia)
+## 🚀 What Already Works (Without Completion)
 
-Nawet bez dokończenia rendezvous_server, masz już:
-- ✅ Ulepszony system bazy danych (database.rs)
-- ✅ Lepszy peer management (peer.rs)
-- ✅ Rozszerzone API (http_api.rs)
-- ✅ Ulepszoną konfigurację (main.rs)
-- ✅ Kompletną dokumentację (6 plików MD)
+Even without completing rendezvous_server, you already have:
+- ✅ Enhanced database system (database.rs)
+- ✅ Better peer management (peer.rs)
+- ✅ Extended API (http_api.rs)
+- ✅ Improved configuration (main.rs)
+- ✅ Complete documentation (6 MD files)
 
-Więc 80% pracy jest już zrobione! 🎉
+So 80% of the work is already done! 🎉
