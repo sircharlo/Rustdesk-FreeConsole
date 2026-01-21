@@ -190,6 +190,48 @@ docker compose exec betterdesk-console sqlite3 /opt/rustdesk/db_v2.sqlite3 ".tab
 docker compose exec betterdesk-console sqlite3 /opt/rustdesk/db_v2.sqlite3 "SELECT username, role FROM users;"
 ```
 
+## 🔒 Security & Updates
+
+### ⚠️ Watchtower Removed
+
+**Important**: Watchtower has been removed from docker-compose.yml as it's **no longer maintained** and poses a security risk.
+
+### ✅ Safe Update Methods
+
+```bash
+# Method 1: Manual updates (recommended)
+docker-compose pull && docker-compose down && docker-compose up -d
+
+# Method 2: Update specific services
+docker-compose pull betterdesk-console
+docker-compose up -d betterdesk-console
+
+# Method 3: Check for updates first
+docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.CreatedAt}}\t{{.Size}}"
+```
+
+### 🤖 Automated Alternatives
+
+Instead of Watchtower, consider modern secure alternatives:
+
+1. **GitHub Dependabot** - Automatic dependency updates via PR
+2. **Renovate Bot** - Advanced dependency management 
+3. **Custom scripts** with notifications
+4. **Kubernetes operators** (for K8s environments)
+
+### 📅 Update Schedule
+
+```bash
+# Weekly security check (add to cron)
+#!/bin/bash
+cd /path/to/BetterDesk-Console
+docker-compose pull --quiet
+if [ $? -eq 0 ]; then
+    echo "Updates available - review and apply manually"
+    docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.CreatedAt}}"
+fi
+```
+
 ---
 
 **⚠️ IMPORTANT**: After first login, always change the default administrator password in the console settings!

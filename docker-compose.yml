@@ -136,15 +136,7 @@ networks:
       config:
         - subnet: 172.28.0.0/16
 
-# Optional: Watchtower for automatic updates
-  watchtower:
-    image: containrrr/watchtower
-    container_name: betterdesk-watchtower
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    environment:
-      - WATCHTOWER_CLEANUP=true
-      - WATCHTOWER_POLL_INTERVAL=86400  # Check daily
-    profiles:
-      - watchtower
-    restart: unless-stopped
+# Security Notice:
+# - Watchtower has been removed (archived project - security risk)
+# - For updates, manually pull new images: docker-compose pull && docker-compose up -d
+# - Or use modern alternatives like Renovate, Dependabot, or manual update scripts

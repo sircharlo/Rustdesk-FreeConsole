@@ -442,6 +442,27 @@ sudo bash ~/MANUAL_INSTALL.sh
 4. Restart services
 5. Verify API is responding on port 21120
 
+### 🔄 Container Updates & Security
+
+**Important**: Watchtower has been removed from docker-compose.yml as it's no longer maintained (security risk).
+
+**Secure update methods:**
+
+```bash
+# Manual updates (recommended)
+docker-compose pull
+docker-compose down
+docker-compose up -d
+
+# Check for updates weekly
+docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.CreatedAt}}"
+
+# Alternative: Use modern tools
+# - GitHub Dependabot (automatic PRs)
+# - Renovate Bot (automatic updates) 
+# - Custom update scripts with notifications
+```
+
 ---
 
 ## 🔧 Troubleshooting
