@@ -223,10 +223,12 @@
 
 - **Linux**: Ubuntu 20.04+, Debian 11+, CentOS 8+
 - **Windows**: Windows 10+, Windows Server 2016+
-- **Existing RustDesk**: Working HBBS installation (optional - can be fresh install)
+- **RustDesk**: Fresh RustDesk installation OR existing working HBBS (script auto-detects)
 - **Linux Dependencies**: python3, pip3, curl, systemd
 - **Windows Dependencies**: Python 3.8+, PowerShell 5.1+
 - **No Compilation Required**: Uses precompiled binaries
+
+> **💡 Fresh Installation Support**: The script now automatically detects if you have RustDesk installed and can perform fresh installations or updates accordingly. No need for separate installation procedures!
 
 ### � Docker Installation
 

@@ -29,11 +29,11 @@ if not os.path.exists(DB_PATH):
     print('⚠️  Database not found, skipping migration')
     exit(0)
 
-# Połącz się z bazą danych
+# Connect to database
 conn = sqlite3.connect(DB_PATH)
 cursor = conn.cursor()
 
-# Sprawdź czy tabela users istnieje
+# Check if users table exists
 cursor.execute(\"SELECT name FROM sqlite_master WHERE type='table' AND name='users'\")
 if cursor.fetchone():
     print('ℹ️  Migration already applied')
@@ -41,7 +41,7 @@ if cursor.fetchone():
 
 print('🔧 Creating authentication tables...')
 
-# Utwórz tabele autoryzacji
+# Create authorization tables
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -84,12 +84,12 @@ cursor.execute('CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id
 cursor.execute('CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)')
 cursor.execute('CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id)')
 
-# Sprawdź czy admin już istnieje
+# Check if admin already exists
 cursor.execute('SELECT id FROM users WHERE username = ?', (DEFAULT_ADMIN_USERNAME,))
 if cursor.fetchone():
     print('ℹ️  Admin user already exists')
 else:
-    # Utwórz domyślnego admina
+    # Create default admin
     print('👤 Creating default admin user...')
     salt = bcrypt.gensalt()
     password_hash = bcrypt.hashpw(DEFAULT_ADMIN_PASSWORD.encode('utf-8'), salt).decode('utf-8')
@@ -134,15 +134,15 @@ conn.close()
 print('✅ Migration completed successfully')
 "
     
-    # Oznacz migrację jako zakończoną
+    # Mark migration as completed
     touch "$MIGRATION_MARKER"
 }
 
-# Sprawdź czy baza danych istnieje
+# Check if database exists
 if [ -f "$DB_PATH" ]; then
     echo "📂 Database found: $DB_PATH"
     
-    # Sprawdź czy migracja była już wykonana lub czy jest wyłączona
+    # Check if migration was already performed or is disabled
     if [ ! -f "$MIGRATION_MARKER" ] && [ "${SKIP_AUTO_MIGRATION:-false}" != "true" ]; then
         run_migration
     else
@@ -179,5 +179,5 @@ echo "   Web Interface: http://localhost:5000"
 echo "   Default Login: admin / (see logs above for password)"
 echo ""
 
-# Uruchom aplikację Flask
+# Start Flask application
 exec python3 app_v14.py

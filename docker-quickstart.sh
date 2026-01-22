@@ -36,19 +36,74 @@ echo "📁 Data directory: $(pwd)/data"
 echo "🔑 Flask secret: ${FLASK_SECRET_KEY:0:16}..."
 echo ""
 
-# Ask user about existing RustDesk data
-read -p "Do you have existing RustDesk data to import? [y/N] " -n 1 -r
-echo ""
+# Auto-detect existing RustDesk installation
+RUSTDESK_FOUND=false
+RUSTDESK_PATHS=(
+    "/opt/rustdesk"
+    "/var/lib/rustdesk"
+    "/root/.rustdesk"
+    "$HOME/.rustdesk"
+)
 
-if [[ $REPLY =~ ^[Yy]$ ]]; then
+echo "🔍 Searching for existing RustDesk installation..."
+for path in "${RUSTDESK_PATHS[@]}"; do
+    if [ -d "$path" ]; then
+        # Check for RustDesk files
+        if [ -f "$path/hbbs" ] || [ -f "$path/hbbs-v8-api" ] || ls "$path"/*.sqlite3 &>/dev/null 2>&1; then
+            echo "✅ Found RustDesk installation at: $path"
+            RUSTDESK_FOUND=true
+            EXISTING_RUSTDESK_PATH="$path"
+            break
+        fi
+    fi
+done
+
+if [ "$RUSTDESK_FOUND" = true ]; then
     echo ""
-    echo "Please copy your existing RustDesk data to: $(pwd)/data"
-    echo "Required files:"
-    echo "  - id_ed25519 (private key)"
-    echo "  - id_ed25519.pub (public key)"  
-    echo "  - db_v2.sqlite3 (database)"
+    echo "🎯 Existing RustDesk installation detected!"
+    read -p "Do you want to import data from existing installation? [Y/n] " -n 1 -r
     echo ""
-    read -p "Press Enter when ready to continue..."
+    
+    if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+        echo "📦 Importing data from: $EXISTING_RUSTDESK_PATH"
+        
+        # Copy database files
+        for db in "db_v2.sqlite3" "db.sqlite3" "rustdesk.db"; do
+            if [ -f "$EXISTING_RUSTDESK_PATH/$db" ]; then
+                cp "$EXISTING_RUSTDESK_PATH/$db" "./data/"
+                echo "✅ Copied $db"
+            fi
+        done
+        
+        # Copy key files
+        for key in "id_ed25519" "id_ed25519.pub" "key.pem"; do
+            if [ -f "$EXISTING_RUSTDESK_PATH/$key" ]; then
+                cp "$EXISTING_RUSTDESK_PATH/$key" "./data/"
+                echo "✅ Copied $key"
+            fi
+        done
+        
+        echo "✅ Data import completed"
+    else
+        echo "⏭️  Skipping data import"
+    fi
+else
+    echo "ℹ️  No existing RustDesk installation found"
+    echo ""
+    # Ask user about existing RustDesk data from other source
+    read -p "Do you have RustDesk data from another source to import? [y/N] " -n 1 -r
+    echo ""
+    
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo ""
+        echo "Please copy your existing RustDesk data to: $(pwd)/data"
+        echo "Required files:"
+        echo "  - id_ed25519 (private key)"
+        echo "  - id_ed25519.pub (public key)"
+        echo "  - db_v2.sqlite3 (database)"
+        echo ""
+        read -p "Press Enter when ready to continue..."
+    fi
 fi
 
 echo ""

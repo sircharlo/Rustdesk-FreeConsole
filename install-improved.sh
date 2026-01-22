@@ -472,6 +472,89 @@ update_binaries() {
 }
 
 # =============================================================================
+# Fresh Installation
+# =============================================================================
+
+fresh_installation() {
+    print_header "Fresh Installation Setup"
+    
+    # Create console directory
+    CONSOLE_PATH="/opt/BetterDeskConsole"
+    print_info "Creating console directory: $CONSOLE_PATH"
+    mkdir -p "$CONSOLE_PATH"
+    mkdir -p "$CONSOLE_PATH/static"
+    mkdir -p "$CONSOLE_PATH/templates"
+    
+    # Copy web files
+    if [ -d "$SCRIPT_DIR/web" ]; then
+        print_info "Installing web application files..."
+        
+        # Copy Python files
+        for pyfile in app_v14.py auth.py; do
+            if [ -f "$SCRIPT_DIR/web/$pyfile" ]; then
+                cp "$SCRIPT_DIR/web/$pyfile" "$CONSOLE_PATH/"
+                print_success "Installed $pyfile"
+            fi
+        done
+        
+        # Copy static files
+        if [ -d "$SCRIPT_DIR/web/static" ]; then
+            cp -r "$SCRIPT_DIR/web/static/"* "$CONSOLE_PATH/static/" 2>/dev/null || true
+            print_success "Installed static files"
+        fi
+        
+        # Copy templates
+        if [ -d "$SCRIPT_DIR/web/templates" ]; then
+            cp -r "$SCRIPT_DIR/web/templates/"* "$CONSOLE_PATH/templates/" 2>/dev/null || true
+            print_success "Installed templates"
+        fi
+        
+        # Copy requirements and service file
+        if [ -f "$SCRIPT_DIR/web/requirements.txt" ]; then
+            cp "$SCRIPT_DIR/web/requirements.txt" "$CONSOLE_PATH/"
+        fi
+        if [ -f "$SCRIPT_DIR/web/betterdesk.service" ]; then
+            cp "$SCRIPT_DIR/web/betterdesk.service" "/etc/systemd/system/"
+            systemctl daemon-reload
+            print_success "Installed systemd service"
+        fi
+    fi
+    
+    # Create VERSION file
+    echo "v$TARGET_VERSION" > "$CONSOLE_PATH/VERSION"
+    print_success "Created VERSION file"
+    
+    # Install Python dependencies
+    print_info "Installing Python dependencies..."
+    if pip3 install bcrypt markupsafe flask flask-wtf flask-limiter --quiet --break-system-packages 2>/dev/null; then
+        print_success "Dependencies installed with --break-system-packages"
+    elif pip3 install bcrypt markupsafe flask flask-wtf flask-limiter --quiet --user 2>/dev/null; then
+        print_success "Dependencies installed with --user"
+    elif pip3 install bcrypt markupsafe flask flask-wtf flask-limiter --quiet 2>/dev/null; then
+        print_success "Dependencies installed normally"
+    else
+        print_warning "Could not install some Python packages automatically"
+        print_info "Please install manually: pip3 install bcrypt markupsafe flask flask-wtf flask-limiter"
+    fi
+    
+    # Enable and start service
+    if [ -f "/etc/systemd/system/betterdesk.service" ]; then
+        systemctl enable betterdesk.service
+        systemctl start betterdesk.service
+        print_success "BetterDesk Console service enabled and started"
+    fi
+    
+    # Final setup message
+    echo ""
+    print_success "Fresh installation completed!"
+    print_info "Console installed at: $CONSOLE_PATH"
+    if [ -n "$DB_PATH" ]; then
+        print_info "Database found at: $DB_PATH"
+    fi
+    echo ""
+}
+
+# =============================================================================
 # Restart Services
 # =============================================================================
 
@@ -529,72 +612,112 @@ main() {
     # Detect installation
     print_header "Detecting Installation"
     
-    if ! detect_console_path; then
-        print_error "Could not find BetterDesk Console installation"
+    # Check if BetterDesk Console is already installed (update scenario)
+    CONSOLE_ALREADY_INSTALLED=false
+    if detect_console_path; then
+        CONSOLE_ALREADY_INSTALLED=true
+        print_success "Found existing BetterDesk Console installation"
+    else
+        print_info "No existing BetterDesk Console found - will perform fresh installation"
+    fi
+    
+    # Always try to detect RustDesk (required for both fresh install and update)
+    if ! detect_rustdesk_path; then
+        print_error "Could not find RustDesk installation"
         echo ""
         print_info "Searched in:"
-        for path in "${CONSOLE_PATHS[@]}"; do
+        for path in "${RUSTDESK_PATHS[@]}"; do
             echo "  - $path"
         done
         echo ""
-        print_info "For new installations, use: ./install-improved.sh"
+        print_info "Please install RustDesk first, then run this script again"
         exit 1
     fi
     
-    if ! detect_rustdesk_path; then
-        print_warning "Could not find RustDesk installation"
-        print_info "Some features may not work correctly"
-    fi
     
     if ! detect_database; then
         print_error "Could not find RustDesk database"
         exit 1
     fi
     
-    detect_current_version
-    
-    # Summary
-    echo ""
-    print_info "Installation Summary:"
-    echo "  Console Path:   $CONSOLE_PATH"
-    echo "  RustDesk Path:  $RUSTDESK_PATH"
-    echo "  Database:       $DB_PATH"
-    echo "  Current Ver:    $CURRENT_VERSION"
-    echo "  Target Ver:     $TARGET_VERSION"
-    echo ""
-    
-    # Confirmation
-    read -p "Proceed with update? [y/N] " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        print_info "Update cancelled"
-        exit 0
+    # Handle fresh installation vs update
+    if [ "$CONSOLE_ALREADY_INSTALLED" = true ]; then
+        # UPDATE SCENARIO
+        detect_current_version
+        
+        # Summary
+        echo ""
+        print_info "Update Summary:"
+        echo "  Console Path:   $CONSOLE_PATH"
+        echo "  RustDesk Path:  $RUSTDESK_PATH"
+        echo "  Database:       $DB_PATH"
+        echo "  Current Ver:    $CURRENT_VERSION"
+        echo "  Target Ver:     $TARGET_VERSION"
+        echo ""
+        
+        # Confirmation
+        read -p "Proceed with update? [y/N] " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            print_info "Update cancelled"
+            exit 0
+        fi
+        
+        # Run update steps
+        create_backup
+        run_database_migration
+        update_console_files
+        update_binaries
+        restart_services
+    else
+        # FRESH INSTALLATION SCENARIO
+        echo ""
+        print_info "Fresh Installation Summary:"
+        echo "  RustDesk Path:  $RUSTDESK_PATH"
+        echo "  Database:       $DB_PATH"
+        echo "  Target Ver:     $TARGET_VERSION"
+        echo ""
+        
+        # Confirmation
+        read -p "Proceed with fresh installation? [y/N] " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            print_info "Installation cancelled"
+            exit 0
+        fi
+        
+        # Run fresh installation steps
+        fresh_installation
+        run_database_migration
+        update_binaries
+        restart_services
     fi
     
-    # Run update steps
-    create_backup
-    run_database_migration
-    update_console_files
-    update_binaries
-    restart_services
-    
     # Final message
-    print_header "Update Complete!"
+    if [ "$CONSOLE_ALREADY_INSTALLED" = true ]; then
+        print_header "Update Complete!"
+        echo -e "${GREEN}BetterDesk Console has been updated to v$TARGET_VERSION${NC}"
+        echo ""
+        print_info "Backup location: $BACKUP_DIR"
+        print_info "To restore: cp -r $BACKUP_DIR/console/* $CONSOLE_PATH/"
+    else
+        print_header "Installation Complete!"
+        echo -e "${GREEN}BetterDesk Console v$TARGET_VERSION has been installed!${NC}"
+    fi
     
-    echo -e "${GREEN}BetterDesk Console has been updated to v$TARGET_VERSION${NC}"
-    echo ""
-    print_info "Backup location: $BACKUP_DIR"
-    print_info "To restore: cp -r $BACKUP_DIR/console/* $CONSOLE_PATH/"
     echo ""
     print_info "Next steps:"
-    echo "  1. Open the web console and log in"
-    echo "  2. Change the admin password if this is a new auth setup"
-    echo "  3. Check device status is working correctly"
+    echo "  1. Open the web console at: http://your-server:5000"
+    echo "  2. Log in with the admin credentials (shown above for new installs)"
+    echo "  3. Change the admin password if this is a fresh installation"
+    echo "  4. Check that device status is working correctly"
     echo ""
     print_info "If you have issues:"
     echo "  - Check logs: journalctl -u betterdesk.service -n 50"
     echo "  - API health: curl -H 'X-API-Key: YOUR_KEY' http://localhost:21120/api/health"
-    echo "  - Restore backup if needed"
+    if [ "$CONSOLE_ALREADY_INSTALLED" = true ]; then
+        echo "  - Restore backup if needed"
+    fi
     echo ""
 }
 

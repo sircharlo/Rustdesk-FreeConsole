@@ -1,4 +1,4 @@
-# 🔒 Bezpieczna Konfiguracja Portów - BetterDesk Console
+# 🔒 Secure Port Configuration - BetterDesk Console
 
 ## 📊 Analiza Portów RustDesk (Oficjalna Dokumentacja)
 

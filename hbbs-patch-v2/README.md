@@ -7,47 +7,47 @@
 ![Rust](https://img.shields.io/badge/rust-1.70%2B-orange)
 ![Status](https://img.shields.io/badge/status-production--ready-brightgreen)
 
-**Ulepszona, stabilniejsza wersja serwera RustDesk/BetterDesk**
+**Enhanced, more stable version of RustDesk/BetterDesk server**
 
-[Quick Start](#quick-start) • [Dokumentacja](#dokumentacja) • [Ulepszenia](#główne-ulepszenia) • [Migracja](#migracja)
+[Quick Start](#quick-start) • [Documentation](#documentation) • [Improvements](#key-improvements) • [Migration](#migration)
 
 </div>
 
 ---
 
-## ⚡ Kluczowe Cechy
+## ⚡ Key Features
 
-| Feature | v1 | v2 | Poprawa |
-|---------|----|----|---------|
-| 🔍 Wykrycie offline | 30s | **15s** | **50% szybciej** |
-| 💾 Połączenia DB | 1 | **5** | **5x więcej** |
+| Feature | v1 | v2 | Improvement |
+|---------|----|----|----------|
+| 🔍 Offline detection | 30s | **15s** | **50% faster** |
+| 💾 DB connections | 1 | **5** | **5x more** |
 | 🔄 Retry logic | ❌ | ✅ | **Auto recovery** |
-| 🛡️ Circuit breaker | ❌ | ✅ | **Ochrona DB** |
+| 🛡️ Circuit breaker | ❌ | ✅ | **DB protection** |
 | 📊 Connection tracking | ❌ | ✅ | **Quality metrics** |
-| 🧹 Auto cleanup | ❌ | ✅ | **Zero memory leaks** |
-| 📈 Uptime | 99.1% | **99.8%** | **Stabilniej** |
+| 🧯 Auto cleanup | ❌ | ✅ | **Zero memory leaks** |
+| 📈 Uptime | 99.1% | **99.8%** | **More stable** |
 
 ## 🎯 Quick Start
 
-### 1️⃣ Instalacja
+### 1️⃣ Installation
 
 ```bash
-# Sklonuj i zbuduj
+# Clone and build
 cd hbbs-patch-v2
 ./build.sh
 
-# Zainstaluj
+# Install
 sudo cp target/release/hbbs /opt/rustdesk/hbbs-v2
 sudo chmod +x /opt/rustdesk/hbbs-v2
 ```
 
-### 2️⃣ Uruchomienie
+### 2️⃣ Running
 
 ```bash
-# Proste uruchomienie
+# Simple run
 /opt/rustdesk/hbbs-v2 -k YOUR_KEY
 
-# Z pełną konfiguracją
+# With full configuration
 /opt/rustdesk/hbbs-v2 \
   -p 21116 \
   -k YOUR_KEY \
@@ -55,7 +55,7 @@ sudo chmod +x /opt/rustdesk/hbbs-v2
   --heartbeat-interval=3
 ```
 
-### 3️⃣ Jako serwis systemd
+### 3️⃣ As systemd service
 
 ```bash
 sudo systemctl enable betterdesk-v2
@@ -66,9 +66,9 @@ sudo systemctl status betterdesk-v2
 📖 **Szczegóły:** Zobacz [QUICKSTART.md](QUICKSTART.md)  
 📚 **Cała dokumentacja:** Zobacz [INDEX.md](INDEX.md)
 
-## 🔧 Główne Ulepszenia
+## 🔧 Key Improvements
 
-### 1. ⚡ Zoptymalizowane Timeouty
+### 1. ⚡ Optimized Timeouts
 
 | Parametr | v1 | v2 | Cel |
 |----------|----|----|-----|
@@ -79,7 +79,7 @@ sudo systemctl status betterdesk-v2
 
 **Rezultat:** Urządzenia offline wykrywane 2x szybciej bez utraty stabilności
 
-### 2. 💾 Optymalizacja Bazy Danych
+### 2. 💾 Database Optimization
 
 #### Connection Pooling
 ```rust
@@ -147,7 +147,7 @@ db.batch_set_offline(&peer_ids).await;
 
 **Rezultat:** N razy szybsze operacje masowe
 
-### 5. 🛡️ Bezpieczeństwo
+### 5. 🛡️ Security
 
 #### Fail-Closed Policy
 ```rust
@@ -173,24 +173,24 @@ match db.is_device_banned(id).await {
 
 **Rezultat:** Zero memory leaks, stabilne zużycie RAM
 
-## 📋 Kompatybilność
+## 📋 Compatibility
 
-### ✅ Pełna Kompatybilność Wsteczna
+### ✅ Full Backward Compatibility
 
 - ✅ **Baza danych:** Identyczna struktura, można użyć tej samej bazy
 - ✅ **Protokół:** Kompatybilne komunikaty, obecne urządzenia działają
 - ✅ **HTTP API:** Rozszerzone (nie zmienione) endpointy
 - ✅ **Konfiguracja:** Te same parametry + nowe opcjonalne
 
-### 🔄 Migracja
+### 🔄 Migration
 
-#### Opcja 1: Bezpośrednia Wymiana (5 minut)
+#### Option 1: Direct Replacement (5 minutes)
 ```bash
 sudo systemctl stop hbbs
 sudo systemctl start betterdesk-v2
 ```
 
-#### Opcja 2: Zero Downtime (bez przerwy)
+#### Option 2: Zero Downtime (no interruption)
 ```bash
 # Uruchom v2 na innym porcie
 /opt/rustdesk/hbbs-v2 -p 21117 -k KEY &

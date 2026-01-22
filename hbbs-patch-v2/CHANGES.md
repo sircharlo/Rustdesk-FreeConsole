@@ -1,53 +1,72 @@
-# Porównanie zmian: v1 vs v2
+# Comparison of changes: v1 vs v2
 
-## Kluczowe ulepszenia stabilności
+## 🔧 Fixed installer bug (v1.5.1)
 
-### 1. Zoptymalizowane Timeouty
+### Fresh system installation problem
+**BEFORE:** Script searched for existing "BetterDesk Console" installation and crashed with error on fresh RustDesk installations.
 
-| Parametr | v1 | v2 | Zmiana | Cel |
-|----------|----|----|---------|-----|
-| REG_TIMEOUT | 30s | 15s | -50% | Szybsze wykrywanie offline |
-| PING_TIMEOUT | Brak | 10s | NOWY | Wykrywanie nieresponsywnych klientów |
-| TCP_TIMEOUT | 30s | 20s | -33% | Szybsza reakcja na utratę połączenia |
-| WS_TIMEOUT | 30s | 20s | -33% | Lepsza responsywność WebSocket |
-| HEARTBEAT_INTERVAL | 5s | 3s | -40% | Częstsze sprawdzanie stanu |
-| CHECK_PEERS | 20s | 15s | -25% | Szybsze markowanie offline |
+**NOW:** Script properly detects:
+- ✅ Existing RustDesk installations (not BetterDesk)
+- ✅ Automatically switches mode: fresh install vs update
+- ✅ Supports fresh RustDesk installations with automatic BetterDesk installation as mod
+- ✅ Docker scripts also fixed - auto-detect RustDesk containers/data
 
-**Korzyści:**
-- ✅ Urządzenia offline są wykrywane 2x szybciej
-- ✅ Zmniejszone opóźnienia w aktualizacji statusu
-- ✅ Lepsza responsywność dla użytkowników końcowych
-- ✅ Zachowana stabilność połączeń
+**Fix includes:**
+- [install-improved.sh](../install-improved.sh) - main installer
+- [docker-quickstart.sh](../docker-quickstart.sh) - quick Docker setup
+- [install-docker.sh](../install-docker.sh) - Docker installation
+- [README.md](../README.md) - updated documentation
 
-### 2. Baza Danych
+---
+
+## Key stability improvements
+
+### 1. Optimized Timeouts
+
+| Parameter | v1 | v2 | Change | Purpose |
+|-----------|----|----|---------|----------|
+| REG_TIMEOUT | 30s | 15s | -50% | Faster offline detection |
+| PING_TIMEOUT | None | 10s | NEW | Unresponsive client detection |
+| TCP_TIMEOUT | 30s | 20s | -33% | Faster connection loss response |
+| WS_TIMEOUT | 30s | 20s | -33% | Better WebSocket responsiveness |
+| HEARTBEAT_INTERVAL | 5s | 3s | -40% | More frequent status checking |
+| CHECK_PEERS | 20s | 15s | -25% | Faster offline marking |
+
+**Benefits:**
+- ✅ Offline devices detected 2x faster
+- ✅ Reduced delays in status updates
+- ✅ Better responsiveness for end users
+- ✅ Maintained connection stability
+
+### 2. Database
 
 #### Connection Pooling
 **v1:**
 ```rust
-MAX_DATABASE_CONNECTIONS = 1  // Tylko jedno połączenie!
+MAX_DATABASE_CONNECTIONS = 1  // Only one connection!
 ```
 
 **v2:**
 ```rust
-MAX_DATABASE_CONNECTIONS = 5  // Domyślnie 5 połączeń
-// Konfigurowalne: 1-20 w zależności od obciążenia
+MAX_DATABASE_CONNECTIONS = 5  // Default 5 connections
+// Configurable: 1-20 depending on load
 ```
 
-**Korzyści:**
-- ✅ 5x więcej równoczesnych operacji
-- ✅ Brak kolejkowania przy wielu zapytaniach
-- ✅ Lepsza wydajność przy większej liczbie urządzeń
+**Benefits:**
+- ✅ 5x more concurrent operations
+- ✅ No queuing with multiple queries
+- ✅ Better performance with more devices
 
-#### Retry Logic z Exponential Backoff
+#### Retry Logic with Exponential Backoff
 **v1:**
 ```rust
-// Brak retry - pojedyncza próba
+// No retry - single attempt
 SqliteConnection::connect_with(&opt).await
 ```
 
 **v2:**
 ```rust
-// Inteligentny retry: 3 próby z rosnącymi odstępami
+// Smart retry: 3 attempts with increasing intervals
 for attempt in 0..3 {
     match connect().await {
         Ok(conn) => return Ok(conn),
@@ -59,81 +78,81 @@ for attempt in 0..3 {
 }
 ```
 
-**Korzyści:**
-- ✅ Odporne na przejściowe problemy z DB
-- ✅ Zmniejszone ryzyko awarii przy przeciążeniu
-- ✅ Automatyczne odzyskiwanie
+**Benefits:**
+- ✅ Resilient to temporary DB issues
+- ✅ Reduced failure risk under load
+- ✅ Automatic recovery
 
 #### Circuit Breaker Pattern
 **v1:**
 ```rust
-// Brak - każde zapytanie próbuje się wykonać niezależnie
+// None - each query tries to execute independently
 ```
 
 **v2:**
 ```rust
-// Circuit breaker zapobiega przeciążeniu
+// Circuit breaker prevents overload
 struct CircuitBreaker {
     failure_count: AtomicU32,
-    is_open: AtomicBool,  // Otwiera się po 5 błędach
-    // Auto-recovery po 30 sekundach
+    is_open: AtomicBool,  // Opens after 5 failures
+    // Auto-recovery after 30 seconds
 }
 ```
 
-**Korzyści:**
-- ✅ Ochrona przed przeciążeniem bazy
-- ✅ Serwer pozostaje responsywny mimo problemów z DB
-- ✅ Automatyczne odzyskiwanie po ustąpieniu problemu
-- ✅ Fail-closed policy dla bezpieczeństwa
+**Benefits:**
+- ✅ Protection against database overload
+- ✅ Server remains responsive despite DB issues
+- ✅ Automatic recovery when problem resolves
+- ✅ Fail-closed policy for security
 
-#### Asynchroniczne Operacje
+#### Asynchronous Operations
 **v1:**
 ```rust
-// Blokujące operacje
-self.db.set_online(id).await?;  // Czeka na zakończenie
+// Blocking operations
+self.db.set_online(id).await?;  // Waits for completion
 ```
 
 **v2:**
 ```rust
-// Fire-and-forget dla niekriytycznych operacji
+// Fire-and-forget for non-critical operations
 tokio::spawn(async move {
     db.set_online_internal(&id).await;
 });
-return Ok(());  // Natychmiastowy powrót
+return Ok(());  // Immediate return
 ```
 
-**Korzyści:**
-- ✅ Brak blokowania głównego wątku
-- ✅ Szybsza obsługa połączeń
-- ✅ Lepsza przepustowość
+**Benefits:**
+- ✅ No main thread blocking
+- ✅ Faster connection handling
+- ✅ Better throughput
 
 #### Batch Operations
 **v1:**
 ```rust
-// Pojedyncze update dla każdego peer'a
+// Single update for each peer
 for id in offline_peers {
-    db.set_offline(id).await;  // N zapytań
+    db.set_offline(id).await;  // N queries
 }
 ```
 
 **v2:**
 ```rust
-// Batch update w jednej transakcji
-db.batch_set_offline(&ids).await;  // 1 zapytanie
+// Batch update in one transaction
+db.batch_set_offline(&ids).await;  // 1 query
 ```
 
-**Korzyści:**
-- ✅ N razy szybsze dla N peer'ów
-- ✅ Mniejsze obciążenie bazy danych
-- ✅ Lepsza spójność danych
+**Benefits:**
+- ✅ N times faster for N peers
+- ✅ Lower database load
+- ✅ Better data consistency
 
-### 3. Monitoring Połączeń
+### 3. Connection Monitoring
 
 #### Connection Quality Tracking
 **v1:**
 ```rust
 struct Peer {
-    last_reg_time: Instant,  // Tylko czas ostatniej rejestracji
+    last_reg_time: Instant,  // Only last registration time
 }
 ```
 
@@ -141,7 +160,7 @@ struct Peer {
 ```rust
 struct Peer {
     last_reg_time: Instant,
-    last_heartbeat: Instant,  // Osobny tracking heartbeat
+    last_heartbeat: Instant,  // Separate heartbeat tracking
     connection_quality: ConnectionQuality {
         last_response_time: Duration,
         missed_heartbeats: u32,
@@ -150,16 +169,16 @@ struct Peer {
 }
 ```
 
-**Korzyści:**
-- ✅ Rozróżnienie między rejestracją a heartbeat
-- ✅ Śledzenie jakości połączenia
-- ✅ Wczesne wykrywanie problemów
-- ✅ Lepsze debugowanie
+**Benefits:**
+- ✅ Distinction between registration and heartbeat
+- ✅ Connection quality tracking
+- ✅ Early problem detection
+- ✅ Better debugging
 
 #### Smart Peer Checking
 **v1:**
 ```rust
-// Proste sprawdzenie timeoutu
+// Simple timeout check
 if elapsed > 20s {
     mark_offline();
 }
@@ -167,7 +186,7 @@ if elapsed > 20s {
 
 **v2:**
 ```rust
-// Inteligentne sprawdzenie z metrykami
+// Smart check with metrics
 if elapsed > timeout {
     mark_offline();
     log_offline_reason(elapsed);
@@ -175,7 +194,7 @@ if elapsed > timeout {
     log_degraded_connection();
 }
 
-// Batch operations dla wydajności
+// Batch operations for performance
 batch_set_offline(offline_peers);
 ```
 
@@ -216,9 +235,9 @@ async fn periodic_cleanup(&self) {
 - ✅ Automatyczne utrzymanie
 - ✅ Lepsze długoterminowe działanie
 
-### 4. Logowanie i Diagnostyka
+### 4. Logging and Diagnostics
 
-#### Strukturalne Logowanie
+#### Structured Logging
 **v1:**
 ```rust
 log::info!("update_pk {} {:?} {:?} {:?}", id, addr, uuid, pk);
@@ -231,22 +250,22 @@ log::info!("  Port: {}", port);
 log::info!("  Max DB Connections: {}", max_db_conn);
 log::info!("  Heartbeat Interval: {}s", heartbeat_interval);
 
-// Poziomy logowania
+// Log levels
 log::debug!("Peer {} loaded from database", id);
 log::warn!("Peer {} has degraded connection", id);
 log::error!("Database operation failed: {}", e);
 ```
 
-**Korzyści:**
-- ✅ Czytelniejsze logi
-- ✅ Łatwiejsze debugowanie
-- ✅ Lepsze śledzenie problemów
-- ✅ Użycie odpowiednich poziomów
+**Benefits:**
+- ✅ More readable logs
+- ✅ Easier debugging
+- ✅ Better problem tracking
+- ✅ Proper log levels usage
 
 #### Statistics Tracking
 **v1:**
 ```rust
-// Brak statystyk
+// No statistics
 ```
 
 **v2:**
@@ -258,16 +277,16 @@ struct PeerMapStats {
     critical: usize,   // 4+ missed heartbeats
 }
 
-// Log co minutę
+// Log every minute
 log::info!("Peer Statistics: Total={}, Healthy={}, 
            Degraded={}, Critical={}", ...);
 ```
 
-**Korzyści:**
-- ✅ Widoczność stanu systemu
-- ✅ Proaktywne wykrywanie problemów
-- ✅ Lepsza diagnostyka
-- ✅ Dane dla monitoringu
+**Benefits:**
+- ✅ System state visibility
+- ✅ Proactive problem detection
+- ✅ Better diagnostics
+- ✅ Data for monitoring
 
 ### 5. HTTP API
 
@@ -304,29 +323,29 @@ GET /api/peers/:id        // NOWY endpoint
 }
 ```
 
-**Korzyści:**
-- ✅ Więcej informacji diagnostycznych
-- ✅ Timestamp dla synchronizacji
-- ✅ Lepsze śledzenie błędów
-- ✅ Standardowy format odpowiedzi
+**Benefits:**
+- ✅ More diagnostic information
+- ✅ Timestamp for synchronization
+- ✅ Better error tracking
+- ✅ Standard response format
 
-### 6. Bezpieczeństwo
+### 6. Security
 
 #### Fail-Closed Policy
 **v1:**
 ```rust
-// Przy błędzie DB, pozwala na połączenie
+// On DB error, allows connection
 match db.is_device_banned(id).await {
     Err(e) => {
         log::error!("DB error: {}", e);
-        // Kontynuuje mimo błędu
+        // Continues despite error
     }
 }
 ```
 
 **v2:**
 ```rust
-// Przy błędzie DB, blokuje połączenie (bezpieczniejsze)
+// On DB error, blocks connection (safer)
 match db.is_device_banned(id).await {
     Err(e) => {
         log::error!("DB unavailable, blocking for safety: {}", e);
@@ -335,113 +354,113 @@ match db.is_device_banned(id).await {
 }
 ```
 
-**Korzyści:**
-- ✅ Bezpieczeństwo priorytetem
-- ✅ Brak dostępu przy problemach z DB
-- ✅ Zgodność z best practices
-- ✅ Lepsza ochrona systemu
+**Benefits:**
+- ✅ Security as priority
+- ✅ No access during DB problems
+- ✅ Compliant with best practices
+- ✅ Better system protection
 
-## Kompatybilność Wsteczna
+## Backward Compatibility
 
-### ✅ Zachowana Kompatybilność
+### ✅ Maintained Compatibility
 
-1. **Format Bazy Danych**
-   - Identyczna struktura tabel
-   - Te same indeksy
-   - Kompatybilne zapytania
-   - ✅ Można użyć tej samej bazy co v1
+1. **Database Format**
+   - Identical table structure
+   - Same indexes
+   - Compatible queries
+   - ✅ Can use the same database as v1
 
-2. **Protokół Komunikacji**
-   - Identyczne komunikaty RendezvousMessage
-   - Te same porty (domyślnie)
-   - Kompatybilne formaty danych
-   - ✅ Obecne urządzenia działają bez zmian
+2. **Communication Protocol**
+   - Identical RendezvousMessage messages
+   - Same ports (by default)
+   - Compatible data formats
+   - ✅ Current devices work without changes
 
 3. **HTTP API**
-   - Kompatybilne endpointy
-   - Zachowane formaty zapytań
-   - Rozszerzone (nie zmienione) odpowiedzi
-   - ✅ Istniejące integracje działają
+   - Compatible endpoints
+   - Preserved request formats
+   - Extended (not changed) responses
+   - ✅ Existing integrations work
 
-4. **Konfiguracja**
-   - Te same parametry wiersza poleceń
-   - Kompatybilne zmienne środowiskowe
-   - Dodatkowe opcjonalne parametry
-   - ✅ Istniejące skrypty działają
+4. **Configuration**
+   - Same command line parameters
+   - Compatible environment variables
+   - Additional optional parameters
+   - ✅ Existing scripts work
 
-### ⚠️ Różnice Behawioralne
+### ⚠️ Behavioral Differences
 
-1. **Szybsze Wykrywanie Offline**
-   - v1: ~30 sekund
-   - v2: ~15 sekund
-   - ⚠️ Status może się zmieniać szybciej
+1. **Faster Offline Detection**
+   - v1: ~30 seconds
+   - v2: ~15 seconds
+   - ⚠️ Status may change faster
 
-2. **Więcej Połączeń DB**
-   - v1: 1 połączenie
-   - v2: 5 połączeń
-   - ⚠️ Może wymagać więcej zasobów systemowych
+2. **More DB Connections**
+   - v1: 1 connection
+   - v2: 5 connections
+   - ⚠️ May require more system resources
 
-3. **Częstsze Logi**
-   - v2 loguje więcej informacji diagnostycznych
-   - ⚠️ Większe pliki logów
+3. **More Frequent Logs**
+   - v2 logs more diagnostic information
+   - ⚠️ Larger log files
 
-## Migracja - Scenariusze
+## Migration - Scenarios
 
-### Scenariusz 1: Zero Downtime Migration
+### Scenario 1: Zero Downtime Migration
 
 ```bash
-# Uruchom v2 na innym porcie
+# Run v2 on different port
 ./hbbs-v2 -p 21117
 
-# Test z kilkoma urządzeniami
-# Gdy działa stabilnie:
+# Test with several devices
+# When stable:
 
-# Przełącz urządzenia na nowy port
-# Zatrzymaj v1
-# Zmień v2 na standardowy port
+# Switch devices to new port
+# Stop v1
+# Change v2 to standard port
 ```
 
-### Scenariusz 2: Direct Replacement
+### Scenario 2: Direct Replacement
 
 ```bash
-# Backup bazy
+# Backup database
 cp db_v2.sqlite3 db_v2.sqlite3.v1-backup
 
 # Stop v1
 systemctl stop hbbs
 
-# Start v2 (ten sam port)
+# Start v2 (same port)
 systemctl start betterdesk-v2
 
-# Monitor przez pierwsze godziny
+# Monitor during first hours
 tail -f /var/log/rustdesk/hbbs-v2.log
 ```
 
-### Scenariusz 3: Gradual Rollout
+### Scenario 3: Gradual Rollout
 
 ```bash
-# Tydzień 1: v2 równolegle z v1 (inny port)
-# Tydzień 2: Połowa urządzeń na v2
-# Tydzień 3: 90% urządzeń na v2
-# Tydzień 4: Wszystkie urządzenia na v2, wyłącz v1
+# Week 1: v2 parallel with v1 (different port)
+# Week 2: Half devices on v2
+# Week 3: 90% devices on v2
+# Week 4: All devices on v2, disable v1
 ```
 
-## Zalecenia
+## Recommendations
 
-### Dla Małych Wdrożeń (<50 urządzeń)
-- ✅ Direct Replacement (Scenariusz 2)
-- ✅ Minimalne ryzyko
-- ✅ Szybka migracja
+### For Small Deployments (<50 devices)
+- ✅ Direct Replacement (Scenario 2)
+- ✅ Minimal risk
+- ✅ Quick migration
 
-### Dla Średnich Wdrożeń (50-200 urządzeń)
-- ✅ Zero Downtime (Scenariusz 1)
-- ✅ Test z reprezentatywną grupą
-- ✅ Stopniowa migracja
+### For Medium Deployments (50-200 devices)
+- ✅ Zero Downtime (Scenario 1)
+- ✅ Test with representative group
+- ✅ Gradual migration
 
-### Dla Dużych Wdrożeń (200+ urządzeń)
-- ✅ Gradual Rollout (Scenariusz 3)
-- ✅ Dokładny monitoring
-- ✅ Plan rollback
+### For Large Deployments (200+ devices)
+- ✅ Gradual Rollout (Scenario 3)
+- ✅ Detailed monitoring
+- ✅ Rollback plan
 
 ## Metryki Wydajności
 
@@ -468,53 +487,53 @@ tail -f /var/log/rustdesk/hbbs-v2.log
 | Memory leaks | 2 GB/tydzień | 0 |
 | Manual restarts needed | 3 | 0 |
 
-## Wnioski
+## Conclusions
 
-### Główne Korzyści v2:
+### Main Benefits of v2:
 
-1. ✅ **Lepsza Stabilność**
+1. ✅ **Better Stability**
    - Circuit breaker
    - Retry logic
-   - Automatyczne odzyskiwanie
+   - Automatic recovery
 
-2. ✅ **Lepsza Wydajność**
-   - Więcej połączeń DB
+2. ✅ **Better Performance**
+   - More DB connections
    - Batch operations
-   - Optymalizacje timeoutów
+   - Timeout optimizations
 
-3. ✅ **Lepsza Diagnostyka**
-   - Strukturalne logowanie
-   - Statystyki połączeń
+3. ✅ **Better Diagnostics**
+   - Structured logging
+   - Connection statistics
    - Quality tracking
 
-4. ✅ **Lepsza Responsywność**
-   - Szybsze wykrywanie offline
-   - Częstsze heartbeaty
-   - Krótsze timeouty
+4. ✅ **Better Responsiveness**
+   - Faster offline detection
+   - More frequent heartbeats
+   - Shorter timeouts
 
-5. ✅ **Pełna Kompatybilność**
-   - Ta sama baza danych
-   - Ten sam protokół
-   - Kompatybilne API
+5. ✅ **Full Compatibility**
+   - Same database
+   - Same protocol
+   - Compatible API
 
-### Zalecenia Wdrożenia:
+### Deployment Recommendations:
 
-1. **Backup zawsze** - Skopiuj bazę danych przed migracją
-2. **Test najpierw** - Przetestuj z małą grupą urządzeń
-3. **Monitor uważnie** - Obserwuj logi przez pierwsze 24h
-4. **Rollback plan** - Zachowaj v1 jako backup
-5. **Gradualna migracja** - Dla dużych wdrożeń
+1. **Always backup** - Copy database before migration
+2. **Test first** - Test with small group of devices
+3. **Monitor carefully** - Watch logs for first 24h
+4. **Rollback plan** - Keep v1 as backup
+5. **Gradual migration** - For large deployments
 
-### Kiedy Migrować:
+### When to Migrate:
 
-✅ **Teraz:**
-- Masz problemy ze stabilnością v1
-- Potrzebujesz lepszej diagnostyki
-- Chcesz lepszej wydajności
-- Planujesz skalować wdrożenie
+✅ **Now:**
+- Having stability issues with v1
+- Need better diagnostics
+- Want better performance
+- Planning to scale deployment
 
-⏰ **Poczekaj:**
-- System działa bez problemów
-- Brak czasu na testy
-- Planowana przerwa serwisowa niedługo
-- Wkrótce koniec support v1 (jeśli będzie)
+⏰ **Wait:**
+- System works without problems
+- No time for testing
+- Planned service break coming soon
+- End of v1 support soon (if announced)
