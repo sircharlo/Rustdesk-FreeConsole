@@ -63,20 +63,33 @@ function setupUserInfo() {
 function setupSidebar() {
     document.querySelectorAll('.sidebar-item').forEach(item => {
         item.addEventListener('click', function(e) {
+            // Skip if this is a link (like Client Generator)
+            if (this.hasAttribute('href') && this.getAttribute('href') !== '#') {
+                return; // Allow normal navigation
+            }
+            
             e.preventDefault();
             const sectionId = this.dataset.section;
+            
+            // Skip if no section ID (e.g., for external links)
+            if (!sectionId) {
+                return;
+            }
             
             // Update active states
             document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
             this.classList.add('active');
             
             // Show selected section
-            document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
-            document.getElementById(sectionId).classList.add('active');
-            
-            // Load section-specific data
-            if (sectionId === 'users' && userRole === 'admin') {
-                loadUsers();
+            const targetSection = document.getElementById(sectionId);
+            if (targetSection) {
+                document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+                targetSection.classList.add('active');
+                
+                // Load section-specific data
+                if (sectionId === 'users' && userRole === 'admin') {
+                    loadUsers();
+                }
             }
         });
     });

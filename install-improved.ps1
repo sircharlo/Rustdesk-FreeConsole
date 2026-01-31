@@ -25,6 +25,8 @@
 # Author: UNITRONIX Team
 # License: MIT
 
+#Requires -Version 5.1
+
 param(
     [Parameter(Mandatory=$false)]
     [string]$RustDeskPath = "",
@@ -39,12 +41,16 @@ param(
     [switch]$NoInteractive = $false
 )
 
+# Set strict mode for better error detection
+Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $VERSION = "v1.5.0"
 $BINARY_VERSION = "v8-api"
 $HBBS_API_PORT = 21114
 
-# Helper functions
+#region Helper Functions
+# Helper functions - must be defined before use
+
 function Write-Header {
     param([string]$Message)
     Write-Host "`n========================================" -ForegroundColor Cyan
@@ -57,20 +63,22 @@ function Write-Success {
     Write-Host "✓ $Message" -ForegroundColor Green
 }
 
-function Write-Error {
+function Write-ErrorMsg {
     param([string]$Message)
     Write-Host "✗ $Message" -ForegroundColor Red
 }
 
-function Write-Warning {
+function Write-WarningMsg {
     param([string]$Message)
     Write-Host "⚠ $Message" -ForegroundColor Yellow
 }
 
-function Write-Info {
+function Write-InfoMsg {
     param([string]$Message)
     Write-Host "ℹ $Message" -ForegroundColor Blue
 }
+
+#endregion
 
 function Test-Administrator {
     $currentUser = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
@@ -113,7 +121,7 @@ function Find-RustDeskInstallation {
     }
     
     if ($foundDirs.Count -eq 0) {
-        Write-Warning "No existing RustDesk installation found"
+        Write-WarningMsg "No existing RustDesk installation found"
         Write-Host ""
         Write-Host "Options:"
         Write-Host "  1) Install to default location: C:\RustDesk"
@@ -128,20 +136,20 @@ function Find-RustDeskInstallation {
         
         switch ($choice) {
             "1" {
-                Write-Info "Will install to: C:\RustDesk"
+                Write-InfoMsg "Will install to: C:\RustDesk"
                 return "C:\RustDesk"
             }
             "2" {
                 $customDir = Read-Host "Enter full path to RustDesk directory"
                 if ([string]::IsNullOrWhiteSpace($customDir)) {
-                    Write-Error "Directory path cannot be empty"
+                    Write-ErrorMsg "Directory path cannot be empty"
                     exit 1
                 }
-                Write-Info "Will install to: $customDir"
+                Write-InfoMsg "Will install to: $customDir"
                 return $customDir
             }
             default {
-                Write-Error "Invalid option"
+                Write-ErrorMsg "Invalid option"
                 exit 1
             }
         }
@@ -163,7 +171,7 @@ function Find-RustDeskInstallation {
         Write-Host ""
         
         if ($NoInteractive) {
-            Write-Info "Using first found directory: $($foundDirs[0])"
+            Write-InfoMsg "Using first found directory: $($foundDirs[0])"
             return $foundDirs[0]
         }
         
@@ -172,18 +180,18 @@ function Find-RustDeskInstallation {
         if ($choice -eq $i) {
             $customDir = Read-Host "Enter full path to RustDesk directory"
             if ([string]::IsNullOrWhiteSpace($customDir)) {
-                Write-Error "Directory path cannot be empty"
+                Write-ErrorMsg "Directory path cannot be empty"
                 exit 1
             }
             return $customDir
         }
         elseif ([int]$choice -ge 1 -and [int]$choice -lt $i) {
             $selectedDir = $foundDirs[[int]$choice - 1]
-            Write-Info "Selected directory: $selectedDir"
+            Write-InfoMsg "Selected directory: $selectedDir"
             return $selectedDir
         }
         else {
-            Write-Error "Invalid option"
+            Write-ErrorMsg "Invalid option"
             exit 1
         }
     }
@@ -196,7 +204,7 @@ function Test-RustDeskFiles {
     
     # Create directory if it doesn't exist
     if (-not (Test-Path $Path)) {
-        Write-Info "Creating directory: $Path"
+        Write-InfoMsg "Creating directory: $Path"
         New-Item -ItemType Directory -Path $Path -Force | Out-Null
     }
     
@@ -212,8 +220,8 @@ function Test-RustDeskFiles {
     }
     
     if ($missingFiles.Count -gt 0) {
-        Write-Warning "Missing RustDesk key files: $($missingFiles -join ', ')"
-        Write-Info "These files will be generated automatically when HBBS first starts"
+        Write-WarningMsg "Missing RustDesk key files: $($missingFiles -join ', ')"
+        Write-InfoMsg "These files will be generated automatically when HBBS first starts"
     }
     else {
         Write-Success "RustDesk key files found"
@@ -226,14 +234,14 @@ function Test-RustDeskFiles {
         
         $dbSize = (Get-Item $dbPath).Length
         if ($dbSize -gt 1000) {
-            Write-Info "Database size: $([math]::Round($dbSize / 1KB, 2)) KB"
+            Write-InfoMsg "Database size: $([math]::Round($dbSize / 1KB, 2)) KB"
         }
         else {
-            Write-Warning "Database file is very small - may be empty"
+            Write-WarningMsg "Database file is very small - may be empty"
         }
     }
     else {
-        Write-Info "No database found - will be created automatically"
+        Write-InfoMsg "No database found - will be created automatically"
     }
     
     Write-Success "Installation directory verified: $Path"
@@ -245,13 +253,13 @@ function Backup-RustDesk {
     Write-Header "Backing Up Existing RustDesk Installation"
     
     if (-not (Test-Path $Path) -or (Get-ChildItem $Path -ErrorAction SilentlyContinue).Count -eq 0) {
-        Write-Info "No existing data to backup"
-        Write-Info "Will proceed with fresh installation"
+        Write-InfoMsg "No existing data to backup"
+        Write-InfoMsg "Will proceed with fresh installation"
         return $null
     }
     
     if ($SkipBackup) {
-        Write-Warning "Skipping backup as requested"
+        Write-WarningMsg "Skipping backup as requested"
         return $null
     }
     
@@ -266,7 +274,7 @@ function Backup-RustDesk {
     Write-Host ""
     
     if ($NoInteractive) {
-        Write-Info "Creating automatic backup..."
+        Write-InfoMsg "Creating automatic backup..."
         Copy-Item -Path $Path -Destination $backupDir -Recurse -Force
         Write-Success "Backup created at: $backupDir"
         return $backupDir
@@ -276,26 +284,26 @@ function Backup-RustDesk {
     
     switch ($choice) {
         "1" {
-            Write-Info "Creating backup..."
+            Write-InfoMsg "Creating backup..."
             Copy-Item -Path $Path -Destination $backupDir -Recurse -Force
             Write-Success "Backup created at: $backupDir"
             return $backupDir
         }
         "2" {
-            Write-Info "Using manual backup"
+            Write-InfoMsg "Using manual backup"
             return $null
         }
         "3" {
-            Write-Warning "Skipping backup - YOU ARE RESPONSIBLE FOR ANY DATA LOSS"
+            Write-WarningMsg "Skipping backup - YOU ARE RESPONSIBLE FOR ANY DATA LOSS"
             $confirm = Read-Host "Are you SURE? Type 'yes' to continue"
             if ($confirm -ne "yes") {
-                Write-Error "Installation cancelled"
+                Write-ErrorMsg "Installation cancelled"
                 exit 1
             }
             return $null
         }
         default {
-            Write-Error "Invalid option"
+            Write-ErrorMsg "Invalid option"
             exit 1
         }
     }
@@ -320,14 +328,14 @@ function Install-RustDeskBinaries {
         $hbbrSource = Join-Path $binDir "hbbr-v8.exe"
         
         if (-not (Test-Path $hbbsSource) -or -not (Test-Path $hbbrSource)) {
-            Write-Error "Precompiled binaries not found"
-            Write-Info "Checked locations:"
-            Write-Info "  - $scriptDir\hbbs-patch\bin-with-api\hbbs-$BINARY_VERSION.exe"
-            Write-Info "  - $scriptDir\hbbs-patch\bin\hbbs-v8.exe"
+            Write-ErrorMsg "Precompiled binaries not found"
+            Write-InfoMsg "Checked locations:"
+            Write-InfoMsg "  - $scriptDir\hbbs-patch\bin-with-api\hbbs-$BINARY_VERSION.exe"
+            Write-InfoMsg "  - $scriptDir\hbbs-patch\bin\hbbs-v8.exe"
             exit 1
         }
         
-        Write-Warning "Using older binaries without HTTP API"
+        Write-WarningMsg "Using older binaries without HTTP API"
     }
     
     # Create target directory
@@ -336,7 +344,7 @@ function Install-RustDeskBinaries {
     }
     
     # Stop existing services/processes
-    Write-Info "Stopping RustDesk services and processes..."
+    Write-InfoMsg "Stopping RustDesk services and processes..."
     Stop-Service -Name "RustDeskSignal" -Force -ErrorAction SilentlyContinue
     Stop-Service -Name "RustDeskRelay" -Force -ErrorAction SilentlyContinue
     Get-Process -Name "hbbs","hbbr" -ErrorAction SilentlyContinue | Stop-Process -Force
@@ -348,27 +356,27 @@ function Install-RustDeskBinaries {
     
     if (Test-Path $hbbsTarget) {
         $backupName = "hbbs.backup.$(Get-Date -Format 'yyyyMMdd-HHmmss').exe"
-        Write-Info "Backing up old hbbs.exe..."
+        Write-InfoMsg "Backing up old hbbs.exe..."
         Copy-Item $hbbsTarget (Join-Path $TargetPath $backupName)
     }
     
     if (Test-Path $hbbrTarget) {
         $backupName = "hbbr.backup.$(Get-Date -Format 'yyyyMMdd-HHmmss').exe"
-        Write-Info "Backing up old hbbr.exe..."
+        Write-InfoMsg "Backing up old hbbr.exe..."
         Copy-Item $hbbrTarget (Join-Path $TargetPath $backupName)
     }
     
     # Install new binaries
-    Write-Info "Installing HBBS $VERSION (with HTTP API + ban enforcement)..."
+    Write-InfoMsg "Installing HBBS $VERSION (with HTTP API + ban enforcement)..."
     Copy-Item $hbbsSource $hbbsTarget -Force
     
-    Write-Info "Installing HBBR $VERSION..."
+    Write-InfoMsg "Installing HBBR $VERSION..."
     Copy-Item $hbbrSource $hbbrTarget -Force
     
     Write-Success "Binaries installed successfully"
     
     # Create/update Windows services
-    Write-Info "RustDesk servers will run as standard executables"
+    Write-InfoMsg "RustDesk servers will run as standard executables"
     
     # Create log directory
     $logDir = Join-Path $TargetPath "logs"
@@ -382,8 +390,8 @@ function Install-RustDeskBinaries {
     
     # Display version info
     Write-Host ""
-    Write-Info "HBBS/HBBR version: $VERSION"
-    Write-Info "Features:"
+    Write-InfoMsg "HBBS/HBBR version: $VERSION"
+    Write-InfoMsg "Features:"
     Write-Host "  ✓ HTTP API on port $HBBS_API_PORT" -ForegroundColor Green
     Write-Host "  ✓ Real-time device status" -ForegroundColor Green
     Write-Host "  ✓ Bidirectional ban enforcement" -ForegroundColor Green
@@ -400,7 +408,7 @@ function Install-WebConsole {
     $webDir = Join-Path $scriptDir "web"
     
     if (-not (Test-Path $webDir)) {
-        Write-Error "Web directory not found: $webDir"
+        Write-ErrorMsg "Web directory not found: $webDir"
         exit 1
     }
     
@@ -410,13 +418,13 @@ function Install-WebConsole {
     }
     
     # Copy files
-    Write-Info "Copying web console files..."
+    Write-InfoMsg "Copying web console files..."
     Copy-Item -Path "$webDir\*" -Destination $ConsolePath -Recurse -Force
     
     # Update app.py with correct RustDesk path (Windows paths)
     $appPyPath = Join-Path $ConsolePath "app.py"
     if (Test-Path $appPyPath) {
-        Write-Info "Updating console configuration for RustDesk path..."
+        Write-InfoMsg "Updating console configuration for RustDesk path..."
         $dbPath = Join-Path $RustDeskPath "db_v2.sqlite3" | ForEach-Object { $_ -replace '\\', '/' }
         $keyPath = Join-Path $RustDeskPath "id_ed25519.pub" | ForEach-Object { $_ -replace '\\', '/' }
         
@@ -427,35 +435,35 @@ function Install-WebConsole {
     }
     
     # Install Python dependencies
-    Write-Info "Installing Python dependencies..."
+    Write-InfoMsg "Installing Python dependencies..."
     $requirementsPath = Join-Path $ConsolePath "requirements.txt"
     
     # Check if Python is available
     try {
         $pythonVersion = & python --version 2>&1
-        Write-Info "Found Python: $pythonVersion"
+        Write-InfoMsg "Found Python: $pythonVersion"
         
         & python -m pip install -r $requirementsPath
         
         if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Failed to install some Python packages"
-            Write-Info "You may need to install them manually:"
-            Write-Info "  python -m pip install -r $requirementsPath"
+            Write-WarningMsg "Failed to install some Python packages"
+            Write-InfoMsg "You may need to install them manually:"
+            Write-InfoMsg "  python -m pip install -r $requirementsPath"
         }
         else {
             Write-Success "Python dependencies installed"
         }
     }
     catch {
-        Write-Warning "Python not found in PATH"
-        Write-Info "Please install Python 3.8+ and run:"
-        Write-Info "  python -m pip install -r $requirementsPath"
+        Write-WarningMsg "Python not found in PATH"
+        Write-InfoMsg "Please install Python 3.8+ and run:"
+        Write-InfoMsg "  python -m pip install -r $requirementsPath"
     }
     
     Write-Success "Web console files installed to: $ConsolePath"
-    Write-Info "To start the console manually, run:"
-    Write-Info "  cd $ConsolePath"
-    Write-Info "  python app.py"
+    Write-InfoMsg "To start the console manually, run:"
+    Write-InfoMsg "  cd $ConsolePath"
+    Write-InfoMsg "  python app.py"
 }
 
 function Test-Installation {
@@ -471,14 +479,14 @@ function Test-Installation {
         Write-Success "HBBS binary found"
     }
     else {
-        Write-Error "HBBS binary not found at: $hbbsPath"
+        Write-ErrorMsg "HBBS binary not found at: $hbbsPath"
     }
     
     if (Test-Path $hbbrPath) {
         Write-Success "HBBR binary found"
     }
     else {
-        Write-Error "HBBR binary not found at: $hbbrPath"
+        Write-ErrorMsg "HBBR binary not found at: $hbbrPath"
     }
     
     # Test web console files
@@ -487,10 +495,10 @@ function Test-Installation {
         Write-Success "Web console files found"
     }
     else {
-        Write-Error "Web console not found at: $ConsolePath"
+        Write-ErrorMsg "Web console not found at: $ConsolePath"
     }
     
-    Write-Info "Installation verification complete"
+    Write-InfoMsg "Installation verification complete"
     Write-Host ""
     Write-Host "Next steps:" -ForegroundColor Yellow
     Write-Host "  1. Start HBBS: cd $RustDeskPath ; .\hbbs.exe"
@@ -549,7 +557,7 @@ function Show-Summary {
     Write-Host "  • HTTP API: http://localhost:$HBBS_API_PORT"
     Write-Host ""
     
-    Write-Info "For support and documentation:"
+    Write-InfoMsg "For support and documentation:"
     Write-Host "  • GitHub: https://github.com/UNITRONIX/Rustdesk-FreeConsole"
     Write-Host ""
 }
@@ -570,10 +578,10 @@ function Main {
     
     # Check admin rights
     if (-not (Test-Administrator)) {
-        Write-Warning "This script should be run as Administrator for full functionality"
+        Write-WarningMsg "This script should be run as Administrator for full functionality"
         $continue = Read-Host "Continue anyway? (y/n)"
         if ($continue -ne "y") {
-            Write-Error "Installation cancelled"
+            Write-ErrorMsg "Installation cancelled"
             exit 1
         }
     }

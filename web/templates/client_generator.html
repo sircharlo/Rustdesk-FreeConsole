@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BetterDesk Console - Client Generator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='sidebar.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='client_generator.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="has-sidebar">
+    <!-- Background gradient -->
+    <div class="bg-gradient"></div>
+    
+    <!-- Sidebar -->
+    <aside class="sidebar glass-effect" id="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-brand">
+                <i class="fas fa-desktop"></i>
+                <span class="brand-text">BetterDesk</span>
+            </div>
+        </div>
+
+        <div class="sidebar-user">
+            <div class="user-avatar">
+                <i class="fas fa-user-circle"></i>
+            </div>
+            <div class="user-info">
+                <div class="user-name" id="sidebarUsername">Admin</div>
+                <div class="user-role" id="sidebarUserRole">Administrator</div>
+            </div>
+        </div>
+
+        <nav class="sidebar-menu">
+            <a href="/" class="menu-item">
+                <i class="fas fa-gauge"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="#" class="menu-item" data-page="users" id="menuUsers" style="display: none;">
+                <i class="fas fa-users"></i>
+                <span>User Management</span>
+            </a>
+            <a href="#" class="menu-item" data-page="audit" id="menuAudit" style="display: none;">
+                <i class="fas fa-clipboard-list"></i>
+                <span>Audit Log</span>
+            </a>
+            <a href="/client-generator" class="menu-item active">
+                <i class="fas fa-wrench"></i>
+                <span>Client Generator</span>
+            </a>
+            <a href="#" class="menu-item" data-page="settings" id="menuSettings">
+                <i class="fas fa-cog"></i>
+                <span>Settings</span>
+            </a>
+            <a href="#" class="menu-item" data-page="key" id="menuKey">
+                <i class="fas fa-key"></i>
+                <span>Public Key</span>
+            </a>
+            <a href="#" class="menu-item" data-page="about">
+                <i class="fas fa-info-circle"></i>
+                <span>About</span>
+            </a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <button class="menu-item logout-btn" onclick="logout()">
+                <i class="fas fa-sign-out-alt"></i>
+                <span>Logout</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Top Navigation -->
+        <nav class="top-navbar glass-effect">
+            <div class="nav-content">
+                <button class="mobile-menu-toggle" id="mobileMenuToggle">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <h1 class="page-title">
+                    <i class="fas fa-wrench"></i> RustDesk Custom Client Builder
+                </h1>
+            </div>
+        </nav>
+
+        <!-- Content Container -->
+        <div class="content-container">
+            <!-- Development Warning -->
+            <div class="alert alert-warning" style="background: rgba(255, 193, 7, 0.2); border: 2px solid #ffc107; border-radius: 12px; padding: 20px; margin-bottom: 30px; box-shadow: 0 4px 15px rgba(255, 193, 7, 0.3);">
+                <h3 style="color: #ffc107; margin: 0 0 10px 0; display: flex; align-items: center; gap: 10px;">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span>🚧 Under Development - Not Functional</span>
+                </h3>
+                <p style="margin: 0; color: rgba(255, 255, 255, 0.9); line-height: 1.6;">
+                    This Client Generator feature is currently under active development and is <strong>not yet functional</strong>. 
+                    The interface is being built and tested. Please check back in future updates for the working version.
+                </p>
+            </div>
+
+            <div class="generator-container">
+                
+                <!-- Platform Selection -->
+                <section class="generator-section glass-effect">
+                    <h2 class="section-title">
+                        <i class="fas fa-desktop"></i> Select Platform
+                    </h2>
+                    <div class="platform-grid">
+                        <div class="platform-card" data-platform="windows-64">
+                            <div class="platform-icon">
+                                <i class="fab fa-windows"></i>
+                                <span class="platform-badge">64</span>
+                            </div>
+                            <span class="platform-name">Windows 64Bit</span>
+                        </div>
+                        <div class="platform-card" data-platform="windows-32">
+                            <div class="platform-icon">
+                                <i class="fab fa-windows"></i>
+                                <span class="platform-badge">32</span>
+                            </div>
+                            <span class="platform-name">Windows 32Bit</span>
+                        </div>
+                        <div class="platform-card" data-platform="linux">
+                            <div class="platform-icon">
+                                <i class="fab fa-linux"></i>
+                            </div>
+                            <span class="platform-name">Linux</span>
+                        </div>
+                        <div class="platform-card" data-platform="android">
+                            <div class="platform-icon">
+                                <i class="fab fa-android"></i>
+                            </div>
+                            <span class="platform-name">Android</span>
+                        </div>
+                        <div class="platform-card" data-platform="macos">
+                            <div class="platform-icon">
+                                <i class="fab fa-apple"></i>
+                            </div>
+                            <span class="platform-name">macOS</span>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="rustdeskVersion">RustDesk Version:</label>
+                        <select id="rustdeskVersion" class="form-control">
+                            <option value="1.4.5">1.4.5 (Latest)</option>
+                            <option value="1.4.4">1.4.4</option>
+                            <option value="1.4.3">1.4.3</option>
+                            <option value="1.4.2">1.4.2</option>
+                            <option value="1.3.0">1.3.0</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="fixApiDelay">
+                            <span>Fix connection delay when using third-party API</span>
+                        </label>
+                    </div>
+                </section>
+
+                <!-- Two Column Layout -->
+                <div class="two-column-layout">
+                    
+                    <!-- Left Column -->
+                    <div class="left-column">
+                        
+                        <!-- General Section -->
+                        <section class="generator-section glass-effect">
+                            <h2 class="section-title">
+                                <i class="fas fa-sliders-h"></i> General
+                            </h2>
+                            
+                            <div class="form-group">
+                                <label for="configName">Name of the configuration (no spaces or special characters, English characters only):</label>
+                                <input type="text" id="configName" class="form-control" placeholder="my-custom-client">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="customAppName">Custom Application Name (leave blank to use default):</label>
+                                <input type="text" id="customAppName" class="form-control" placeholder="RustDesk">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Connection Type:</label>
+                                <div class="radio-group">
+                                    <label class="radio-label">
+                                        <input type="radio" name="connectionType" value="incoming" checked>
+                                        <span>Incoming Only</span>
+                                    </label>
+                                    <label class="radio-label">
+                                        <input type="radio" name="connectionType" value="outgoing">
+                                        <span>Outgoing Only</span>
+                                    </label>
+                                    <label class="radio-label">
+                                        <input type="radio" name="connectionType" value="bidirectional">
+                                        <span>Bidirectional</span>
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="disableInstallation">Disable Installation:</label>
+                                <select id="disableInstallation" class="form-control">
+                                    <option value="no">No, enable installation</option>
+                                    <option value="yes">Yes, disable installation</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="disableSettings">Disable Settings:</label>
+                                <select id="disableSettings" class="form-control">
+                                    <option value="no">No, enable settings</option>
+                                    <option value="yes">Yes, disable settings</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="androidAppId">Custom Android App ID (replaces 'com.carriez.flutter_hbb', leave blank to use default):</label>
+                                <input type="text" id="androidAppId" class="form-control" placeholder="com.example.myapp">
+                            </div>
+                        </section>
+
+                        <!-- Security Section -->
+                        <section class="generator-section glass-effect">
+                            <h2 class="section-title">
+                                <i class="fas fa-shield-alt"></i> Security
+                            </h2>
+                            
+                            <div class="form-group">
+                                <label for="passwordApproveMode">Password Approve mode:</label>
+                                <select id="passwordApproveMode" class="form-control">
+                                    <option value="both">Accepts sessions via both</option>
+                                    <option value="password">Accepts sessions via password only</option>
+                                    <option value="click">Accepts sessions via click only</option>
+                                    <option value="none">Denies all sessions</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="permanentPassword">Set Permanent Password:</label>
+                                <input type="password" id="permanentPassword" class="form-control" placeholder="Enter password">
+                                <small class="form-text">*The password is used as default, but can be changed by the client</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="denyLanDiscovery">
+                                    <span>Deny LAN discovery</span>
+                                </label>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="enableDirectIp">
+                                    <span>Enable direct IP access</span>
+                                </label>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="autoCloseInactive">
+                                    <span>Automatically close incoming sessions on user inactivity</span>
+                                </label>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="allowHideWindow">
+                                    <span>Allow hiding the connection window from remote screen</span>
+                                </label>
+                            </div>
+                        </section>
+
+                        <!-- Visual Section -->
+                        <section class="generator-section glass-effect">
+                            <h2 class="section-title">
+                                <i class="fas fa-palette"></i> Visual
+                            </h2>
+                            
+                            <div class="form-group">
+                                <label for="customIcon">Custom App Icon (in .png format)</label>
+                                <div class="file-input-wrapper">
+                                    <input type="file" id="customIcon" accept=".png" class="file-input">
+                                    <button type="button" class="btn btn-secondary file-btn" onclick="document.getElementById('customIcon').click()">
+                                        <i class="fas fa-upload"></i> Wybierz plik
+                                    </button>
+                                    <span class="file-name" id="iconFileName">Nie wybrano pliku</span>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="customLogo">Custom App Logo (in .png format)</label>
+                                <div class="file-input-wrapper">
+                                    <input type="file" id="customLogo" accept=".png" class="file-input">
+                                    <button type="button" class="btn btn-secondary file-btn" onclick="document.getElementById('customLogo').click()">
+                                        <i class="fas fa-upload"></i> Wybierz plik
+                                    </button>
+                                    <span class="file-name" id="logoFileName">Nie wybrano pliku</span>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="theme">Theme:</label>
+                                <select id="theme" class="form-control">
+                                    <option value="follow">Follow System</option>
+                                    <option value="light">Light</option>
+                                    <option value="dark">Dark</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="themeOverride">Theme Override:</label>
+                                <select id="themeOverride" class="form-control">
+                                    <option value="default">Default</option>
+                                    <option value="override">Override</option>
+                                </select>
+                                <small class="form-text">*Default sets the theme but allows the client to change it, Override sets the theme permanently.</small>
+                            </div>
+                        </section>
+                    
+                    </div>
+
+                    <!-- Right Column -->
+                    <div class="right-column">
+                        
+                        <!-- Custom Server Section -->
+                        <section class="generator-section glass-effect">
+                            <h2 class="section-title">
+                                <i class="fas fa-server"></i> Custom Server
+                            </h2>
+                            
+                            <!-- Auto-fill buttons -->
+                            <div class="auto-fill-buttons">
+                                <button type="button" class="btn btn-secondary" onclick="autoFillServerConfig()">
+                                    <i class="fas fa-magic"></i> Auto-fill from Server
+                                </button>
+                                <button type="button" class="btn btn-secondary" onclick="loadPublicKey()">
+                                    <i class="fas fa-key"></i> Load Public Key
+                                </button>
+                                <button type="button" class="btn btn-secondary" onclick="detectPublicIP()">
+                                    <i class="fas fa-globe"></i> Detect Public IP
+                                </button>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="serverHost">Host:</label>
+                                <div class="input-group">
+                                    <input type="text" id="serverHost" class="form-control" placeholder="example.com">
+                                    <button type="button" class="btn-input-addon" onclick="usePublicIP()" title="Use detected public IP">
+                                        <i class="fas fa-paste"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="serverKey">Key:</label>
+                                <div class="input-group">
+                                    <textarea id="serverKey" class="form-control" rows="3" placeholder="Public key"></textarea>
+                                    <button type="button" class="btn-input-addon-tall" onclick="loadPublicKey()" title="Load public key">
+                                        <i class="fas fa-file-import"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="serverApi">API:</label>
+                                <input type="text" id="serverApi" class="form-control" placeholder="http://example.com:21120">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="customUrlLinks">Custom URL for links (replaces https://rustdesk.com):</label>
+                                <input type="url" id="customUrlLinks" class="form-control" placeholder="https://example.com">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="customUrlDownload">Custom URL for downloading updates (replaces https://rustdesk.com/download):</label>
+                                <input type="url" id="customUrlDownload" class="form-control" placeholder="https://example.com/download">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="companyCopyright">Company name for copyright (replaces Purslane Ltd):</label>
+                                <input type="text" id="companyCopyright" class="form-control" placeholder="Your Company Name">
+                            </div>
+                        </section>
+
+                        <!-- Permissions Section -->
+                        <section class="generator-section glass-effect">
+                            <h2 class="section-title">
+                                <i class="fas fa-lock"></i> Permissions
+                            </h2>
+                            
+                            <div class="form-group">
+                                <label for="permissionsMode">Permissions Mode:</label>
+                                <select id="permissionsMode" class="form-control">
+                                    <option value="default">Default</option>
+                                    <option value="override">Override</option>
+                                </select>
+                                <small class="form-text">The following Permissions can be set as default (the user can change the settings) or override (the settings cannot be changed).</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="permissionType">Permission type:</label>
+                                <select id="permissionType" class="form-control">
+                                    <option value="custom">Custom</option>
+                                    <option value="full">Full Access</option>
+                                    <option value="view-only">View Only</option>
+                                </select>
+                            </div>
+                            
+                            <div class="permissions-grid">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="permKeyboard" checked>
+                                    <span>Enable keyboard/mouse</span>
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="permClipboard" checked>
+                                    <span>Enable clipboard</span>
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="permFileTransfer" checked>
+                                    <span>Enable file transfer</span>
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="permAudio" checked>
+                                    <span>Enable audio</span>
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="permTcpTunnel" checked>
+                                    <span>Enable TCP tunneling</span>
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="permRemoteRestart" checked>
+                                    <span>Enable remote restart</span>
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="permRecording" checked>
+                                    <span>Enable recording session</span>
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="permBlockInput" checked>
+                                    <span>Enable blocking user input</span>
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="permRemoteConfig">
+                                    <span>Enable remote configuration modification</span>
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="permPrinter" checked>
+                                    <span>Enable remote printer</span>
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="permCamera" checked>
+                                    <span>Enable remote camera</span>
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="permTerminal" checked>
+                                    <span>Enable remote terminal</span>
+                                </label>
+                            </div>
+                        </section>
+
+                        <!-- Code Changes Section -->
+                        <section class="generator-section glass-effect">
+                            <h2 class="section-title">
+                                <i class="fas fa-code"></i> Code Changes
+                            </h2>
+                            
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="codeMonitorCycle">
+                                    <span>Add a button to cycle through available monitors to the minimized toolbar</span>
+                                </label>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="codeOfflineX">
+                                    <span>Display an X for offline devices in the addressbook</span>
+                                </label>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="codeRemoveVersionNotif">
+                                    <span>Remove notification for new versions</span>
+                                </label>
+                            </div>
+                        </section>
+
+                        <!-- Other Section -->
+                        <section class="generator-section glass-effect">
+                            <h2 class="section-title">
+                                <i class="fas fa-ellipsis-h"></i> Other
+                            </h2>
+                            
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="removeWallpaper">
+                                    <span>Remove wallpaper during incoming sessions</span>
+                                </label>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="defaultSettings">Default settings:</label>
+                                <textarea id="defaultSettings" class="form-control" rows="4" placeholder='{"custom_settings": "value"}'></textarea>
+                                <small class="form-text">
+                                    <a href="#" onclick="alert('Settings format: JSON key-value pairs'); return false;">Click here for a list of default/override settings</a>
+                                </small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="overrideSettings">Override settings:</label>
+                                <textarea id="overrideSettings" class="form-control" rows="4" placeholder='{"override_settings": "value"}'></textarea>
+                            </div>
+                        </section>
+                    
+                    </div>
+                
+                </div>
+
+                <!-- Generate Button -->
+                <section class="generator-section glass-effect">
+                    <div class="generate-button-container">
+                        <button id="generateBtn" class="btn btn-primary btn-large" onclick="generateClient()">
+                            <i class="fas fa-rocket"></i> Generate Custom Client
+                        </button>
+                    </div>
+                    
+                    <!-- Progress and Status -->
+                    <div id="generationStatus" class="generation-status" style="display: none;">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                        <div class="status-message" id="statusMessage">Preparing...</div>
+                    </div>
+                </section>
+
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='sidebar.js') }}"></script>
+    <script src="{{ url_for('static', filename='client_generator.js') }}"></script>
+</body>
+</html>

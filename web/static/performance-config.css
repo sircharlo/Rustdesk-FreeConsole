@@ -1,0 +1,168 @@
+﻿/**
+ * Performance Configuration for BetterDesk Console
+ * 
+ * Include this file AFTER style.css in your HTML to apply additional optimizations
+ * Include this file AFTER style.css in your HTML to apply additional optimizations
+ * 
+ * <link rel="stylesheet" href="/static/performance-config.css">
+ */
+
+/* ============================================
+   PROFILE 1: MAXIMUM PERFORMANCE (WEAK GPU)
+   PROFILE 1: MAXIMUM PERFORMANCE (WEAK GPU)
+   ============================================ */
+
+/* Uncomment the section below for maximum performance */
+/* Uncomment section below for maximum performance */
+
+/*
+* {
+    animation: none !important;
+    transition: none !important;
+}
+
+.bg-gradient {
+    display: none !important;
+}
+
+.glass-effect,
+.stat-card,
+.btn,
+.modal {
+    box-shadow: none !important;
+}
+
+.btn:hover,
+.stat-card:hover,
+.action-btn:hover {
+    transform: none !important;
+}
+*/
+
+/* ============================================
+   PROFILE 2: BALANCED (MEDIUM GPU)
+   PROFILE 2: BALANCED (MEDIUM GPU)
+   ============================================ */
+
+/* Active by default - minimal animations */
+/* Active by default - minimal animations */
+
+/* Shorter transition times */
+/* Shorter transition times */
+.btn,
+.stat-card,
+.modal,
+.action-btn {
+    transition-duration: 0.15s !important;
+}
+
+/* Zmniejszone cienie */
+/* Reduced shadows */
+.glass-effect,
+.stat-card {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Disable gradient backgrounds in buttons */
+/* Disable gradient backgrounds in buttons */
+.btn-primary {
+    background: var(--primary-color) !important;
+}
+
+.btn-danger {
+    background: var(--danger-color) !important;
+}
+
+/* ============================================
+   PROFIL 3: PREMIUM (MOCNE GPU)
+   PROFILE 3: PREMIUM (STRONG GPU)
+   ============================================ */
+
+/* Uncomment below for full visual effects */
+/* Uncomment below for full visual effects */
+
+/*
+.glass-effect {
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+}
+
+.sidebar {
+    background: rgba(255, 255, 255, 0.05) !important;
+    backdrop-filter: blur(15px) !important;
+    -webkit-backdrop-filter: blur(15px) !important;
+}
+
+.modal {
+    background: rgba(0, 0, 0, 0.7) !important;
+    backdrop-filter: blur(5px) !important;
+    -webkit-backdrop-filter: blur(5px) !important;
+}
+
+.bg-gradient {
+    width: 150% !important;
+    height: 150% !important;
+    animation: gradientShiftSmooth 15s ease-in-out infinite !important;
+}
+
+@keyframes gradientShiftSmooth {
+    0%, 100% { 
+        transform: translate(-16%, -16%) scale(1.1); 
+        opacity: 1;
+    }
+    50% { 
+        transform: translate(-20%, -20%) scale(1.15); 
+        opacity: 0.98;
+    }
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)) !important;
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, var(--danger-color), #ff6b6b) !important;
+}
+*/
+
+/* ============================================
+   PROFILE 4: ULTRA ECONOMICAL (VERY WEAK GPU)
+   PROFILE 4: ULTRA SAVING (VERY WEAK GPU)
+   ============================================ */
+
+/* Uncomment below only in case of extreme problems */
+/* Uncomment below only for extreme performance issues */
+
+/*
+* {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+.bg-gradient,
+.stat-icon,
+.btn::before,
+.btn::after {
+    display: none !important;
+}
+
+.glass-effect,
+.sidebar,
+.modal {
+    background: rgba(30, 30, 30, 0.98) !important;
+}
+
+.btn:hover,
+.stat-card:hover {
+    opacity: 0.9 !important;
+}
+*/
+
+/* ============================================
+   CUSTOM TWEAKS
+   ============================================ */
+
+/* Add your own customizations below */
+/* Add your custom tweaks below */

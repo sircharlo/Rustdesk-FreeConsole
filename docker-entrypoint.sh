@@ -1,4 +1,6 @@
 #!/bin/bash
+# Docker Entrypoint for BetterDesk Console
+# This script requires bash due to array syntax and advanced features
 set -e
 
 echo "🚀 BetterDesk Console - Container Startup"

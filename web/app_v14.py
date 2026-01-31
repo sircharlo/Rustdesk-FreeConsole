@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, g
+from flask import Flask, render_template, request, jsonify, redirect, url_for, g, send_file
 import sqlite3
 from datetime import datetime
 import os
@@ -7,6 +7,7 @@ import re
 from flask_wtf.csrf import CSRFProtect, generate_csrf
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from werkzeug.utils import secure_filename
 
 # Import authentication module
 from auth import (
@@ -17,6 +18,9 @@ from auth import (
     ROLE_ADMIN, ROLE_OPERATOR, ROLE_VIEWER,
     AuthError
 )
+
+# Import client generator
+from client_generator_module import generate_custom_client
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', os.urandom(32))
@@ -40,6 +44,17 @@ PUB_KEY_PATH = '/opt/rustdesk/id_ed25519.pub'
 API_KEY_PATH = '/opt/rustdesk/.api_key'
 # HBBS API URL (optional - will fallback to database status if API unavailable)
 HBBS_API_URL = 'http://localhost:21120/api'
+
+# Client Generator Configuration
+UPLOAD_FOLDER = '/tmp/rustdesk_uploads'
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
+MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = MAX_FILE_SIZE
+
+# Create upload folder if not exists
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Load HBBS API key
 def get_hbbs_api_key():
@@ -246,6 +261,12 @@ def index():
     return render_template('index_v15.html')
 
 
+@app.route('/client-generator')
+def client_generator():
+    """Render the client generator page. Auth check done by JavaScript on client side."""
+    return render_template('client_generator.html')
+
+
 @app.route('/api/devices', methods=['GET'])
 @require_auth
 @limiter.exempt  # Authenticated users bypass rate limit
@@ -291,14 +312,14 @@ def get_devices():
         for row in cursor.fetchall():
             device_id = row['id']
             
-            # WAŻNE: API /peers ma bug w http_api.rs:
-            # 1. Query: "WHERE (status IS NULL OR status = 0)" - zwraca tylko offline
-            # 2. Hardcoded: online = false - zawsze false dla wszystkich
-            # Z powodu tych bugów, API nie nadaje się do określania statusu online
+            # IMPORTANT: API /peers has a bug in http_api.rs:
+            # 1. Query: "WHERE (status IS NULL OR status = 0)" - returns only offline
+            # 2. Hardcoded: online = false - always false for all
+            # Due to these bugs, the API is not suitable for determining online status
             # 
-            # ROZWIĄZANIE: Używamy TYLKO pola status z bazy danych (aktualizowane przez HBBS)
+            # SOLUTION: We use ONLY the status field from database (updated by HBBS)
             # status = 1 = online, status = 0/NULL = offline
-            # To jest źródło prawdy - HBBS aktualizuje to pole w czasie rzeczywistym
+            # This is the source of truth - HBBS updates this field in real-time
             
             online = row['status'] == 1
             
@@ -799,6 +820,155 @@ def get_public_key_endpoint():
                  'Accessed public key', request.remote_addr)
         
         return jsonify({'success': True, 'key': public_key})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ============================================================================
+# CLIENT GENERATOR ROUTES
+# ============================================================================
+
+def allowed_file(filename):
+    """Check if file extension is allowed"""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+@app.route('/api/generate-client', methods=['POST'])
+@require_auth
+@csrf.exempt
+def api_generate_client():
+    """Generate a custom RustDesk client"""
+    try:
+        # Log the action
+        log_audit(g.user['username'], 'generate_client', 
+                 f'Generating custom RustDesk client', request.remote_addr)
+        
+        # Collect form data
+        config_data = {
+            'platform': request.form.get('platform', 'windows-64'),
+            'version': request.form.get('version', '1.4.5'),
+            'fix_api_delay': request.form.get('fix_api_delay') == 'true',
+            
+            # General
+            'config_name': request.form.get('config_name', 'custom-rustdesk'),
+            'custom_app_name': request.form.get('custom_app_name', ''),
+            'connection_type': request.form.get('connection_type', 'bidirectional'),
+            'disable_installation': request.form.get('disable_installation', 'no'),
+            'disable_settings': request.form.get('disable_settings', 'no'),
+            'android_app_id': request.form.get('android_app_id', ''),
+            
+            # Server
+            'server_host': request.form.get('server_host', ''),
+            'server_key': request.form.get('server_key', ''),
+            'server_api': request.form.get('server_api', ''),
+            'custom_url_links': request.form.get('custom_url_links', ''),
+            'custom_url_download': request.form.get('custom_url_download', ''),
+            'company_copyright': request.form.get('company_copyright', ''),
+            
+            # Security
+            'password_approve_mode': request.form.get('password_approve_mode', 'both'),
+            'permanent_password': request.form.get('permanent_password', ''),
+            'deny_lan_discovery': request.form.get('deny_lan_discovery') == 'true',
+            'enable_direct_ip': request.form.get('enable_direct_ip') == 'true',
+            'auto_close_inactive': request.form.get('auto_close_inactive') == 'true',
+            'allow_hide_window': request.form.get('allow_hide_window') == 'true',
+            
+            # Visual
+            'theme': request.form.get('theme', 'follow'),
+            'theme_override': request.form.get('theme_override', 'default'),
+            
+            # Permissions
+            'permissions_mode': request.form.get('permissions_mode', 'default'),
+            'permission_type': request.form.get('permission_type', 'custom'),
+            'perm_keyboard': request.form.get('perm_keyboard') == 'true',
+            'perm_clipboard': request.form.get('perm_clipboard') == 'true',
+            'perm_file_transfer': request.form.get('perm_file_transfer') == 'true',
+            'perm_audio': request.form.get('perm_audio') == 'true',
+            'perm_tcp_tunnel': request.form.get('perm_tcp_tunnel') == 'true',
+            'perm_remote_restart': request.form.get('perm_remote_restart') == 'true',
+            'perm_recording': request.form.get('perm_recording') == 'true',
+            'perm_block_input': request.form.get('perm_block_input') == 'true',
+            'perm_remote_config': request.form.get('perm_remote_config') == 'true',
+            'perm_printer': request.form.get('perm_printer') == 'true',
+            'perm_camera': request.form.get('perm_camera') == 'true',
+            'perm_terminal': request.form.get('perm_terminal') == 'true',
+            
+            # Code changes
+            'code_monitor_cycle': request.form.get('code_monitor_cycle') == 'true',
+            'code_offline_x': request.form.get('code_offline_x') == 'true',
+            'code_remove_version_notif': request.form.get('code_remove_version_notif') == 'true',
+            
+            # Other
+            'remove_wallpaper': request.form.get('remove_wallpaper') == 'true',
+            'default_settings': request.form.get('default_settings', ''),
+            'override_settings': request.form.get('override_settings', ''),
+        }
+        
+        # Handle file uploads
+        if 'custom_icon' in request.files:
+            icon_file = request.files['custom_icon']
+            if icon_file and icon_file.filename and allowed_file(icon_file.filename):
+                filename = secure_filename(icon_file.filename)
+                icon_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{config_data['config_name']}_icon_{filename}")
+                icon_file.save(icon_path)
+                config_data['custom_icon_path'] = icon_path
+        
+        if 'custom_logo' in request.files:
+            logo_file = request.files['custom_logo']
+            if logo_file and logo_file.filename and allowed_file(logo_file.filename):
+                filename = secure_filename(logo_file.filename)
+                logo_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{config_data['config_name']}_logo_{filename}")
+                logo_file.save(logo_path)
+                config_data['custom_logo_path'] = logo_path
+        
+        # Generate the client
+        result = generate_custom_client(config_data)
+        
+        if result['success']:
+            # Create download URL
+            filename = result['filename']
+            download_url = f'/api/download-client/{filename}'
+            
+            return jsonify({
+                'success': True,
+                'download_url': download_url,
+                'filename': filename
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('error', 'Unknown error occurred')
+            }), 500
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/download-client/<filename>')
+@require_auth
+def download_client(filename):
+    """Download a generated client"""
+    try:
+        # Sanitize filename
+        filename = secure_filename(filename)
+        
+        # Build file path
+        file_path = os.path.join('/tmp/rustdesk_builds', filename)
+        
+        # Check if file exists
+        if not os.path.exists(file_path):
+            return jsonify({'success': False, 'error': 'File not found'}), 404
+        
+        # Log the download
+        log_audit(g.user['username'], 'download_client', 
+                 f'Downloaded client: {filename}', request.remote_addr)
+        
+        # Send file
+        return send_file(file_path, as_attachment=True, download_name=filename)
+        
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 

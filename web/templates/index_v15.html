@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -14,8 +14,8 @@
             top: 0;
             height: 100vh;
             width: 260px;
-            background: rgba(15, 23, 42, 0.95);
-            backdrop-filter: blur(20px);
+            background: rgba(15, 23, 42, 0.98);
+            /* backdrop-filter: blur(20px); - disabled for GPU performance */
             border-right: 1px solid rgba(255, 255, 255, 0.1);
             padding: 20px 0;
             z-index: 1000;
@@ -190,8 +190,8 @@
         }
 
         .settings-card {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(20px);
+            background: rgba(255, 255, 255, 0.08);
+            /* backdrop-filter: blur(20px); - disabled for GPU performance */
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 12px;
             padding: 30px;
@@ -231,8 +231,8 @@
 
         /* User Management Section */
         .users-table-container {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(20px);
+            background: rgba(255, 255, 255, 0.08);
+            /* backdrop-filter: blur(20px); - disabled for GPU performance */
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 12px;
             padding: 20px;
@@ -289,8 +289,8 @@
         }
 
         .about-card {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(20px);
+            background: rgba(255, 255, 255, 0.08);
+            /* backdrop-filter: blur(20px); - disabled for GPU performance */
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 12px;
             padding: 30px;
@@ -356,6 +356,10 @@
             <a class="sidebar-item active" data-section="dashboard">
                 <i class="fas fa-th-large"></i>
                 <span>Dashboard</span>
+            </a>
+            <a class="sidebar-item" href="/client-generator">
+                <i class="fas fa-wrench"></i>
+                <span>Client Generator</span>
             </a>
             <a class="sidebar-item" data-section="publickey">
                 <i class="fas fa-key"></i>

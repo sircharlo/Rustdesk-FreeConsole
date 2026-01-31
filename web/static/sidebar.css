@@ -1,4 +1,4 @@
-/* Sidebar Styles for BetterDesk Console v1.4.0 */
+﻿/* Sidebar Styles for BetterDesk Console v1.4.0 */
 
 :root {
     --sidebar-width: 280px;
@@ -10,15 +10,15 @@ body.has-sidebar {
     min-height: 100vh;
 }
 
-/* Sidebar Container */
+/* Sidebar Container - Zoptymalizowany dla GPU */
 .sidebar {
     position: fixed;
     left: 0;
     top: 0;
     bottom: 0;
     width: var(--sidebar-width);
-    background: rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(20px);
+    background: rgba(20, 20, 20, 0.95);
+    /* backdrop-filter disabled for better performance */
     border-right: 1px solid rgba(255, 255, 255, 0.1);
     display: flex;
     flex-direction: column;
@@ -200,8 +200,8 @@ body.has-sidebar {
     position: sticky;
     top: 0;
     z-index: 999;
-    background: rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(20px);
+    background: rgba(20, 20, 20, 0.95);
+    /* backdrop-filter disabled for better performance */
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     padding: 16px 24px;
 }
@@ -276,11 +276,11 @@ body.has-sidebar {
 @keyframes fadeIn {
     from {
         opacity: 0;
-        transform: translateY(10px);
+        transform: translate3d(0, 10px, 0);
     }
     to {
         opacity: 1;
-        transform: translateY(0);
+        transform: translate3d(0, 0, 0);
     }
 }
 

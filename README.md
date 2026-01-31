@@ -99,7 +99,23 @@
 - **Public Key Display**: Quick access to server public key
 - **Visual Indicators**: Color-coded status badges, banned device highlighting
 
-### 🛡️ Security & Reliability
+### � Client Generator (NEW!)
+
+- **🚀 Custom RustDesk Client Builder**: Generate pre-configured RustDesk clients directly from the web panel
+- **Multi-Platform Support**: Windows (64/32-bit), Linux, Android, macOS
+- **Version Selection**: Choose from multiple RustDesk versions (1.4.2 - 1.4.5)
+- **Pre-Configuration**: Embed server settings, security options, and permissions
+- **Visual Customization**: Upload custom icons and logos
+- **Security Options**: Set permanent passwords, approve modes, LAN discovery
+- **Permission Control**: Granular control over features (clipboard, file transfer, audio, etc.)
+- **Branding**: Custom company name, URLs, and copyright information
+- **Code Changes**: Optional modifications (monitor cycling, offline indicators, version notifications)
+- **One-Click Deployment**: Download ready-to-deploy clients with all settings embedded
+- **Audit Logging**: All client generations are logged for security tracking
+
+See [Client Generator Documentation](docs/CLIENT_GENERATOR.md) for detailed information.
+
+### �🛡️ Security & Reliability
 
 - **Authentication System (v1.5.0)**:
   - User login with bcrypt password hashing
@@ -469,6 +485,16 @@ docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.CreatedAt}}"
 
 ## 🔧 Troubleshooting
 
+### ⚡ Recent Fixes (31 Jan 2026)
+
+**🐛 Fixed Issues:**
+- ✅ **Docker**: "sh: executable file not found" - Added bash to Dockerfile
+- ✅ **PowerShell**: "Write-Info is not recognized" - Fixed function naming conflicts
+- 📖 **[QUICK_FIX.md](QUICK_FIX.md)** - Quick solutions for reported problems
+- 📖 **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Complete troubleshooting guide
+
+---
+
 ### 🚨 "The keys do not match" Error
 
 This is the most common issue after installation. **Don't panic!**
@@ -498,7 +524,8 @@ cat /opt/rustdesk/id_ed25519.pub
 
 ### 📚 Comprehensive Troubleshooting Guides
 
-- **[QUICK_FIX.md](docs/QUICK_FIX.md)** - Fast solutions for common issues
+- **[QUICK_FIX.md](QUICK_FIX.md)** - Fast solutions for recent user-reported issues
+- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Docker & PowerShell fixes
 - **[KEY_TROUBLESHOOTING.md](docs/KEY_TROUBLESHOOTING.md)** - Complete key management guide
 - **[UPDATE_GUIDE.md](docs/UPDATE_GUIDE.md)** - Updating existing installations
 
