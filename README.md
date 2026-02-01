@@ -99,8 +99,12 @@
 - **Public Key Display**: Quick access to server public key
 - **Visual Indicators**: Color-coded status badges, banned device highlighting
 
-### � Client Generator (NEW!)
+### 🔧 Client Generator (UNDER DEVELOPMENT)
 
+> **⚠️ STATUS: IN DEVELOPMENT - NOT YET FUNCTIONAL**  
+> This feature is currently under active development and is not ready for production use. The UI is accessible but the functionality is not yet implemented. Expected completion: TBD.
+
+**Planned features:**
 - **🚀 Custom RustDesk Client Builder**: Generate pre-configured RustDesk clients directly from the web panel
 - **Multi-Platform Support**: Windows (64/32-bit), Linux, Android, macOS
 - **Version Selection**: Choose from multiple RustDesk versions (1.4.2 - 1.4.5)
@@ -113,9 +117,9 @@
 - **One-Click Deployment**: Download ready-to-deploy clients with all settings embedded
 - **Audit Logging**: All client generations are logged for security tracking
 
-See [Client Generator Documentation](docs/CLIENT_GENERATOR.md) for detailed information.
+See [Client Generator Documentation](docs/CLIENT_GENERATOR.md) for planned feature details.
 
-### �🛡️ Security & Reliability
+### 🛡️ Security & Reliability
 
 - **Authentication System (v1.5.0)**:
   - User login with bcrypt password hashing
