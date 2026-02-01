@@ -5,7 +5,7 @@
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![RustDesk](https://img.shields.io/badge/RustDesk-1.1.14-green.svg)
 ![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)
-![Version](https://img.shields.io/badge/version-1.5.0-brightgreen.svg)
+![Version](https://img.shields.io/badge/version-1.5.1-brightgreen.svg)
 ![Security](https://img.shields.io/badge/API-X--API--Key--Auth-green.svg)
 ![Access](https://img.shields.io/badge/LAN-Accessible-blue.svg)
 
@@ -306,27 +306,29 @@ sudo ./install-improved.sh
 
 ### 🔄 Updating Existing Installation
 
-If you already have BetterDesk Console installed and want to upgrade to v1.5.0:
+If you already have BetterDesk Console installed, the same `install-improved.sh` script handles updates:
 
 ```bash
 cd Rustdesk-FreeConsole
 
-# Make the update script executable
-chmod +x update-to-v1.5.0.sh
+# Pull latest changes
+git pull origin main
 
-# Run as root
-sudo ./update-to-v1.5.0.sh
+# Run installer (auto-detects existing installation)
+chmod +x install-improved.sh
+sudo ./install-improved.sh
 ```
 
 **Update features:**
+- ✅ Auto-detects existing BetterDesk installation
 - ✅ Automatic backup before changes
 - ✅ Database migration (adds `last_online`, `is_deleted` columns)
 - ✅ Authentication tables creation
 - ✅ API key generation and configuration
-- ✅ Preserves existing configuration
+- ✅ Preserves existing configuration and encryption keys
 - ✅ Creates default admin user (if needed)
 - ✅ Updates HBBS/HBBR binaries
-- ✅ Rollback capability if update fails
+- ✅ Version detection and smart upgrade path
 
 ### 🐳 Docker Installation & Update
 
@@ -499,14 +501,7 @@ docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.CreatedAt}}"
 
 This is the most common issue after installation. **Don't panic!**
 
-**Quick Fix:**
-```bash
-cd /path/to/Rustdesk-FreeConsole
-sudo bash repair-keys.sh
-# Select option 5: Restore from backup
-```
-
-**If BetterDesk broke your setup:**
+**Quick Fix - Restore from backup:**
 ```bash
 # Find most recent backup
 BACKUP=$(ls -d /opt/rustdesk-backup-* | sort | tail -1)
@@ -529,20 +524,21 @@ cat /opt/rustdesk/id_ed25519.pub
 - **[KEY_TROUBLESHOOTING.md](docs/KEY_TROUBLESHOOTING.md)** - Complete key management guide
 - **[UPDATE_GUIDE.md](docs/UPDATE_GUIDE.md)** - Updating existing installations
 
-### 🔧 Using the Repair Tool
+### 🔧 Key Permission Issues
 
-The `repair-keys.sh` tool can fix most key-related issues:
+If you experience key permission problems, fix them manually:
 
 ```bash
-sudo bash repair-keys.sh
-```
+# Set correct permissions for encryption keys
+sudo chmod 600 /opt/rustdesk/id_ed25519
+sudo chmod 644 /opt/rustdesk/id_ed25519.pub
 
-**Available options:**
-1. 📋 Show current key information
-2. 🔐 Verify and fix key permissions
-3. 📤 Export public key
-4. 🔄 Regenerate keys (⚠️ BREAKS connections)
-5. 💾 Restore keys from backup
+# Restart services
+sudo systemctl restart rustdesksignal rustdeskrelay betterdesk
+
+# Verify public key is readable
+cat /opt/rustdesk/id_ed25519.pub
+```
 
 ### 🐳 Docker Issues
 
@@ -683,9 +679,9 @@ conn.close()
 
 | Symptom | Cause | Solution |
 |---------|-------|----------|
-| "Key mismatch" | Keys changed during install | Restore from backup or use repair tool |
+| "Key mismatch" | Keys changed during install | Restore from backup (see Troubleshooting above) |
 | Wrong key in WebConsole | Multiple `.pub` files | Remove incorrect files or upgrade to v9+ |
-| Services won't start | Permission issues | Run `sudo bash repair-keys.sh` → option 2 |
+| Services won't start | Permission issues | Fix with: `sudo chmod 600 /opt/rustdesk/id_ed25519` |
 | Can't find backups | Skipped backup during install | Check `/opt/rustdesk-backup-*` directories |
 | Docker detected | Running RustDesk in container | Choose "Web Console only" option |
 | **No admin login (Docker)** | Missing database migration | Run `./fix-admin.sh` or see Docker Issues section |
@@ -748,9 +744,9 @@ sudo systemctl daemon-reload
 sudo systemctl restart hbbs
 ```
 
-#### 4. Update Script Cannot Find Installation
+#### 4. Installer Cannot Find Installation
 
-**Symptoms:** `update-to-v1.5.0.sh` reports "Installation directory not found"
+**Symptoms:** `install-improved.sh` reports "Installation directory not found"
 
 **Cause:** Non-standard installation path.
 
@@ -768,7 +764,7 @@ python3 migrations/v1.5.0_fix_online_status.py /path/to/db_v2.sqlite3
 
 **Before asking for help:**
 1. Check the troubleshooting guides above
-2. Try the repair tool: `sudo bash repair-keys.sh`
+2. Run the installation script again (it auto-detects and can fix issues): `sudo ./install-improved.sh`
 3. Collect diagnostics:
    ```bash
    sudo journalctl -u rustdesksignal -n 50 > ~/rustdesk_logs.txt

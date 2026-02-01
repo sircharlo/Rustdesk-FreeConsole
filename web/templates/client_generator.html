@@ -3,87 +3,199 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>BetterDesk Console - Client Generator</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='sidebar.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='client_generator.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=app_version) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='client_generator.css', v=app_version) }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Sidebar Styles - Same as Dashboard */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            height: 100vh;
+            width: 260px;
+            background: rgba(15, 23, 42, 0.98);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 20px 0;
+            z-index: 1000;
+            overflow-y: auto;
+        }
+
+        .sidebar-header {
+            padding: 0 20px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 20px;
+        }
+
+        .sidebar-logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #fff;
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .sidebar-logo i {
+            font-size: 1.5rem;
+            color: var(--primary-color, #667eea);
+        }
+
+        .sidebar-user {
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            font-size: 0.85rem;
+        }
+
+        .sidebar-user-name {
+            color: #fff;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .sidebar-user-role {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+        }
+
+        .sidebar-menu {
+            padding: 0 10px;
+        }
+
+        .sidebar-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 15px;
+            margin-bottom: 4px;
+            color: rgba(255, 255, 255, 0.7);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+
+        .sidebar-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+
+        .sidebar-item.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+        }
+
+        .sidebar-item i {
+            width: 20px;
+            text-align: center;
+        }
+
+        .sidebar-footer {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 15px 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(15, 23, 42, 0.95);
+        }
+
+        .logout-btn {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 15px;
+            background: rgba(231, 76, 60, 0.1);
+            color: #e74c3c;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+        }
+
+        .logout-btn:hover {
+            background: rgba(231, 76, 60, 0.2);
+        }
+
+        /* Main Content */
+        .main-content {
+            margin-left: 260px;
+            padding: 20px;
+            min-height: 100vh;
+        }
+    </style>
 </head>
-<body class="has-sidebar">
+<body>
     <!-- Background gradient -->
     <div class="bg-gradient"></div>
     
     <!-- Sidebar -->
-    <aside class="sidebar glass-effect" id="sidebar">
+    <div class="sidebar">
         <div class="sidebar-header">
-            <div class="sidebar-brand">
-                <i class="fas fa-desktop"></i>
-                <span class="brand-text">BetterDesk</span>
+            <div class="sidebar-logo">
+                <i class="fas fa-shield-halved"></i>
+                <span>BetterDesk v1.5</span>
+            </div>
+            <div class="sidebar-user">
+                <div class="sidebar-user-name" id="sidebarUsername">Loading...</div>
+                <div class="sidebar-user-role" id="sidebarRole">...</div>
             </div>
         </div>
-
-        <div class="sidebar-user">
-            <div class="user-avatar">
-                <i class="fas fa-user-circle"></i>
-            </div>
-            <div class="user-info">
-                <div class="user-name" id="sidebarUsername">Admin</div>
-                <div class="user-role" id="sidebarUserRole">Administrator</div>
-            </div>
-        </div>
-
-        <nav class="sidebar-menu">
-            <a href="/" class="menu-item">
-                <i class="fas fa-gauge"></i>
+        
+        <div class="sidebar-menu">
+            <a class="sidebar-item" href="/">
+                <i class="fas fa-th-large"></i>
                 <span>Dashboard</span>
             </a>
-            <a href="#" class="menu-item" data-page="users" id="menuUsers" style="display: none;">
-                <i class="fas fa-users"></i>
-                <span>User Management</span>
-            </a>
-            <a href="#" class="menu-item" data-page="audit" id="menuAudit" style="display: none;">
-                <i class="fas fa-clipboard-list"></i>
-                <span>Audit Log</span>
-            </a>
-            <a href="/client-generator" class="menu-item active">
+            <a class="sidebar-item active" href="/client-generator">
                 <i class="fas fa-wrench"></i>
                 <span>Client Generator</span>
             </a>
-            <a href="#" class="menu-item" data-page="settings" id="menuSettings">
-                <i class="fas fa-cog"></i>
-                <span>Settings</span>
-            </a>
-            <a href="#" class="menu-item" data-page="key" id="menuKey">
+            <a class="sidebar-item" href="/?section=publickey">
                 <i class="fas fa-key"></i>
                 <span>Public Key</span>
             </a>
-            <a href="#" class="menu-item" data-page="about">
+            <a class="sidebar-item" href="/?section=settings">
+                <i class="fas fa-cog"></i>
+                <span>Settings</span>
+            </a>
+            <a class="sidebar-item admin-only" href="/?section=users" style="display: none;">
+                <i class="fas fa-users-cog"></i>
+                <span>User Management</span>
+            </a>
+            <a class="sidebar-item" href="/?section=about">
                 <i class="fas fa-info-circle"></i>
                 <span>About</span>
             </a>
-        </nav>
-
+        </div>
+        
         <div class="sidebar-footer">
-            <button class="menu-item logout-btn" onclick="logout()">
+            <button class="logout-btn" onclick="logout()">
                 <i class="fas fa-sign-out-alt"></i>
                 <span>Logout</span>
             </button>
         </div>
-    </aside>
+    </div>
 
     <!-- Main Content -->
     <div class="main-content">
-        <!-- Top Navigation -->
-        <nav class="top-navbar glass-effect">
-            <div class="nav-content">
-                <button class="mobile-menu-toggle" id="mobileMenuToggle">
-                    <i class="fas fa-bars"></i>
-                </button>
-                <h1 class="page-title">
-                    <i class="fas fa-wrench"></i> RustDesk Custom Client Builder
-                </h1>
-            </div>
-        </nav>
+        <!-- Page Header -->
+        <div style="margin-bottom: 30px;">
+            <h1 style="color: #fff; font-size: 2rem; margin-bottom: 10px; display: flex; align-items: center; gap: 15px;">
+                <i class="fas fa-wrench" style="color: var(--primary-color, #667eea);"></i>
+                RustDesk Custom Client Builder
+            </h1>
+            <p style="color: rgba(255, 255, 255, 0.6); margin: 0;">Generate custom RustDesk clients with your server configuration</p>
+        </div>
 
         <!-- Content Container -->
         <div class="content-container">
@@ -541,7 +653,6 @@
         </div>
     </div>
 
-    <script src="{{ url_for('static', filename='sidebar.js') }}"></script>
-    <script src="{{ url_for('static', filename='client_generator.js') }}"></script>
+    <script src="{{ url_for('static', filename='client_generator.js', v=app_version) }}"></script>
 </body>
 </html>

@@ -13,9 +13,23 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function checkAuthentication() {
     const token = localStorage.getItem('authToken');
+    const username = localStorage.getItem('username');
+    const role = localStorage.getItem('role');
+    
     if (!token) {
         window.location.href = '/login';
         return;
+    }
+    
+    // Setup user info in sidebar
+    document.getElementById('sidebarUsername').textContent = username || 'User';
+    document.getElementById('sidebarRole').textContent = role || 'viewer';
+    
+    // Show admin-only sections
+    if (role === 'admin') {
+        document.querySelectorAll('.admin-only').forEach(el => {
+            el.style.display = '';
+        });
     }
     
     // Verify token
@@ -27,19 +41,9 @@ function checkAuthentication() {
     .then(response => {
         if (!response.ok) {
             localStorage.removeItem('authToken');
+            localStorage.removeItem('username');
+            localStorage.removeItem('role');
             window.location.href = '/login';
-        }
-        return response.json();
-    })
-    .then(data => {
-        if (data.user) {
-            document.getElementById('sidebarUsername').textContent = data.user.username || 'User';
-            const roleNames = {
-                'admin': 'Administrator',
-                'operator': 'Operator',
-                'viewer': 'Viewer'
-            };
-            document.getElementById('sidebarUserRole').textContent = roleNames[data.user.role] || data.user.role;
         }
     })
     .catch(() => {

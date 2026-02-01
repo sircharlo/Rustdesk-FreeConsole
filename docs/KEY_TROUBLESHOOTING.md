@@ -145,21 +145,26 @@ sudo systemctl start rustdesksignal rustdeskrelay
 cat /opt/rustdesk/id_ed25519.pub
 ```
 
-### Solution 2: Using the Repair Tool
+### Solution 2: Fix Key Permissions Manually
 
-**Easiest method** - use the included repair tool:
+**Easiest method** - fix permissions directly:
 
 ```bash
-cd /path/to/Rustdesk-FreeConsole
-sudo bash repair-keys.sh
+# Set correct permissions for encryption keys
+sudo chmod 600 /opt/rustdesk/id_ed25519
+sudo chmod 644 /opt/rustdesk/id_ed25519.pub
+
+# Verify ownership
+sudo chown root:root /opt/rustdesk/id_ed25519*
+
+# Restart services
+sudo systemctl restart rustdesksignal rustdeskrelay betterdesk
 ```
 
-**Options available:**
-1. Show current key information
-2. Verify and fix permissions
-3. Export public key
-4. Regenerate keys (last resort)
-5. Restore from backup
+**Verify it works:**
+```bash
+cat /opt/rustdesk/id_ed25519.pub
+```
 
 ### Solution 3: Multiple .pub Files Exist
 
@@ -199,14 +204,6 @@ stat /opt/rustdesk/*.pub
 - File sizes are wrong
 
 **Fix - Last Resort** (regenerate keys):
-
-```bash
-# Use repair tool for safety
-sudo bash repair-keys.sh
-# Select option 4: Regenerate keys
-```
-
-**OR manually:**
 
 ```bash
 # STOP! Make backup first!

@@ -3,8 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>BetterDesk Console v1.5</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=app_version) }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         /* Sidebar Styles */
@@ -357,9 +360,10 @@
                 <i class="fas fa-th-large"></i>
                 <span>Dashboard</span>
             </a>
-            <a class="sidebar-item" href="/client-generator">
+            <a class="sidebar-item disabled" style="opacity: 0.5; cursor: not-allowed; pointer-events: none;" title="Under Development">
                 <i class="fas fa-wrench"></i>
                 <span>Client Generator</span>
+                <span style="font-size: 0.6rem; background: #ffc107; color: #000; padding: 2px 6px; border-radius: 4px; margin-left: 8px;">DEV</span>
             </a>
             <a class="sidebar-item" data-section="publickey">
                 <i class="fas fa-key"></i>
@@ -828,6 +832,6 @@
         <span id="toastMessage"></span>
     </div>
 
-    <script src="{{ url_for('static', filename='script_v15.js') }}"></script>
+    <script src="{{ url_for('static', filename='script_v15.js', v=app_version) }}"></script>
 </body>
 </html>

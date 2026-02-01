@@ -26,6 +26,43 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', os.urandom(32))
 app.config['WTF_CSRF_CHECK_DEFAULT'] = False  # Manual CSRF for API
 
+# Load version for cache busting
+VERSION_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'VERSION')
+APP_VERSION = 'v1.5.0'  # Default
+try:
+    if os.path.exists(VERSION_FILE):
+        with open(VERSION_FILE, 'r') as f:
+            version_line = f.readline().strip()
+            if version_line:
+                APP_VERSION = version_line
+except:
+    pass
+
+# Context processor to inject version into all templates
+@app.context_processor
+def inject_version():
+    return {'app_version': APP_VERSION}
+
+# Cache control for static files
+@app.after_request
+def add_cache_headers(response):
+    """Add cache control headers to responses."""
+    if request.path.startswith('/static/'):
+        # Static files: cache for 1 year if versioned, otherwise 5 minutes
+        if 'v=' in request.query_string.decode():
+            response.cache_control.max_age = 31536000  # 1 year
+            response.cache_control.public = True
+        else:
+            response.cache_control.max_age = 300  # 5 minutes
+    elif request.path == '/' or request.path.endswith('.html'):
+        # HTML pages: no cache (always get fresh)
+        response.cache_control.no_cache = True
+        response.cache_control.no_store = True
+        response.cache_control.must_revalidate = True
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    return response
+
 # Initialize CSRF protection
 csrf = CSRFProtect()
 csrf.init_app(app)

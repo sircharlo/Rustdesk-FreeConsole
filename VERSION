@@ -1,9 +1,15 @@
-v1.5.0
+v1.5.1
 
-BetterDesk Console Version 1.5.0
-Authentication System & Modern UI
+BetterDesk Console Version 1.5.1
+GPU Optimization & Clean Deployment
 
-New in v1.5.0:
+New in v1.5.1:
+- 🚀 GPU optimization (removed backdrop-filter, heavy animations)
+- 🧹 Clean project structure (removed old files)
+- 🔒 Client Generator disabled (under development)
+- 🔄 Cache busting system for automatic updates
+
+Previous v1.5.0:
 - 🔐 Authentication system with bcrypt password hashing
 - 👥 Role-based access control (Admin, Operator, Viewer)
 - 🎨 Sidebar navigation with 5 main sections
@@ -12,8 +18,7 @@ New in v1.5.0:
 - 👤 User Management panel (admin only)
 - 🛡️ CSRF protection and rate limiting
 - 📊 Extended About page with open source credits
-- 🔧 New repair-keys.sh diagnostic tool
-- 📚 Complete troubleshooting documentation
+- � Complete troubleshooting documentation
 - ⚠️ Visual warnings for dangerous operations
 - ✅ Pre-flight validation checks
 
@@ -24,14 +29,11 @@ Critical Fixes:
 - Fixed Docker installation conflicts
 - Added automatic key backup verification
 
-Installation:
+Installation & Update:
 sudo bash install-improved.sh
-
-Repair Tool:
-sudo bash repair-keys.sh
 
 Documentation:
 - docs/KEY_TROUBLESHOOTING.md - Complete guide
-- docs/QUICK_FIX.md - Fast solutions
-- docs/RELEASE_NOTES_v9.md - Full changelog
+- docs/UPDATE_GUIDE.md - Update instructions
+- README.md - Full documentation
 
