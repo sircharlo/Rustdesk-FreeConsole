@@ -42,6 +42,14 @@ RUSTDESK_PATHS=(
     "/var/lib/rustdesk"
     "/root/.rustdesk"
     "$HOME/.rustdesk"
+    # Docker common paths
+    "/opt/rustdesk-server"
+    "/data"
+    "/data/rustdesk"
+    "/app/data"
+    "/var/lib/docker/volumes/rustdesk_data/_data"
+    "/home/*/rustdesk-server"
+    "/home/*/rustdesk"
 )
 
 DB_NAMES=(
@@ -115,7 +123,18 @@ detect_console_path() {
 detect_rustdesk_path() {
     print_info "Searching for RustDesk installation..."
     
+    # Expand glob patterns for home directories
+    local expanded_paths=()
     for path in "${RUSTDESK_PATHS[@]}"; do
+        # Expand globs
+        for expanded in $path; do
+            if [ -d "$expanded" ]; then
+                expanded_paths+=("$expanded")
+            fi
+        done
+    done
+    
+    for path in "${expanded_paths[@]}"; do
         if [ -d "$path" ]; then
             # Check for hbbs binary or database
             if [ -f "$path/hbbs" ] || [ -f "$path/hbbs-v8-api" ] || ls "$path"/*.sqlite3 &>/dev/null 2>&1; then
@@ -126,7 +145,37 @@ detect_rustdesk_path() {
         fi
     done
     
+    # Also try to find database files anywhere common
+    print_info "Searching for RustDesk database..."
+    for db in "${DB_NAMES[@]}"; do
+        local found=$(find /opt /var /home /data -name "$db" -type f 2>/dev/null | head -1)
+        if [ -n "$found" ]; then
+            RUSTDESK_PATH=$(dirname "$found")
+            print_success "Found RustDesk via database at: $RUSTDESK_PATH"
+            return 0
+        fi
+    done
+    
     return 1
+}
+
+prompt_rustdesk_path() {
+    """Prompt user for RustDesk path if not found"""
+    print_warning "RustDesk installation not found automatically."
+    echo ""
+    echo "Please enter the path to your RustDesk data directory"
+    echo "(where db_v2.sqlite3 or hbbs is located):"
+    echo ""
+    read -p "RustDesk path: " user_path
+    
+    if [ -d "$user_path" ]; then
+        RUSTDESK_PATH="$user_path"
+        print_success "Using user-provided path: $RUSTDESK_PATH"
+        return 0
+    else
+        print_error "Path does not exist: $user_path"
+        return 1
+    fi
 }
 
 detect_database() {
@@ -623,21 +672,45 @@ main() {
     
     # Always try to detect RustDesk (required for both fresh install and update)
     if ! detect_rustdesk_path; then
-        print_error "Could not find RustDesk installation"
+        print_warning "Could not find RustDesk installation automatically"
         echo ""
         print_info "Searched in:"
         for path in "${RUSTDESK_PATHS[@]}"; do
             echo "  - $path"
         done
         echo ""
-        print_info "Please install RustDesk first, then run this script again"
-        exit 1
+        
+        # Prompt user for path
+        if ! prompt_rustdesk_path; then
+            print_error "Cannot continue without RustDesk installation path"
+            echo ""
+            print_info "Tips:"
+            echo "  1. For Docker installations, find where your data volume is mounted"
+            echo "  2. Look for db_v2.sqlite3 or hbbs binary"
+            echo "  3. Run: find / -name 'db_v2.sqlite3' 2>/dev/null"
+            exit 1
+        fi
     fi
     
     
     if ! detect_database; then
-        print_error "Could not find RustDesk database"
-        exit 1
+        print_warning "Could not find RustDesk database in $RUSTDESK_PATH"
+        echo ""
+        print_info "Looking for database files..."
+        
+        # Try to find database in the user-provided path
+        for db in "${DB_NAMES[@]}"; do
+            if [ -f "$RUSTDESK_PATH/$db" ]; then
+                DB_PATH="$RUSTDESK_PATH/$db"
+                print_success "Found database: $DB_PATH"
+                break
+            fi
+        done
+        
+        if [ -z "$DB_PATH" ]; then
+            print_error "No database found. The console requires an existing RustDesk database."
+            exit 1
+        fi
     fi
     
     # Handle fresh installation vs update

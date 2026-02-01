@@ -6,6 +6,7 @@ import sqlite3
 import secrets
 import bcrypt
 import functools
+import os
 from datetime import datetime, timedelta
 from flask import request, jsonify, g
 from typing import Optional
@@ -39,6 +40,102 @@ def get_auth_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def init_auth_tables():
+    """Initialize authentication tables if they don't exist.
+    Called automatically when the module is imported.
+    """
+    conn = get_auth_db()
+    cursor = conn.cursor()
+    
+    # Check if users table exists
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+    if not cursor.fetchone():
+        print("🔧 Creating auth tables (first run)...")
+        
+        # Create users table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username VARCHAR(50) UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                role VARCHAR(20) NOT NULL DEFAULT 'viewer',
+                created_at DATETIME NOT NULL,
+                last_login DATETIME,
+                is_active BOOLEAN NOT NULL DEFAULT 1,
+                CHECK (role IN ('admin', 'operator', 'viewer'))
+            )
+        ''')
+        
+        # Create sessions table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS sessions (
+                token VARCHAR(64) PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                created_at DATETIME NOT NULL,
+                expires_at DATETIME NOT NULL,
+                last_activity DATETIME NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        ''')
+        
+        # Create audit_log table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS audit_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                action VARCHAR(50) NOT NULL,
+                target_id VARCHAR(100),
+                details TEXT,
+                ip_address VARCHAR(45),
+                created_at DATETIME NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+            )
+        ''')
+        
+        # Create default admin user
+        default_password = secrets.token_urlsafe(12)
+        password_hash = bcrypt.hashpw(default_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        
+        cursor.execute('''
+            INSERT INTO users (username, password_hash, role, created_at, is_active)
+            VALUES (?, ?, 'admin', ?, 1)
+        ''', ('admin', password_hash, datetime.now()))
+        
+        conn.commit()
+        
+        print("=" * 50)
+        print("🔐 DEFAULT ADMIN CREDENTIALS")
+        print("=" * 50)
+        print(f"   Username: admin")
+        print(f"   Password: {default_password}")
+        print("=" * 50)
+        print("⚠️  CHANGE THIS PASSWORD AFTER FIRST LOGIN!")
+        print("=" * 50)
+        
+        # Save credentials to file
+        try:
+            creds_file = os.path.join(os.path.dirname(DB_PATH), 'admin_credentials.txt')
+            with open(creds_file, 'w') as f:
+                f.write(f"BetterDesk Console - Default Admin Credentials\n")
+                f.write(f"Generated: {datetime.now()}\n\n")
+                f.write(f"Username: admin\n")
+                f.write(f"Password: {default_password}\n\n")
+                f.write(f"⚠️ CHANGE THIS PASSWORD AFTER FIRST LOGIN!\n")
+            os.chmod(creds_file, 0o600)
+            print(f"📄 Credentials saved to: {creds_file}")
+        except Exception as e:
+            print(f"⚠️ Could not save credentials file: {e}")
+    
+    conn.close()
+
+
+# Initialize tables on module import
+try:
+    init_auth_tables()
+except Exception as e:
+    print(f"⚠️ Auth tables initialization failed: {e}")
 
 
 def hash_password(password: str) -> str:

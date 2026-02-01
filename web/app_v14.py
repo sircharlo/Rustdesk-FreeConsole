@@ -19,8 +19,14 @@ from auth import (
     AuthError
 )
 
-# Import client generator
-from client_generator_module import generate_custom_client
+# Import client generator (optional - feature under development)
+try:
+    from client_generator_module import generate_custom_client
+    CLIENT_GENERATOR_AVAILABLE = True
+except ImportError:
+    CLIENT_GENERATOR_AVAILABLE = False
+    def generate_custom_client(*args, **kwargs):
+        return {'error': 'Client Generator module not available'}
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', os.urandom(32))
@@ -230,7 +236,11 @@ def login():
     except AuthError as e:
         return jsonify({'success': False, 'error': str(e)}), 401
     except Exception as e:
-        return jsonify({'success': False, 'error': 'Login failed'}), 500
+        # Log the actual error for debugging
+        import traceback
+        print(f"Login error: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'error': f'Login failed: {str(e)}'}), 500
 
 
 @app.route('/api/auth/logout', methods=['POST'])
