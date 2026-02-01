@@ -1,0 +1,30 @@
+# Dockerfile for BetterDesk HBBS (Signal Server)
+# Creates a minimal image with shell support for healthchecks and debugging
+# Based on busybox with RustDesk binaries copied from official image
+
+# Stage 1: Get RustDesk binaries from official image
+FROM rustdesk/rustdesk-server:latest AS rustdesk-source
+
+# Stage 2: Build minimal image with shell support
+FROM busybox:musl
+
+# Copy RustDesk binaries from official image
+COPY --from=rustdesk-source /usr/bin/hbbs /usr/bin/hbbs
+COPY --from=rustdesk-source /usr/bin/hbbr /usr/bin/hbbr
+
+# Create necessary directories
+RUN mkdir -p /root /usr/local/bin
+
+# Set working directory and environment
+WORKDIR /root
+ENV HOME=/root
+
+# Expose ports
+# 21115 - NAT type test
+# 21116/tcp - TCP hole punching  
+# 21116/udp - ID registration and heartbeat
+# 21114 - HTTP API (BetterDesk)
+EXPOSE 21115 21116/tcp 21116/udp 21114
+
+# Default command - use standard hbbs
+CMD ["hbbs", "-k", "_"]

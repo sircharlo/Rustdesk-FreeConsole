@@ -235,3 +235,28 @@ fi
 ---
 
 **⚠️ IMPORTANT**: After first login, always change the default administrator password in the console settings!
+
+---
+
+## Problem: Shell Not Available in HBBS/HBBR Containers
+
+### Symptom
+When trying to exec into the hbbs or hbbr containers, you get errors like:
+```
+OCI runtime exec failed: exec failed: unable to start container process: exec: "sh": executable file not found in $PATH
+```
+
+### Cause
+The official `rustdesk/rustdesk-server:latest` image is based on `FROM scratch` which contains only the binaries without any shell or utilities.
+
+### Solution
+BetterDesk Console now uses custom Dockerfiles (`Dockerfile.hbbs` and `Dockerfile.hbbr`) that:
+1. Copy binaries from the official RustDesk image
+2. Use `busybox:musl` as base for shell support
+3. Provide essential tools: `sh`, `nc`, `wget`, `cat`, `ls`, `echo`, etc.
+
+If you're upgrading from an older version, rebuild the images:
+```bash
+docker-compose build --no-cache hbbs hbbr
+docker-compose up -d
+```

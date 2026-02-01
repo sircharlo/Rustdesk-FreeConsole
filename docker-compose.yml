@@ -5,8 +5,12 @@ version: '3.8'
 
 services:
   # RustDesk HBBS (Signal Server) with BetterDesk API
+  # Using custom Dockerfile to add shell/tools support for healthchecks
   hbbs:
-    image: rustdesk/rustdesk-server:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.hbbs
+    image: betterdesk-hbbs:latest
     container_name: betterdesk-hbbs
     hostname: betterdesk-hbbs
     command: >
@@ -40,8 +44,12 @@ services:
       start_period: 10s
 
   # RustDesk HBBR (Relay Server) with BetterDesk
+  # Using custom Dockerfile to add shell/tools support for healthchecks
   hbbr:
-    image: rustdesk/rustdesk-server:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.hbbr
+    image: betterdesk-hbbr:latest
     container_name: betterdesk-hbbr
     hostname: betterdesk-hbbr
     command: >
