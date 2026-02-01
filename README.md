@@ -246,113 +246,45 @@ See [Client Generator Documentation](docs/CLIENT_GENERATOR.md) for detailed info
 
 > **💡 Fresh Installation Support**: The script now automatically detects if you have RustDesk installed and can perform fresh installations or updates accordingly. No need for separate installation procedures!
 
-### � Docker Installation
-
-For Docker users, we provide a comprehensive Docker setup:
+### 🐳 Docker Installation
 
 ```bash
-# Clone the repository
 git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
 cd Rustdesk-FreeConsole
 
-# Quick setup (recommended)
+# Quick setup
 chmod +x docker-quickstart.sh
 ./docker-quickstart.sh
 
-# OR: Custom installation with path selection
+# OR: Custom installation
 chmod +x install-docker.sh
 sudo ./install-docker.sh
 ```
-
-**Docker installation features:**
-- ✅ Works with existing RustDesk Docker containers
-- ✅ Custom path selection for RustDesk data  
-- ✅ Volume mounting support
-- ✅ Container or host installation modes
-- ✅ Automatic binary deployment
-- ✅ Database migration included
-- ✅ Complete docker-compose setup
-- ✅ Nginx reverse proxy (optional)
 
 **Full Docker guide**: [DOCKER_SUPPORT.md](DOCKER_SUPPORT.md)
 
-### �🐧 Linux Installation
-
-Enhanced installer with Docker support and custom path detection:
+### 🐧 Linux Installation
 
 ```bash
-# Clone the repository
 git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
 cd Rustdesk-FreeConsole
-
-# Make the installer executable
 chmod +x install-improved.sh
-
-# Run as root (creates backup automatically)
 sudo ./install-improved.sh
 ```
 
-**Features:**
-- ✅ Automatic Docker/containerized environment detection
-- ✅ Custom RustDesk path detection (searches /opt, /usr/local, /home)
-- ✅ `--break-system-packages` support for Debian 3.11+
-- ✅ File validation and verification
-- ✅ **🔑 Encryption key protection** - preserves existing keys
-- ✅ **Dynamic .pub file scanning** - works with any public key filename
-- ✅ **Multiple backup options** - automatic, manual, or existing backup
-- ✅ **Key regeneration with warnings** - prevents accidental key changes
-- ✅ **API key generation** - automatic X-API-Key authentication setup
-- ✅ **LAN access configuration** - web console and API accessible on network
+**Key features:** Auto-detects existing installations, preserves encryption keys, creates automatic backups, supports Docker environments.
 
 ### 🔄 Updating Existing Installation
 
-If you already have BetterDesk Console installed, the same `install-improved.sh` script handles updates:
-
 ```bash
 cd Rustdesk-FreeConsole
-
-# Pull latest changes
 git pull origin main
-
-# Run installer (auto-detects existing installation)
-chmod +x install-improved.sh
-sudo ./install-improved.sh
+sudo ./install-improved.sh  # Auto-detects and updates
 ```
 
-**Update features:**
-- ✅ Auto-detects existing BetterDesk installation
-- ✅ Automatic backup before changes
-- ✅ Database migration (adds `last_online`, `is_deleted` columns)
-- ✅ Authentication tables creation
-- ✅ API key generation and configuration
-- ✅ Preserves existing configuration and encryption keys
-- ✅ Creates default admin user (if needed)
-- ✅ Updates HBBS/HBBR binaries
-- ✅ Version detection and smart upgrade path
+The script automatically backs up your installation, migrates the database, and preserves all encryption keys.
 
-### 🐳 Docker Installation & Update
-
-For users running RustDesk in Docker containers:
-
-```bash
-# Docker installation/update with path selection
-chmod +x install-docker.sh
-sudo ./install-docker.sh
-
-# Quick Docker setup (new installations)
-chmod +x docker-quickstart.sh
-./docker-quickstart.sh
-```
-
-**Docker installer features:**
-- ✅ Detects existing RustDesk containers
-- ✅ Custom path selection for Docker volumes  
-- ✅ Works with mounted volumes or inside containers
-- ✅ Automatic binary deployment
-- ✅ Database migration support
-- ✅ Full docker-compose configuration
-
-#### Quick Database Fix (if devices show as offline)
+### Quick Database Fix (if devices show as offline)
 
 If devices appear offline even though they're connected, run the database migration:
 
@@ -366,22 +298,11 @@ sudo systemctl restart hbbs betterdesk
 
 ### 🪟 Windows Installation
 
-Enhanced installer with automatic path detection:
-
 ```powershell
-# Clone the repository
 git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
 cd Rustdesk-FreeConsole
-
-# Run as Administrator
-.\install-improved.ps1
+.\install-improved.ps1  # Run as Administrator
 ```
-
-**Features:**
-- ✅ Automatic RustDesk installation detection
-- ✅ Multiple installation path support
-- ✅ File validation and verification
-- ✅ Windows service configuration
 
 ### ⚠️ Important: Platform-Specific Binaries
 
@@ -430,18 +351,6 @@ sudo systemctl restart rustdesksignal
 
 📖 **Full guide**: [docs/KEY_TROUBLESHOOTING.md](docs/KEY_TROUBLESHOOTING.md)
 
-### What's New in v1.5.0 (Latest)
-
-- **🔐 Authentication System**: User login with bcrypt password hashing
-- **👥 Role-Based Access Control**: Admin, Operator, and Viewer roles
-- **🌐 Sidebar Navigation**: Modern UI with 5 main sections
-- **🔑 Password-Protected Public Key**: Requires verification to view
-- **⚙️ Settings Page**: Change password functionality with token regeneration
-- **👤 User Management**: Admin panel to create, edit, delete users
-- **📝 Extended About Page**: Open source credits and license info
-- **🛡️ CSRF Protection**: Flask-WTF security
-- **⏱️ Rate Limiting**: 5 login attempts per minute
-
 ### 🔒 Manual Installation on SSH Server (Security Update)
 
 If you compiled new binaries with security fixes on your SSH server:
@@ -461,27 +370,6 @@ sudo bash ~/MANUAL_INSTALL.sh
 3. Install new binaries from `~/build/hbbs-patch/rustdesk-server/target/release/`
 4. Restart services
 5. Verify API is responding on port 21120
-
-### 🔄 Container Updates & Security
-
-**Important**: Watchtower has been removed from docker-compose.yml as it's no longer maintained (security risk).
-
-**Secure update methods:**
-
-```bash
-# Manual updates (recommended)
-docker-compose pull
-docker-compose down
-docker-compose up -d
-
-# Check for updates weekly
-docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.CreatedAt}}"
-
-# Alternative: Use modern tools
-# - GitHub Dependabot (automatic PRs)
-# - Renovate Bot (automatic updates) 
-# - Custom update scripts with notifications
-```
 
 ---
 
@@ -551,95 +439,31 @@ cat /opt/rustdesk/id_ed25519.pub
 
 #### 🔑 Missing Admin Login Credentials (Docker Compose)
 
-**Problem**: After running `docker compose up -d`, the BetterDesk console starts but doesn't show default admin credentials in logs.
+**Problem**: After running `docker compose up -d`, the console doesn't show admin credentials.
 
-**Cause**: Database migration script doesn't run automatically in Docker container.
+**Quick Fix - Use the fix script:**
 
-**Choose Your Solution** (3 options available):
-
----
-
-##### 🚀 Option 1: One-Click Fix Script (Easiest)
-
-**For Linux/macOS:**
 ```bash
-# Make script executable and run
+# Linux/macOS
 chmod +x fix-admin.sh
 ./fix-admin.sh
-```
 
-**For Windows:**
-```cmd
-# Run the batch file
+# Windows
 fix-admin.bat
 ```
 
-**What it does:**
-- ✅ Automatically detects your Docker setup
-- ✅ Creates admin account if missing  
-- ✅ Shows credentials clearly
-- ✅ Works with existing installations
-
----
-
-##### ⚙️ Option 2: Custom Admin Credentials (Recommended)
-
-Set your own admin password by editing `docker-compose.yml`:
+**Or set custom credentials in `docker-compose.yml`:**
 
 ```yaml
-# In docker-compose.yml, under betterdesk-console service:
 environment:
-  # Add these lines (uncomment and customize):
   - ADMIN_USERNAME=admin
   - ADMIN_PASSWORD=YourSecurePassword123
 ```
 
-**Steps:**
-1. Edit `docker-compose.yml` with your credentials
-2. Restart: `docker compose down && docker compose up -d`
-3. Login with your chosen credentials
-
-**Benefits:**
-- 🔒 You control the password
-- 🔄 Survives container restarts
-- 📝 No need to save random passwords
-
----
-
-##### 🤖 Option 3: Automatic Migration (Advanced)
-
-Use the improved Dockerfile that auto-creates admin on first startup:
+**Manual option (if scripts don't work):**
 
 ```bash
-# 1. Update to latest files
-git pull
-
-# 2. Rebuild with automatic migration
-docker compose down
-docker compose build betterdesk-console
-docker compose up -d
-
-# 3. Check logs for generated credentials
-docker compose logs betterdesk-console | grep -A5 "DEFAULT ADMIN CREDENTIALS"
-```
-
-**Features:**
-- ✅ Zero configuration needed
-- ✅ Runs migration automatically
-- ✅ Shows credentials in logs
-- ✅ Saves backup to `/app/data/admin_credentials.txt`
-
----
-
-##### 🛠️ Manual Option (Fallback)
-
-If the above options don't work, run the migration manually:
-##### 🛠️ Manual Option (Fallback)
-
-If the above options don't work, run the migration manually:
-
-```bash
-# Run migration manually in container
+# Run migration in container
 docker compose exec betterdesk-console python3 -c "
 import sqlite3, secrets, bcrypt
 from datetime import datetime
@@ -1095,45 +919,6 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 - **Issues**: [GitHub Issues](https://github.com/UNITRONIX/Rustdesk-FreeConsole/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/UNITRONIX/Rustdesk-FreeConsole/discussions)
 - **RustDesk Community**: [RustDesk Discord](https://discord.gg/nDceKgxnkV)
-
----
-
-## 🗺️ Roadmap
-
-### Known Limitations (v1.0.0)
-- **Device ID Modification**: Changing device IDs is not recommended and may cause access issues
-  - **Workaround**: Use the Note field to assign custom names/labels
-- **Device Deletion**: Delete functionality is currently unstable
-  - **Status**: Under investigation, fix planned for v1.0.1
-- **No Authentication**: Web console has no user authentication (suitable for internal networks only)
-
-### Version 1.0.1 (Bug Fixes - In Progress)
-- [ ] Fix device deletion functionality
-- [ ] Improve device ID change handling
-- [ ] Add confirmation dialogs for destructive operations
-- [ ] Better error messages for failed operations
-
-### Version 1.1 (Planned)
-- [ ] Multi-language support (i18n)
-- [ ] User authentication system
-- [ ] Role-based access control (RBAC)
-- [ ] Connection history logs
-- [ ] Performance metrics dashboard
-
-### Version 1.2 (Future)
-- [ ] Mobile app (React Native)
-- [ ] WebSocket for real-time updates
-- [ ] Device grouping and tagging
-- [ ] Scheduled maintenance windows
-- [ ] Email/Slack notifications
-- [ ] REST API authentication (JWT)
-
-### Version 2.0 (Vision)
-- [ ] Multi-server support
-- [ ] High availability (HA) setup
-- [ ] Advanced analytics
-- [ ] Custom themes
-- [ ] Plugin system
 
 ---
 
