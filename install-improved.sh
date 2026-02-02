@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# BetterDesk Console - Universal Installation Script v1.5.0
+# BetterDesk Console - Universal Installation Script v1.5.4
 # =============================================================================
 # This script can install fresh or update existing BetterDesk Console
 # It automatically detects existing installations and acts accordingly.
@@ -11,7 +11,12 @@
 # - Database migrations (adds missing columns)
 # - Service management
 # - Backup creation
-# - Binary updates
+# - Binary updates (v2 with HTTP API on port 21120)
+#
+# Binary Priority:
+#   1. hbbs-patch-v2/hbbs-linux-x86_64 (pre-compiled, recommended)
+#   2. hbbs-patch-v2/target/release/hbbs (locally compiled)
+#   3. hbbs-patch/bin-with-api/hbbs-v8-api (old v1, deprecated)
 # =============================================================================
 
 set -e
@@ -26,7 +31,7 @@ NC='\033[0m' # No Color
 
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TARGET_VERSION="1.5.3"
+TARGET_VERSION="1.5.4"
 BACKUP_DIR="/opt/BetterDeskConsole_backup_$(date +%Y%m%d_%H%M%S)"
 
 # Possible installation paths
@@ -664,8 +669,9 @@ update_binaries() {
     local using_old_binaries=false
     
     # Check for hbbs-patch-v2 (recommended, latest)
-    if [ -d "$SCRIPT_DIR/hbbs-patch-v2" ] && [ -f "$SCRIPT_DIR/hbbs-patch-v2/target/release/hbbs" ]; then
-        print_success "Found hbbs-patch-v2 binaries (latest, port 21120)"
+    # Priority 1: Pre-compiled binaries (hbbs-linux-x86_64)
+    if [ -d "$SCRIPT_DIR/hbbs-patch-v2" ] && [ -f "$SCRIPT_DIR/hbbs-patch-v2/hbbs-linux-x86_64" ]; then
+        print_success "Found hbbs-patch-v2 pre-compiled binaries (v2.0.0, port 21120)"
         
         # Backup existing binaries
         for bin in hbbs hbbr hbbs-v8-api hbbr-v8-api; do
@@ -674,18 +680,44 @@ update_binaries() {
             fi
         done
         
-        # Copy v2 binaries
+        # Copy v2 binaries (pre-compiled)
+        if [ -f "$SCRIPT_DIR/hbbs-patch-v2/hbbs-linux-x86_64" ]; then
+            cp "$SCRIPT_DIR/hbbs-patch-v2/hbbs-linux-x86_64" "$RUSTDESK_PATH/hbbs-v8-api"
+            chmod +x "$RUSTDESK_PATH/hbbs-v8-api"
+            print_success "Copied hbbs-v8-api (v2.0.0) to $RUSTDESK_PATH"
+            binaries_copied=true
+        fi
+        
+        if [ -f "$SCRIPT_DIR/hbbs-patch-v2/hbbr-linux-x86_64" ]; then
+            cp "$SCRIPT_DIR/hbbs-patch-v2/hbbr-linux-x86_64" "$RUSTDESK_PATH/hbbr-v8-api"
+            chmod +x "$RUSTDESK_PATH/hbbr-v8-api"
+            print_success "Copied hbbr-v8-api (v2.0.0) to $RUSTDESK_PATH"
+            binaries_copied=true
+        fi
+    
+    # Priority 2: Locally compiled binaries (target/release)
+    elif [ -d "$SCRIPT_DIR/hbbs-patch-v2" ] && [ -f "$SCRIPT_DIR/hbbs-patch-v2/target/release/hbbs" ]; then
+        print_success "Found locally compiled hbbs-patch-v2 binaries (port 21120)"
+        
+        # Backup existing binaries
+        for bin in hbbs hbbr hbbs-v8-api hbbr-v8-api; do
+            if [ -f "$RUSTDESK_PATH/$bin" ]; then
+                cp "$RUSTDESK_PATH/$bin" "$BACKUP_DIR/" 2>/dev/null || true
+            fi
+        done
+        
+        # Copy locally compiled binaries
         if [ -f "$SCRIPT_DIR/hbbs-patch-v2/target/release/hbbs" ]; then
             cp "$SCRIPT_DIR/hbbs-patch-v2/target/release/hbbs" "$RUSTDESK_PATH/hbbs-v8-api"
             chmod +x "$RUSTDESK_PATH/hbbs-v8-api"
-            print_success "Copied hbbs-v8-api (v2) to $RUSTDESK_PATH"
+            print_success "Copied hbbs-v8-api (compiled) to $RUSTDESK_PATH"
             binaries_copied=true
         fi
         
         if [ -f "$SCRIPT_DIR/hbbs-patch-v2/target/release/hbbr" ]; then
             cp "$SCRIPT_DIR/hbbs-patch-v2/target/release/hbbr" "$RUSTDESK_PATH/hbbr-v8-api"
             chmod +x "$RUSTDESK_PATH/hbbr-v8-api"
-            print_success "Copied hbbr-v8-api (v2) to $RUSTDESK_PATH"
+            print_success "Copied hbbr-v8-api (compiled) to $RUSTDESK_PATH"
             binaries_copied=true
         fi
         
@@ -934,7 +966,38 @@ update_systemd_services() {
         
         if [ "$hbbs_found" = false ]; then
             print_warning "No HBBS service found. Checked: ${hbbs_services[*]}"
-            print_info "You may need to create the service file manually"
+            
+            # Try to create new service from template
+            if [ -f "$SCRIPT_DIR/templates/rustdesksignal.service" ]; then
+                print_info "Creating rustdesksignal.service from template..."
+                
+                # Copy template
+                cp "$SCRIPT_DIR/templates/rustdesksignal.service" "/etc/systemd/system/rustdesksignal.service"
+                
+                # Update paths in service file
+                sed -i "s|WorkingDirectory=/opt/rustdesk|WorkingDirectory=$RUSTDESK_PATH|g" "/etc/systemd/system/rustdesksignal.service"
+                sed -i "s|/opt/rustdesk/hbbs-v8-api|$RUSTDESK_PATH/hbbs-v8-api|g" "/etc/systemd/system/rustdesksignal.service"
+                
+                # Try to get the key from id_ed25519.pub
+                local public_key=""
+                if [ -f "$RUSTDESK_PATH/id_ed25519.pub" ]; then
+                    public_key=$(cat "$RUSTDESK_PATH/id_ed25519.pub" 2>/dev/null | head -1)
+                fi
+                
+                if [ -n "$public_key" ]; then
+                    sed -i "s|-k _|-k $public_key|g" "/etc/systemd/system/rustdesksignal.service"
+                    print_success "Set server key in service file"
+                else
+                    print_warning "No key found - please edit /etc/systemd/system/rustdesksignal.service and set -k parameter"
+                fi
+                
+                systemctl daemon-reload
+                systemctl enable rustdesksignal.service
+                print_success "Created and enabled rustdesksignal.service"
+                services_updated=true
+            else
+                print_info "No template found. Create service manually."
+            fi
         fi
     fi
     
@@ -1027,6 +1090,25 @@ update_systemd_services() {
         
         if [ "$hbbr_found" = false ]; then
             print_warning "No HBBR service found. Checked: ${hbbr_services[*]}"
+            
+            # Try to create new service from template
+            if [ -f "$SCRIPT_DIR/templates/rustdeskrelay.service" ]; then
+                print_info "Creating rustdeskrelay.service from template..."
+                
+                # Copy template
+                cp "$SCRIPT_DIR/templates/rustdeskrelay.service" "/etc/systemd/system/rustdeskrelay.service"
+                
+                # Update paths in service file
+                sed -i "s|WorkingDirectory=/opt/rustdesk|WorkingDirectory=$RUSTDESK_PATH|g" "/etc/systemd/system/rustdeskrelay.service"
+                sed -i "s|/opt/rustdesk/hbbr-v8-api|$RUSTDESK_PATH/hbbr-v8-api|g" "/etc/systemd/system/rustdeskrelay.service"
+                
+                systemctl daemon-reload
+                systemctl enable rustdeskrelay.service
+                print_success "Created and enabled rustdeskrelay.service"
+                services_updated=true
+            else
+                print_info "No template found. Create service manually."
+            fi
         fi
     fi
     

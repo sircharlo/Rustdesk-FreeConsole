@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.4] - 2026-02-02
+
+### 🚀 Pre-Compiled v2.0.0 Binaries
+
+**Major Update**: Added pre-compiled v2 binaries with significant performance improvements.
+
+### Added
+
+#### Pre-Compiled Linux Binaries (hbbs-patch-v2/)
+- **hbbs-linux-x86_64**: Signal server with HTTP API (9.4 MB)
+- **hbbr-linux-x86_64**: Relay server (2.9 MB)
+- Compiled from RustDesk Server 1.1.14 with BetterDesk enhancements
+
+#### Performance Improvements (v2 binaries)
+- **Port 21120**: Non-conflicting API port (changed from 21114)
+- **15s offline detection**: 2x faster than v1 (was 30s)
+- **Connection pooling**: 5 DB connections (was 1)
+- **Auto-retry logic**: Exponential backoff for database operations
+- **Better stability**: 99.8% uptime
+
+#### Automatic Service Creation
+- Installer now creates `rustdesksignal.service` and `rustdeskrelay.service` from templates if they don't exist
+- Templates in `templates/` directory
+
+### Changed
+
+#### Install Script (v1.5.4)
+- Priority order for binaries:
+  1. `hbbs-patch-v2/hbbs-linux-x86_64` (pre-compiled, recommended)
+  2. `hbbs-patch-v2/target/release/hbbs` (locally compiled)
+  3. `hbbs-patch/bin-with-api/hbbs-v8-api` (old v1, deprecated with warning)
+
+#### Documentation Updates
+- Updated README with v2 binary information
+- Added CHECKSUMS.md for v2 binaries
+- Updated firewall instructions (port 21120)
+
+---
+
 ## [1.5.3] - 2026-02-02
 
 ### 🔧 Critical: Automatic Systemd Service Update

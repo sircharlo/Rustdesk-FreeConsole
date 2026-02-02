@@ -1,4 +1,6 @@
-// Enhanced http_api.rs with better error handling and monitoring
+// BetterDesk HTTP API v2.0.0
+// Compatible with axum 0.5 and sqlx 0.6
+
 use axum::{
     extract::Extension,
     http::{StatusCode, HeaderMap},
@@ -13,7 +15,6 @@ use std::sync::Arc;
 use std::fs;
 use std::time::Instant;
 
-const REG_TIMEOUT: i32 = 15_000;  // Consistent with main server
 const API_KEY_FILE: &str = "/opt/rustdesk/.api_key";
 
 #[derive(Clone)]
@@ -46,14 +47,13 @@ struct HealthStatus {
     version: String,
 }
 
-// Enhanced middleware with better logging
 fn verify_api_key(headers: &HeaderMap, state: &ApiState) -> Result<(), StatusCode> {
     match headers.get("X-API-Key") {
         Some(key) => {
             if key.to_str().unwrap_or("") == state.api_key {
                 Ok(())
             } else {
-                hbb_common::log::warn!("API: Invalid API key from {:?}", headers.get("X-Real-IP"));
+                hbb_common::log::warn!("API: Invalid API key");
                 Err(StatusCode::UNAUTHORIZED)
             }
         }
@@ -72,7 +72,6 @@ async fn get_online_peers(
     headers: HeaderMap,
     Extension(state): Extension<Arc<ApiState>>,
 ) -> Result<Json<ApiResponse<Vec<PeerStatus>>>, StatusCode> {
-    // Verify API key
     verify_api_key(&headers, &state)?;
     
     hbb_common::log::debug!("API: Fetching online peers");
@@ -90,9 +89,6 @@ async fn get_online_peers(
                 let id: String = row.get("id");
                 let note: Option<String> = row.get("note");
                 let last_online: Option<String> = row.get("last_online");
-                
-                // A peer is considered online if last_online is not NULL
-                // The server updates last_online on each heartbeat
                 let online = last_online.is_some();
                 
                 peers.push(PeerStatus {
@@ -128,7 +124,6 @@ async fn health_check(
     headers: HeaderMap,
     Extension(state): Extension<Arc<ApiState>>,
 ) -> Result<Json<ApiResponse<HealthStatus>>, StatusCode> {
-    // Verify API key
     verify_api_key(&headers, &state)?;
     
     let uptime = state.start_time.elapsed().as_secs();
@@ -200,7 +195,6 @@ async fn get_peer_details(
 }
 
 fn load_or_generate_api_key() -> String {
-    // Try to read from file first
     if let Ok(key) = fs::read_to_string(API_KEY_FILE) {
         let key = key.trim().to_string();
         if !key.is_empty() {
@@ -209,7 +203,6 @@ fn load_or_generate_api_key() -> String {
         }
     }
     
-    // Generate new key
     use hbb_common::rand::Rng;
     const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
     let mut rng = hbb_common::rand::thread_rng();
@@ -220,16 +213,14 @@ fn load_or_generate_api_key() -> String {
         })
         .collect();
     
-    // Try to save to file
     if let Some(parent) = std::path::Path::new(API_KEY_FILE).parent() {
         let _ = fs::create_dir_all(parent);
     }
     
     if let Err(e) = fs::write(API_KEY_FILE, &key) {
-        hbb_common::log::warn!("API: Could not save API key to file: {}", e);
+        hbb_common::log::warn!("API: Could not save API key: {}", e);
     } else {
-        hbb_common::log::info!("API: Generated and saved new API key to {}", API_KEY_FILE);
-        // Set file permissions to 600 (owner read/write only)
+        hbb_common::log::info!("API: Generated new API key saved to {}", API_KEY_FILE);
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -244,25 +235,41 @@ fn load_or_generate_api_key() -> String {
     key
 }
 
-pub async fn start_api_server(db_path: String, port: u16) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn start_api_server(db_path: String, port: u16) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     use sqlx::sqlite::SqliteConnectOptions;
     use std::str::FromStr;
     
     hbb_common::log::info!("API: Initializing with database: {}", db_path);
     
-    let connect_options = SqliteConnectOptions::from_str(&format!("sqlite://{}", db_path))?
-        .read_only(true)
-        .create_if_missing(false);
+    // Try to connect, but don't fail if DB doesn't exist yet
+    let connect_options = match SqliteConnectOptions::from_str(&format!("sqlite://{}", db_path)) {
+        Ok(opts) => opts.read_only(true).create_if_missing(false),
+        Err(e) => {
+            hbb_common::log::error!("API: Invalid database path: {}", e);
+            return Err(e.into());
+        }
+    };
     
-    let pool = SqlitePool::connect_with(connect_options).await?;
+    let pool = match SqlitePool::connect_with(connect_options).await {
+        Ok(p) => p,
+        Err(e) => {
+            hbb_common::log::warn!("API: Could not connect to database: {}. API will retry later.", e);
+            // Wait and retry
+            hbb_common::tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+            let opts = SqliteConnectOptions::from_str(&format!("sqlite://{}", db_path))?
+                .read_only(true)
+                .create_if_missing(false);
+            SqlitePool::connect_with(opts).await?
+        }
+    };
+    
     hbb_common::log::info!("API: Database connection pool created");
 
-    // Load or generate API key
     let api_key = load_or_generate_api_key();
 
     let state = Arc::new(ApiState { 
         db_pool: pool,
-        api_key: api_key.clone(),
+        api_key,
         start_time: Instant::now(),
     });
 
@@ -270,25 +277,20 @@ pub async fn start_api_server(db_path: String, port: u16) -> Result<(), Box<dyn 
         .route("/api/health", get(health_check))
         .route("/api/peers", get(get_online_peers))
         .route("/api/peers/:id", get(get_peer_details))
-        .layer(axum::Extension(state));
+        .layer(Extension(state));
 
-    // SECURITY: Binds to 0.0.0.0 (all interfaces) for LAN access
-    // Protected by API key authentication (X-API-Key header required)
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     
     hbb_common::log::info!("========================================");
-    hbb_common::log::info!("HTTP API Server Starting");
+    hbb_common::log::info!("HTTP API Server on port {}", port);
     hbb_common::log::info!("========================================");
-    hbb_common::log::info!("Listening on: {} (LAN accessible)", addr);
-    hbb_common::log::info!("API key file: {}", API_KEY_FILE);
-    hbb_common::log::info!("Authentication: X-API-Key header required");
-    hbb_common::log::info!("========================================");
-    hbb_common::log::info!("Available endpoints:");
-    hbb_common::log::info!("  GET /api/health        - Server health status");
-    hbb_common::log::info!("  GET /api/peers         - List all peers");
-    hbb_common::log::info!("  GET /api/peers/:id     - Get specific peer details");
+    hbb_common::log::info!("Endpoints:");
+    hbb_common::log::info!("  GET /api/health");
+    hbb_common::log::info!("  GET /api/peers");
+    hbb_common::log::info!("  GET /api/peers/:id");
     hbb_common::log::info!("========================================");
 
+    // axum 0.5 uses Server::bind
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
         .await?;

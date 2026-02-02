@@ -1,0 +1,15 @@
+[Unit]
+Description=RustDesk Signal Server (BetterDesk Enhanced)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/rustdesk
+ExecStart=/opt/rustdesk/hbbs-v8-api -k _
+Restart=always
+RestartSec=5
+LimitNOFILE=1000000
+
+[Install]
+WantedBy=multi-user.target

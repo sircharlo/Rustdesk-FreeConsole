@@ -1,0 +1,15 @@
+[Unit]
+Description=RustDesk Relay Server (BetterDesk Enhanced)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/rustdesk
+ExecStart=/opt/rustdesk/hbbr-v8-api
+Restart=always
+RestartSec=5
+LimitNOFILE=1000000
+
+[Install]
+WantedBy=multi-user.target

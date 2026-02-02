@@ -5,7 +5,7 @@
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![RustDesk](https://img.shields.io/badge/RustDesk-1.1.14-green.svg)
 ![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)
-![Version](https://img.shields.io/badge/version-1.5.1-brightgreen.svg)
+![Version](https://img.shields.io/badge/version-1.5.4-brightgreen.svg)
 ![Security](https://img.shields.io/badge/API-X--API--Key--Auth-green.svg)
 ![Access](https://img.shields.io/badge/LAN-Accessible-blue.svg)
 
@@ -311,8 +311,15 @@ cd Rustdesk-FreeConsole
 ### ⚠️ Important: Platform-Specific Binaries
 
 The installers automatically use the correct binaries for your platform:
-- **Linux**: Uses `hbbs-patch/bin-with-api/hbbs-v8-api` (Linux ELF binary)
-- **Windows**: Uses `hbbs-patch/bin-with-api/hbbs-v8-api.exe` (Windows PE binary)
+
+**Linux (v2.0.0 - Recommended):**
+- Uses `hbbs-patch-v2/hbbs-linux-x86_64` (pre-compiled, port 21120)
+- Uses `hbbs-patch-v2/hbbr-linux-x86_64` (pre-compiled)
+- Features: 15s offline detection, connection pooling, auto-retry
+
+**Legacy binaries (deprecated):**
+- `hbbs-patch/bin-with-api/hbbs-v8-api` - port 21114, 30s detection
+- Not recommended for new installations
 
 **Do not mix binaries between platforms!** Each installer is designed to work only on its respective operating system.
 
@@ -514,7 +521,7 @@ conn.close()
 | Docker detected | Running RustDesk in container | Choose "Web Console only" option |
 | **No admin login (Docker)** | Missing database migration | Run `./fix-admin.sh` or see Docker Issues section |
 | **All devices offline** | Missing `last_online` column | Run `python3 migrations/v1.5.0_fix_online_status.py` |
-| **API not responding** | Binaries not updated | Copy binaries from `hbbs-patch/bin-with-api/` |
+| **API not responding** | Old/wrong binaries | Use v2 binaries from `hbbs-patch-v2/` (port 21120) |
 | **Update script not found** | Old version cloned | Run `git pull` to get latest files |
 | **Connect button not working** | Custom RustDesk client | Set custom scheme via browser console (see below) |
 
@@ -558,18 +565,20 @@ clearCustomScheme();
 
 **Symptoms:** Console cannot determine device status, shows connection errors.
 
-**Cause:** Old HBBS binary without API support.
+**Cause:** Old HBBS binary without API support or using wrong port.
 
 **Solution:**
 ```bash
-# Copy new binary
-sudo cp hbbs-patch/bin-with-api/hbbs-v8-api /opt/rustdesk/
+# Copy new v2 binary (recommended)
+sudo cp hbbs-patch-v2/hbbs-linux-x86_64 /opt/rustdesk/hbbs-v8-api
 sudo chmod +x /opt/rustdesk/hbbs-v8-api
 
 # Update service to use new binary
-sudo sed -i 's/hbbs/hbbs-v8-api/g' /etc/systemd/system/hbbs.service
+sudo sed -i 's/hbbs/hbbs-v8-api/g' /etc/systemd/system/rustdesksignal.service
 sudo systemctl daemon-reload
-sudo systemctl restart hbbs
+sudo systemctl restart rustdesksignal
+
+# v2 uses port 21120 (not 21114)
 ```
 
 #### 4. Installer Cannot Find Installation
@@ -648,8 +657,8 @@ app.run(host='0.0.0.0', port=5000)
 # Allow web console on LAN
 sudo ufw allow from 192.168.0.0/16 to any port 5000 proto tcp
 
-# Allow HBBS API on LAN (if needed for external tools)
-sudo ufw allow from 192.168.0.0/16 to any port 21114 proto tcp
+# Allow HBBS API on LAN (v2 uses port 21120)
+sudo ufw allow from 192.168.0.0/16 to any port 21120 proto tcp
 
 # Standard RustDesk ports
 sudo ufw allow 21115/tcp
