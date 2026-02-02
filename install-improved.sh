@@ -343,17 +343,51 @@ run_database_migration() {
         print_info "Creating sessions table..."
         sqlite3 "$DB_PATH" "
             CREATE TABLE IF NOT EXISTS sessions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                token VARCHAR(64) PRIMARY KEY,
                 user_id INTEGER NOT NULL,
-                token TEXT UNIQUE NOT NULL,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                expires_at TEXT NOT NULL,
-                FOREIGN KEY (user_id) REFERENCES users(id)
+                created_at DATETIME NOT NULL,
+                expires_at DATETIME NOT NULL,
+                last_activity DATETIME NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             );
         "
         print_success "Created sessions table"
     else
-        print_success "Sessions table already exists"
+        print_info "Checking sessions table structure..."
+        
+        # Check if sessions table has the correct structure (token as PRIMARY KEY)
+        local sessions_has_token_pk=$(sqlite3 "$DB_PATH" "PRAGMA table_info(sessions);" | grep -E "^0\|token\|" || echo "")
+        local sessions_has_last_activity=$(sqlite3 "$DB_PATH" "PRAGMA table_info(sessions);" | grep "last_activity" || echo "")
+        
+        # If table has old structure (id as PRIMARY KEY instead of token), recreate it
+        if [ -z "$sessions_has_token_pk" ]; then
+            print_warning "Sessions table has old structure - recreating..."
+            
+            # Drop old sessions (they will be invalid anyway after structure change)
+            sqlite3 "$DB_PATH" "DROP TABLE IF EXISTS sessions;"
+            
+            # Create with correct structure
+            sqlite3 "$DB_PATH" "
+                CREATE TABLE sessions (
+                    token VARCHAR(64) PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    created_at DATETIME NOT NULL,
+                    expires_at DATETIME NOT NULL,
+                    last_activity DATETIME NOT NULL,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                );
+            "
+            print_success "Recreated sessions table with correct structure"
+        elif [ -z "$sessions_has_last_activity" ]; then
+            # Table exists with correct structure but missing last_activity column
+            print_info "Adding last_activity column to sessions table..."
+            sqlite3 "$DB_PATH" "ALTER TABLE sessions ADD COLUMN last_activity DATETIME;"
+            # Set default value for existing rows
+            sqlite3 "$DB_PATH" "UPDATE sessions SET last_activity = created_at WHERE last_activity IS NULL;"
+            print_success "Added last_activity column"
+        else
+            print_success "Sessions table structure is correct"
+        fi
     fi
     
     # Check if audit_log table exists
