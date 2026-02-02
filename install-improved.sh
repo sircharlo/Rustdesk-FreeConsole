@@ -667,6 +667,25 @@ update_binaries() {
     
     local binaries_copied=false
     local using_old_binaries=false
+    local services_stopped=false
+    
+    # Stop services before copying to avoid "Text file busy" error
+    print_info "Stopping RustDesk services before binary update..."
+    local hbbs_services=("rustdesksignal.service" "hbbs.service" "rustdesk-hbbs.service")
+    local hbbr_services=("rustdeskrelay.service" "hbbr.service" "rustdesk-hbbr.service")
+    
+    for service in "${hbbs_services[@]}" "${hbbr_services[@]}"; do
+        if systemctl is-active "$service" &>/dev/null 2>&1; then
+            systemctl stop "$service" 2>/dev/null || true
+            print_info "Stopped $service"
+            services_stopped=true
+        fi
+    done
+    
+    # Give processes time to fully terminate
+    if [ "$services_stopped" = true ]; then
+        sleep 2
+    fi
     
     # Check for hbbs-patch-v2 (recommended, latest)
     # Priority 1: Pre-compiled binaries (hbbs-linux-x86_64)
@@ -845,6 +864,11 @@ update_binaries() {
         print_warning "  API uses WRONG PORT (21114 instead of 21120)"
         print_warning "═══════════════════════════════════════════════════════"
         echo ""
+    fi
+    
+    # Restart services if they were stopped
+    if [ "$services_stopped" = true ]; then
+        print_info "Binary update complete. Services will be restarted after systemd update."
     fi
 }
 
