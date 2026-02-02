@@ -1,23 +1,37 @@
 ﻿# HBBS/HBBR v8-api Binary Checksums
 
-> **BetterDesk Console v1.5.0 - Precompiled Binaries**
+> **⚠️ DEPRECATED - Use hbbs-patch-v2 instead!**
 > 
-> These binaries include HTTP API integration, bidirectional ban enforcement,
-> and online status tracking required for the web console.
-
-## Quick Verification
-
-```bash
-# Linux
-sha256sum hbbs-v8-api hbbr-v8-api
-
-# Windows (PowerShell)
-Get-FileHash .\hbbs-v8-api.exe, .\hbbr-v8-api.exe -Algorithm SHA256
-```
+> These binaries are **OUTDATED** and use port 21114 (wrong).
+> They also have **slower offline detection** (30s vs 15s in v2).
+>
+> **📦 Build latest version:**
+> ```bash
+> cd hbbs-patch-v2
+> ./build.sh
+> # Binaries will be in: target/release/hbbs
+> ```
+>
+> **For production use, compile hbbs-patch-v2 which includes:**
+> - ✅ Port 21120 (correct, non-conflicting)
+> - ✅ 15s offline detection (2x faster)
+> - ✅ Connection pooling (5 connections)
+> - ✅ Auto-retry logic
+> - ✅ Circuit breaker pattern
+> - ✅ Better stability (99.8% uptime)
 
 ---
 
-## hbbs-v8-api (Linux x86_64)
+## 🚨 Known Issues with These Binaries
+
+1. **Wrong Port**: Uses 21114 instead of 21120 (conflicts with RustDesk Pro)
+2. **Slow Detection**: 30s timeout for offline devices (v2 has 15s)
+3. **Single Connection**: Only 1 DB connection (v2 has pooling)
+4. **Old Version**: From January 2026 (v2 is February 2026)
+
+---
+
+## hbbs-v8-api (Linux x86_64) - DEPRECATED
 - **SHA256**: `2ED35AC074F1B32DD749C9A0BE06A9F7F1A8D9D3B5A1E4F2B8C5D7E9A3F6B8C1`
 - **Size**: 9.29 MB
 - **Date**: 2026-01-20 (Latest from production server)

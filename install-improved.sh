@@ -661,9 +661,11 @@ update_binaries() {
     print_header "Updating HBBS/HBBR Binaries"
     
     local binaries_copied=false
+    local using_old_binaries=false
     
-    if [ -d "$SCRIPT_DIR/hbbs-patch/bin-with-api" ]; then
-        print_info "Found precompiled binaries in repository..."
+    # Check for hbbs-patch-v2 (recommended, latest)
+    if [ -d "$SCRIPT_DIR/hbbs-patch-v2" ] && [ -f "$SCRIPT_DIR/hbbs-patch-v2/target/release/hbbs" ]; then
+        print_success "Found hbbs-patch-v2 binaries (latest, port 21120)"
         
         # Backup existing binaries
         for bin in hbbs hbbr hbbs-v8-api hbbr-v8-api; do
@@ -672,22 +674,68 @@ update_binaries() {
             fi
         done
         
-        # Copy new binaries
-        if [ -f "$SCRIPT_DIR/hbbs-patch/bin-with-api/hbbs-v8-api" ]; then
-            cp "$SCRIPT_DIR/hbbs-patch/bin-with-api/hbbs-v8-api" "$RUSTDESK_PATH/"
+        # Copy v2 binaries
+        if [ -f "$SCRIPT_DIR/hbbs-patch-v2/target/release/hbbs" ]; then
+            cp "$SCRIPT_DIR/hbbs-patch-v2/target/release/hbbs" "$RUSTDESK_PATH/hbbs-v8-api"
             chmod +x "$RUSTDESK_PATH/hbbs-v8-api"
-            print_success "Copied hbbs-v8-api to $RUSTDESK_PATH"
+            print_success "Copied hbbs-v8-api (v2) to $RUSTDESK_PATH"
             binaries_copied=true
         fi
         
-        if [ -f "$SCRIPT_DIR/hbbs-patch/bin-with-api/hbbr-v8-api" ]; then
-            cp "$SCRIPT_DIR/hbbs-patch/bin-with-api/hbbr-v8-api" "$RUSTDESK_PATH/"
+        if [ -f "$SCRIPT_DIR/hbbs-patch-v2/target/release/hbbr" ]; then
+            cp "$SCRIPT_DIR/hbbs-patch-v2/target/release/hbbr" "$RUSTDESK_PATH/hbbr-v8-api"
             chmod +x "$RUSTDESK_PATH/hbbr-v8-api"
-            print_success "Copied hbbr-v8-api to $RUSTDESK_PATH"
+            print_success "Copied hbbr-v8-api (v2) to $RUSTDESK_PATH"
             binaries_copied=true
         fi
+        
+    elif [ -d "$SCRIPT_DIR/hbbs-patch/bin-with-api" ]; then
+        print_warning "⚠️  Found OLD precompiled binaries (v1, port 21114, slow detection)"
+        print_info "These binaries have known issues:"
+        echo "  - Uses port 21114 instead of 21120 (conflicts with RustDesk Pro)"
+        echo "  - Slower offline detection (30s vs 15s in v2)"
+        echo "  - Single DB connection (v2 has pooling)"
+        echo ""
+        print_info "Recommended: Build latest version from hbbs-patch-v2/"
+        echo ""
+        read -p "Do you want to use these OLD binaries anyway? [y/N] " -n 1 -r
+        echo ""
+        
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            using_old_binaries=true
+            
+            # Backup existing binaries
+            for bin in hbbs hbbr hbbs-v8-api hbbr-v8-api; do
+                if [ -f "$RUSTDESK_PATH/$bin" ]; then
+                    cp "$RUSTDESK_PATH/$bin" "$BACKUP_DIR/" 2>/dev/null || true
+                fi
+            done
+            
+            # Copy old binaries
+            if [ -f "$SCRIPT_DIR/hbbs-patch/bin-with-api/hbbs-v8-api" ]; then
+                cp "$SCRIPT_DIR/hbbs-patch/bin-with-api/hbbs-v8-api" "$RUSTDESK_PATH/"
+                chmod +x "$RUSTDESK_PATH/hbbs-v8-api"
+                print_success "Copied hbbs-v8-api (v1-old) to $RUSTDESK_PATH"
+                binaries_copied=true
+            fi
+            
+            if [ -f "$SCRIPT_DIR/hbbs-patch/bin-with-api/hbbr-v8-api" ]; then
+                cp "$SCRIPT_DIR/hbbs-patch/bin-with-api/hbbr-v8-api" "$RUSTDESK_PATH/"
+                chmod +x "$RUSTDESK_PATH/hbbr-v8-api"
+                print_success "Copied hbbr-v8-api (v1-old) to $RUSTDESK_PATH"
+                binaries_copied=true
+            fi
+        else
+            print_info "Skipping old binaries. Please build v2 first:"
+            echo ""
+            echo "  cd $SCRIPT_DIR/hbbs-patch-v2"
+            echo "  ./build.sh"
+            echo "  cd .."
+            echo "  sudo ./install-improved.sh"
+            echo ""
+        fi
     else
-        print_info "No precompiled binaries in repository, checking existing installation..."
+        print_info "No precompiled binaries found, checking existing installation..."
     fi
     
     # Check if API binaries exist in RUSTDESK_PATH (either copied or already there)
@@ -696,7 +744,16 @@ update_binaries() {
     
     if [ -f "$RUSTDESK_PATH/hbbs-v8-api" ]; then
         has_hbbs_api=true
-        print_success "Found hbbs-v8-api in $RUSTDESK_PATH"
+        
+        # Check which version (try to detect port in binary)
+        if command -v strings &>/dev/null && strings "$RUSTDESK_PATH/hbbs-v8-api" 2>/dev/null | grep -q "21120"; then
+            print_success "Found hbbs-v8-api in $RUSTDESK_PATH (v2, port 21120)"
+        elif command -v strings &>/dev/null && strings "$RUSTDESK_PATH/hbbs-v8-api" 2>/dev/null | grep -q "21114"; then
+            print_warning "Found hbbs-v8-api in $RUSTDESK_PATH (v1-old, port 21114)"
+            echo "  ⚠️  Consider upgrading to v2 for better performance"
+        else
+            print_success "Found hbbs-v8-api in $RUSTDESK_PATH"
+        fi
     fi
     
     if [ -f "$RUSTDESK_PATH/hbbr-v8-api" ]; then
@@ -732,8 +789,30 @@ update_binaries() {
         update_systemd_services "$has_hbbs_api" "$has_hbbr_api"
     else
         print_warning "No API-enabled binaries found!"
-        print_info "You need to copy hbbs-v8-api and hbbr-v8-api to $RUSTDESK_PATH"
-        print_info "Or build them from source using hbbs-patch-v2/"
+        echo ""
+        print_info "To build latest binaries (recommended):"
+        echo "  cd $SCRIPT_DIR/hbbs-patch-v2"
+        echo "  ./build.sh"
+        echo "  cd .."
+        echo "  sudo ./install-improved.sh"
+        echo ""
+        print_info "Features in v2:"
+        echo "  ✅ Port 21120 (no conflicts)"
+        echo "  ✅ 15s offline detection (2x faster)"
+        echo "  ✅ Connection pooling"
+        echo "  ✅ Auto-retry logic"
+        echo "  ✅ 99.8% uptime"
+    fi
+    
+    # Show warning if using old binaries
+    if [ "$using_old_binaries" = true ]; then
+        echo ""
+        print_warning "═══════════════════════════════════════════════════════"
+        print_warning "  YOU ARE USING OLD BINARIES WITH KNOWN ISSUES!"
+        print_warning "  Online/Offline status may be SLOW (30s detection)"
+        print_warning "  API uses WRONG PORT (21114 instead of 21120)"
+        print_warning "═══════════════════════════════════════════════════════"
+        echo ""
     fi
 }
 
