@@ -86,10 +86,10 @@ def init_auth_tables():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER,
                 action VARCHAR(50) NOT NULL,
-                target_id VARCHAR(100),
+                device_id VARCHAR(100),
                 details TEXT,
                 ip_address VARCHAR(45),
-                created_at DATETIME NOT NULL,
+                timestamp DATETIME NOT NULL,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
             )
         ''')

@@ -397,17 +397,46 @@ run_database_migration() {
             CREATE TABLE IF NOT EXISTS audit_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER,
-                username TEXT,
-                action TEXT NOT NULL,
-                target TEXT,
+                action VARCHAR(50) NOT NULL,
+                device_id VARCHAR(100),
                 details TEXT,
-                ip_address TEXT,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                ip_address VARCHAR(45),
+                timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
             );
         "
         print_success "Created audit_log table"
     else
-        print_success "Audit log table already exists"
+        print_info "Checking audit_log table structure..."
+        
+        # Check if audit_log has the correct columns
+        local has_device_id=$(sqlite3 "$DB_PATH" "PRAGMA table_info(audit_log);" | grep "device_id" || echo "")
+        local has_timestamp=$(sqlite3 "$DB_PATH" "PRAGMA table_info(audit_log);" | grep "timestamp" || echo "")
+        
+        # If table has old structure, recreate it
+        if [ -z "$has_device_id" ] || [ -z "$has_timestamp" ]; then
+            print_warning "audit_log table has old structure - recreating..."
+            
+            # Backup old audit logs (optional - they may have different structure)
+            sqlite3 "$DB_PATH" "DROP TABLE IF EXISTS audit_log;"
+            
+            # Create with correct structure
+            sqlite3 "$DB_PATH" "
+                CREATE TABLE audit_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    action VARCHAR(50) NOT NULL,
+                    device_id VARCHAR(100),
+                    details TEXT,
+                    ip_address VARCHAR(45),
+                    timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+                );
+            "
+            print_success "Recreated audit_log table with correct structure"
+        else
+            print_success "audit_log table structure is correct"
+        fi
     fi
     
     # Create default admin if not exists

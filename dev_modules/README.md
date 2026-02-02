@@ -17,6 +17,16 @@ This directory contains development and testing utilities for BetterDesk Console
   - Lists devices and their status
   - Usage: `python3 check_database.py`
 
+- **check_and_fix_database.sh** - **Database Schema Checker & Fixer** ⭐ NEW
+  - Automatically detects database location
+  - Validates all required tables and columns
+  - Fixes missing or incorrect schema
+  - Creates backup before making changes
+  - Creates admin user if missing
+  - Usage: `sudo ./check_and_fix_database.sh [database_path]`
+  - Example: `sudo ./check_and_fix_database.sh /opt/rustdesk/db_v2.sqlite3`
+  - **Use this if you have login problems!**
+
 ### Development Scripts
 - **update.ps1** - PowerShell update script (Windows development environment)
   - Alternative to update.sh for Windows
