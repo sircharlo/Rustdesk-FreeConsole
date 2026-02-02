@@ -27,6 +27,12 @@ This directory contains development and testing utilities for BetterDesk Console
   - Example: `sudo ./check_and_fix_database.sh /opt/rustdesk/db_v2.sqlite3`
   - **Use this if you have login problems!**
 
+- **fix_peer_columns.sh** - **Quick Fix for Device Errors** ⭐ NEW
+  - Adds missing columns to peer table (updated_at, deleted_at, etc.)
+  - Fixes "no such column: updated_at" error
+  - Usage: `sudo ./fix_peer_columns.sh [database_path]`
+  - **Use this if you get 500 errors when editing devices!**
+
 ### Development Scripts
 - **update.ps1** - PowerShell update script (Windows development environment)
   - Alternative to update.sh for Windows

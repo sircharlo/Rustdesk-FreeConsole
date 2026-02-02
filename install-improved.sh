@@ -100,7 +100,8 @@ detect_console_path() {
     print_info "Searching for BetterDesk Console installation..."
     
     for path in "${CONSOLE_PATHS[@]}"; do
-        if [ -d "$path" ] && [ -f "$path/app.py" -o -f "$path/app_v14.py" -o -f "$path/web/app_v14.py" ]; then
+        # Check for app.py (current naming) or auth.py (part of auth system)
+        if [ -d "$path" ] && [ -f "$path/app.py" -o -f "$path/auth.py" ]; then
             CONSOLE_PATH="$path"
             print_success "Found console at: $CONSOLE_PATH"
             return 0
@@ -209,7 +210,7 @@ detect_database() {
 detect_current_version() {
     print_info "Detecting current version..."
     
-    # Check VERSION file in console path
+    # Check VERSION file in console path (primary method)
     if [ -f "$CONSOLE_PATH/VERSION" ]; then
         CURRENT_VERSION=$(head -1 "$CONSOLE_PATH/VERSION" | tr -d 'v' | tr -d ' ')
         print_success "Current version: $CURRENT_VERSION"
@@ -217,24 +218,20 @@ detect_current_version() {
     fi
     
     # Check app.py for version string
-    for app_file in "$CONSOLE_PATH/app.py" "$CONSOLE_PATH/app_v14.py" "$CONSOLE_PATH/web/app_v14.py"; do
-        if [ -f "$app_file" ]; then
-            local version=$(grep -oP "VERSION\s*=\s*['\"]v?\K[0-9.]+" "$app_file" 2>/dev/null | head -1)
-            if [ -n "$version" ]; then
-                CURRENT_VERSION="$version"
-                print_success "Detected version from app: $CURRENT_VERSION"
-                return 0
-            fi
+    if [ -f "$CONSOLE_PATH/app.py" ]; then
+        local version=$(grep -oP "VERSION\s*=\s*['\"]v?\K[0-9.]+" "$CONSOLE_PATH/app.py" 2>/dev/null | head -1)
+        if [ -n "$version" ]; then
+            CURRENT_VERSION="$version"
+            print_success "Detected version from app: $CURRENT_VERSION"
+            return 0
         fi
-    done
+    fi
     
-    # Check if specific version files exist
-    if [ -f "$CONSOLE_PATH/static/script_v15.js" ]; then
+    # Check for presence of key files to estimate version
+    if [ -f "$CONSOLE_PATH/auth.py" ] && [ -f "$CONSOLE_PATH/static/script.js" ]; then
         CURRENT_VERSION="1.5.0"
-    elif [ -f "$CONSOLE_PATH/static/script_v14.js" ]; then
-        CURRENT_VERSION="1.4.0"
     elif [ -f "$CONSOLE_PATH/auth.py" ]; then
-        CURRENT_VERSION="1.3.0"
+        CURRENT_VERSION="1.4.0"
     else
         CURRENT_VERSION="1.0.0"
     fi
@@ -276,6 +273,113 @@ create_backup() {
 }
 
 # =============================================================================
+# Python Dependencies Installation
+# =============================================================================
+
+install_python_dependencies() {
+    print_info "Installing Python dependencies..."
+    
+    local PACKAGES="bcrypt markupsafe flask flask-wtf flask-limiter"
+    local installed=false
+    
+    # Method 1: Try with --break-system-packages (Debian 12+, Ubuntu 23.04+)
+    if ! $installed; then
+        if pip3 install $PACKAGES --break-system-packages 2>/dev/null; then
+            print_success "Dependencies installed with --break-system-packages"
+            installed=true
+        fi
+    fi
+    
+    # Method 2: Try with pipx (if available)
+    if ! $installed && command -v pipx &>/dev/null; then
+        print_info "Trying pipx..."
+        for pkg in $PACKAGES; do
+            pipx install $pkg 2>/dev/null || true
+        done
+        # pipx is for CLI tools, not libraries - skip this method
+    fi
+    
+    # Method 3: Try creating a virtual environment
+    if ! $installed; then
+        print_info "Trying virtual environment..."
+        if python3 -m venv /opt/BetterDeskConsole/venv 2>/dev/null; then
+            if /opt/BetterDeskConsole/venv/bin/pip install $PACKAGES 2>/dev/null; then
+                print_success "Dependencies installed in virtual environment"
+                installed=true
+                
+                # Update service file to use venv
+                if [ -f "/etc/systemd/system/betterdesk.service" ]; then
+                    sed -i 's|ExecStart=/usr/bin/python3|ExecStart=/opt/BetterDeskConsole/venv/bin/python|' /etc/systemd/system/betterdesk.service
+                    systemctl daemon-reload
+                    print_success "Updated service to use virtual environment"
+                fi
+            fi
+        fi
+    fi
+    
+    # Method 4: Try with --user flag
+    if ! $installed; then
+        if pip3 install $PACKAGES --user 2>/dev/null; then
+            print_success "Dependencies installed with --user"
+            installed=true
+        fi
+    fi
+    
+    # Method 5: Try normal install (older systems)
+    if ! $installed; then
+        if pip3 install $PACKAGES 2>/dev/null; then
+            print_success "Dependencies installed normally"
+            installed=true
+        fi
+    fi
+    
+    # Method 6: Try apt packages as fallback
+    if ! $installed; then
+        print_info "Trying system packages..."
+        if apt-get update -qq && apt-get install -y python3-flask python3-bcrypt 2>/dev/null; then
+            print_success "Some dependencies installed via apt"
+            # Still try pip for the rest
+            pip3 install flask-wtf flask-limiter markupsafe --break-system-packages 2>/dev/null || true
+            installed=true
+        fi
+    fi
+    
+    if ! $installed; then
+        print_warning "Could not install Python packages automatically"
+        echo ""
+        print_info "Please install manually using one of these methods:"
+        echo ""
+        echo "  Option 1 (Debian 12+/Ubuntu 23.04+):"
+        echo "    pip3 install --break-system-packages bcrypt flask flask-wtf flask-limiter markupsafe"
+        echo ""
+        echo "  Option 2 (Virtual environment - recommended):"
+        echo "    python3 -m venv /opt/BetterDeskConsole/venv"
+        echo "    /opt/BetterDeskConsole/venv/bin/pip install bcrypt flask flask-wtf flask-limiter markupsafe"
+        echo "    # Then update /etc/systemd/system/betterdesk.service to use:"
+        echo "    # ExecStart=/opt/BetterDeskConsole/venv/bin/python /opt/BetterDeskConsole/app.py"
+        echo ""
+        echo "  Option 3 (System packages):"
+        echo "    apt install python3-flask python3-bcrypt python3-pip"
+        echo "    pip3 install --break-system-packages flask-wtf flask-limiter"
+        echo ""
+    fi
+    
+    # Verify installation
+    print_info "Verifying Python dependencies..."
+    local missing=""
+    python3 -c "import flask" 2>/dev/null || missing="$missing flask"
+    python3 -c "import bcrypt" 2>/dev/null || missing="$missing bcrypt"
+    python3 -c "import flask_wtf" 2>/dev/null || missing="$missing flask-wtf"
+    python3 -c "import flask_limiter" 2>/dev/null || missing="$missing flask-limiter"
+    
+    if [ -z "$missing" ]; then
+        print_success "All Python dependencies verified"
+    else
+        print_warning "Missing packages:$missing"
+    fi
+}
+
+# =============================================================================
 # Database Migration
 # =============================================================================
 
@@ -289,7 +393,10 @@ run_database_migration() {
     
     print_info "Checking database schema..."
     
-    # Check if last_online column exists
+    # Check and add peer table columns required by BetterDesk
+    print_info "Checking peer table columns..."
+    
+    # last_online column
     if ! sqlite3 "$DB_PATH" "PRAGMA table_info(peer);" | grep -q "last_online"; then
         print_info "Adding last_online column..."
         sqlite3 "$DB_PATH" "ALTER TABLE peer ADD COLUMN last_online TEXT;"
@@ -298,7 +405,7 @@ run_database_migration() {
         print_success "last_online column already exists"
     fi
     
-    # Check if is_deleted column exists
+    # is_deleted column
     if ! sqlite3 "$DB_PATH" "PRAGMA table_info(peer);" | grep -q "is_deleted"; then
         print_info "Adding is_deleted column..."
         sqlite3 "$DB_PATH" "ALTER TABLE peer ADD COLUMN is_deleted INTEGER DEFAULT 0;"
@@ -307,9 +414,27 @@ run_database_migration() {
         print_success "is_deleted column already exists"
     fi
     
-    # Check if is_banned column exists
+    # deleted_at column
+    if ! sqlite3 "$DB_PATH" "PRAGMA table_info(peer);" | grep -q "deleted_at"; then
+        print_info "Adding deleted_at column..."
+        sqlite3 "$DB_PATH" "ALTER TABLE peer ADD COLUMN deleted_at INTEGER;"
+        print_success "Added deleted_at column"
+    else
+        print_success "deleted_at column already exists"
+    fi
+    
+    # updated_at column (required for device updates)
+    if ! sqlite3 "$DB_PATH" "PRAGMA table_info(peer);" | grep -q "updated_at"; then
+        print_info "Adding updated_at column..."
+        sqlite3 "$DB_PATH" "ALTER TABLE peer ADD COLUMN updated_at INTEGER;"
+        print_success "Added updated_at column"
+    else
+        print_success "updated_at column already exists"
+    fi
+    
+    # Ban-related columns
     if ! sqlite3 "$DB_PATH" "PRAGMA table_info(peer);" | grep -q "is_banned"; then
-        print_info "Adding is_banned column..."
+        print_info "Adding ban-related columns..."
         sqlite3 "$DB_PATH" "ALTER TABLE peer ADD COLUMN is_banned INTEGER DEFAULT 0;"
         sqlite3 "$DB_PATH" "ALTER TABLE peer ADD COLUMN banned_at TEXT;"
         sqlite3 "$DB_PATH" "ALTER TABLE peer ADD COLUMN banned_by TEXT;"
@@ -494,8 +619,8 @@ update_console_files() {
         mkdir -p "$CONSOLE_PATH/static"
         mkdir -p "$CONSOLE_PATH/templates"
         
-        # Copy Python files
-        for pyfile in app_v14.py auth.py; do
+        # Copy Python files (app.py and auth.py)
+        for pyfile in app.py auth.py; do
             if [ -f "$SCRIPT_DIR/web/$pyfile" ]; then
                 cp "$SCRIPT_DIR/web/$pyfile" "$CONSOLE_PATH/"
                 print_success "Updated $pyfile"
@@ -525,20 +650,7 @@ update_console_files() {
     print_success "Updated VERSION to $TARGET_VERSION"
     
     # Install Python dependencies
-    print_info "Installing Python dependencies..."
-    
-    # Try multiple methods to handle different Python environments
-    if pip3 install bcrypt markupsafe flask flask-wtf flask-limiter --quiet --break-system-packages 2>/dev/null; then
-        print_success "Dependencies installed with --break-system-packages"
-    elif pip3 install bcrypt markupsafe flask flask-wtf flask-limiter --quiet --user 2>/dev/null; then
-        print_success "Dependencies installed with --user"
-    elif pip3 install bcrypt markupsafe flask flask-wtf flask-limiter --quiet 2>/dev/null; then
-        print_success "Dependencies installed normally"
-    else
-        print_warning "Could not install some Python packages automatically"
-        print_info "Please install manually: pip3 install bcrypt markupsafe flask flask-wtf flask-limiter"
-        print_info "On Debian 12+, you may need: pip3 install --break-system-packages ..."
-    fi
+    install_python_dependencies
 }
 
 # =============================================================================
@@ -601,8 +713,8 @@ fresh_installation() {
     if [ -d "$SCRIPT_DIR/web" ]; then
         print_info "Installing web application files..."
         
-        # Copy Python files
-        for pyfile in app_v14.py auth.py; do
+        # Copy Python files (app.py and auth.py)
+        for pyfile in app.py auth.py; do
             if [ -f "$SCRIPT_DIR/web/$pyfile" ]; then
                 cp "$SCRIPT_DIR/web/$pyfile" "$CONSOLE_PATH/"
                 print_success "Installed $pyfile"
@@ -637,17 +749,7 @@ fresh_installation() {
     print_success "Created VERSION file"
     
     # Install Python dependencies
-    print_info "Installing Python dependencies..."
-    if pip3 install bcrypt markupsafe flask flask-wtf flask-limiter --quiet --break-system-packages 2>/dev/null; then
-        print_success "Dependencies installed with --break-system-packages"
-    elif pip3 install bcrypt markupsafe flask flask-wtf flask-limiter --quiet --user 2>/dev/null; then
-        print_success "Dependencies installed with --user"
-    elif pip3 install bcrypt markupsafe flask flask-wtf flask-limiter --quiet 2>/dev/null; then
-        print_success "Dependencies installed normally"
-    else
-        print_warning "Could not install some Python packages automatically"
-        print_info "Please install manually: pip3 install bcrypt markupsafe flask flask-wtf flask-limiter"
-    fi
+    install_python_dependencies
     
     # Enable and start service
     if [ -f "/etc/systemd/system/betterdesk.service" ]; then

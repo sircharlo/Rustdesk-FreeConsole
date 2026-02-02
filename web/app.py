@@ -305,7 +305,7 @@ def health_check():
 @app.route('/')
 def index():
     """Render the main dashboard page. Auth check done by JavaScript on client side."""
-    return render_template('index_v15.html')
+    return render_template('index.html')
 
 
 @app.route('/client-generator')

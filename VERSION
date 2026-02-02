@@ -1,7 +1,7 @@
-v1.5.1
+v1.5.2
 
-BetterDesk Console Version 1.5.1
-GPU Optimization & Clean Deployment
+BetterDesk Console Version 1.5.2
+Database Schema Fix & File Naming Cleanup
 
 New in v1.5.1:
 - 🚀 GPU optimization (removed backdrop-filter, heavy animations)

@@ -5,6 +5,56 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.2] - 2026-02-02
+
+### 🔧 Database Schema Fix & File Naming Cleanup
+
+**Critical Fix**: Resolved multiple database schema issues that caused login failures and 500 errors.
+
+### Fixed
+
+#### Database Schema Issues
+- **Sessions table**: Fixed missing `last_activity` column causing "Login failed: table sessions has no column named last_activity"
+- **Audit log table**: Fixed `target_id`/`created_at` vs `device_id`/`timestamp` mismatch causing login failures
+- **Peer table**: Added missing `updated_at` and `deleted_at` columns causing 500 errors when editing devices
+- **Installation script**: Now properly checks and fixes existing table structures during updates
+
+#### File Naming Cleanup
+- Removed version numbers from file names for consistency:
+  - `app_v14.py` → `app.py`
+  - `script_v15.js` → `script.js`
+  - `index_v15.html` → `index.html`
+- Updated all references in documentation and scripts
+- Service file now correctly points to `app.py`
+
+#### Python Package Installation
+- Improved `install_python_dependencies()` function with multiple fallback methods:
+  - `--break-system-packages` for Debian 12+/Ubuntu 23.04+
+  - Virtual environment creation with automatic service update
+  - `--user` flag fallback
+  - System packages via apt fallback
+  - Verification of installed packages
+
+### Added
+
+#### Diagnostic Tools (dev_modules/)
+- **check_and_fix_database.sh**: Comprehensive database schema checker and fixer
+  - Automatically detects database location
+  - Validates all required tables and columns
+  - Fixes missing or incorrect schema
+  - Creates backup before making changes
+  
+- **fix_peer_columns.sh**: Quick fix for peer table columns
+  - Adds all missing columns (updated_at, deleted_at, etc.)
+  - Simple one-command fix for device editing errors
+
+### Changed
+- Installation script now performs thorough database migration on every run
+- Sessions table migration detects old structure (id as PRIMARY KEY) and recreates with correct structure
+- Audit log table migration validates column names match code expectations
+
+---
+
 ## [1.4.0] - 2026-01-11
 
 ### 🔐 Security & Authentication Update

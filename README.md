@@ -581,11 +581,11 @@ sudo systemctl restart hbbs
 **Solution:**
 ```bash
 # Find your installation
-find / -name "app_v14.py" 2>/dev/null
+find / -name "app.py" 2>/dev/null
 find / -name "db_v2.sqlite3" 2>/dev/null
 
-# Run migration manually pointing to correct paths
-python3 migrations/v1.5.0_fix_online_status.py /path/to/db_v2.sqlite3
+# Run the database fix script
+sudo ./dev_modules/check_and_fix_database.sh /path/to/db_v2.sqlite3
 ```
 
 ### 📞 Getting Help

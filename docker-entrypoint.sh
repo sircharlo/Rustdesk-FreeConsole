@@ -182,4 +182,4 @@ echo "   Default Login: admin / (see logs above for password)"
 echo ""
 
 # Start Flask application
-exec python3 app_v14.py
+exec python3 app.py

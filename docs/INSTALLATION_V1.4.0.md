@@ -97,13 +97,12 @@ sudo pip3 install bcrypt markupsafe --break-system-packages
 
 # 3. Copy new files
 cd /path/to/Rustdesk-FreeConsole
-sudo cp web/auth.py /opt/BetterDeskConsole/web/
-sudo cp web/app_v14.py /opt/BetterDeskConsole/web/app.py
-sudo cp web/templates/login.html /opt/BetterDeskConsole/web/templates/
-sudo cp web/templates/index_v14.html /opt/BetterDeskConsole/web/templates/index.html
-sudo cp web/static/sidebar.css /opt/BetterDeskConsole/web/static/
-sudo cp web/static/sidebar.js /opt/BetterDeskConsole/web/static/
-sudo cp web/static/script_v14.js /opt/BetterDeskConsole/web/static/script.js
+sudo cp web/auth.py /opt/BetterDeskConsole/
+sudo cp web/app.py /opt/BetterDeskConsole/
+sudo cp web/templates/login.html /opt/BetterDeskConsole/templates/
+sudo cp web/templates/index.html /opt/BetterDeskConsole/templates/
+sudo cp web/static/style.css /opt/BetterDeskConsole/static/
+sudo cp web/static/script.js /opt/BetterDeskConsole/static/
 
 # 4. Run migration
 sudo python3 migrations/v1.4.0_auth_system.py

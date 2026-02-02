@@ -6,7 +6,7 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=/opt/BetterDeskConsole
-ExecStart=/usr/bin/python3 /opt/BetterDeskConsole/app_v14.py
+ExecStart=/usr/bin/python3 /opt/BetterDeskConsole/app.py
 Restart=always
 RestartSec=10
 Environment="FLASK_HOST=0.0.0.0"

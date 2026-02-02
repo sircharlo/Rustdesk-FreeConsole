@@ -66,7 +66,7 @@ REQUIRED_TABLES["sessions"]="token,user_id,created_at,expires_at,last_activity"
 REQUIRED_TABLES["audit_log"]="id,user_id,action,device_id,details,ip_address,timestamp"
 
 # Columns required in peer table (added by BetterDesk)
-REQUIRED_PEER_COLUMNS="last_online,is_deleted,is_banned,banned_at,banned_by,ban_reason"
+REQUIRED_PEER_COLUMNS="last_online,is_deleted,deleted_at,updated_at,is_banned,banned_at,banned_by,ban_reason"
 
 # =============================================================================
 # Database Detection
@@ -162,6 +162,12 @@ fix_peer_table() {
                     ;;
                 "is_deleted")
                     sqlite3 "$db" "ALTER TABLE peer ADD COLUMN is_deleted INTEGER DEFAULT 0;"
+                    ;;
+                "deleted_at")
+                    sqlite3 "$db" "ALTER TABLE peer ADD COLUMN deleted_at INTEGER;"
+                    ;;
+                "updated_at")
+                    sqlite3 "$db" "ALTER TABLE peer ADD COLUMN updated_at INTEGER;"
                     ;;
                 "is_banned")
                     sqlite3 "$db" "ALTER TABLE peer ADD COLUMN is_banned INTEGER DEFAULT 0;"

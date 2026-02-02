@@ -503,7 +503,7 @@ function Test-Installation {
     Write-Host "Next steps:" -ForegroundColor Yellow
     Write-Host "  1. Start HBBS: cd $RustDeskPath ; .\hbbs.exe"
     Write-Host "  2. Start HBBR: cd $RustDeskPath ; .\hbbr.exe"
-    Write-Host "  3. Start Web Console: cd $ConsolePath ; python app_v14.py"
+    Write-Host "  3. Start Web Console: cd $ConsolePath ; python app.py"
     Write-Host ""
     Write-Host "Web Console will be available at: http://localhost:5000" -ForegroundColor Cyan
     Write-Host "Run servers in separate PowerShell windows for best results" -ForegroundColor Yellow
@@ -550,7 +550,7 @@ function Show-Summary {
     Write-Host "  4. Open second PowerShell window"
     Write-Host "  5. Start HBBR: .\hbbr.exe"
     Write-Host "  6. Open third PowerShell window"
-    Write-Host "  7. Start Console: cd $ConsolePath ; python app_v14.py"
+    Write-Host "  7. Start Console: cd $ConsolePath ; python app.py"
     Write-Host ""
     Write-Host "Access Points:" -ForegroundColor Cyan
     Write-Host "  • Web Console: http://localhost:5000"

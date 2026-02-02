@@ -545,7 +545,7 @@ install_web_console() {
     cp -r "$SCRIPT_DIR/web/"* "$CONSOLE_PATH/"
     
     # Set permissions
-    chmod +x "$CONSOLE_PATH/app_v14.py" 2>/dev/null || true
+    chmod +x "$CONSOLE_PATH/app.py" 2>/dev/null || true
     
     # Create VERSION file
     echo "v$TARGET_VERSION" > "$CONSOLE_PATH/VERSION"
@@ -648,7 +648,7 @@ Type=simple
 User=root
 WorkingDirectory=$CONSOLE_PATH
 Environment=PYTHONPATH=$CONSOLE_PATH
-ExecStart=/usr/bin/python3 $CONSOLE_PATH/app_v14.py
+ExecStart=/usr/bin/python3 $CONSOLE_PATH/app.py
 Restart=always
 RestartSec=5
 
