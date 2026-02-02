@@ -26,7 +26,7 @@ NC='\033[0m' # No Color
 
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TARGET_VERSION="1.5.0"
+TARGET_VERSION="1.5.3"
 BACKUP_DIR="/opt/BetterDeskConsole_backup_$(date +%Y%m%d_%H%M%S)"
 
 # Possible installation paths
@@ -660,8 +660,10 @@ update_console_files() {
 update_binaries() {
     print_header "Updating HBBS/HBBR Binaries"
     
+    local binaries_copied=false
+    
     if [ -d "$SCRIPT_DIR/hbbs-patch/bin-with-api" ]; then
-        print_info "Found precompiled binaries..."
+        print_info "Found precompiled binaries in repository..."
         
         # Backup existing binaries
         for bin in hbbs hbbr hbbs-v8-api hbbr-v8-api; do
@@ -674,25 +676,203 @@ update_binaries() {
         if [ -f "$SCRIPT_DIR/hbbs-patch/bin-with-api/hbbs-v8-api" ]; then
             cp "$SCRIPT_DIR/hbbs-patch/bin-with-api/hbbs-v8-api" "$RUSTDESK_PATH/"
             chmod +x "$RUSTDESK_PATH/hbbs-v8-api"
-            print_success "Updated hbbs-v8-api"
+            print_success "Copied hbbs-v8-api to $RUSTDESK_PATH"
+            binaries_copied=true
         fi
         
         if [ -f "$SCRIPT_DIR/hbbs-patch/bin-with-api/hbbr-v8-api" ]; then
             cp "$SCRIPT_DIR/hbbs-patch/bin-with-api/hbbr-v8-api" "$RUSTDESK_PATH/"
             chmod +x "$RUSTDESK_PATH/hbbr-v8-api"
-            print_success "Updated hbbr-v8-api"
+            print_success "Copied hbbr-v8-api to $RUSTDESK_PATH"
+            binaries_copied=true
         fi
-        
-        # Create symlinks if original binaries are being used
+    else
+        print_info "No precompiled binaries in repository, checking existing installation..."
+    fi
+    
+    # Check if API binaries exist in RUSTDESK_PATH (either copied or already there)
+    local has_hbbs_api=false
+    local has_hbbr_api=false
+    
+    if [ -f "$RUSTDESK_PATH/hbbs-v8-api" ]; then
+        has_hbbs_api=true
+        print_success "Found hbbs-v8-api in $RUSTDESK_PATH"
+    fi
+    
+    if [ -f "$RUSTDESK_PATH/hbbr-v8-api" ]; then
+        has_hbbr_api=true
+        print_success "Found hbbr-v8-api in $RUSTDESK_PATH"
+    fi
+    
+    # Create symlinks for backward compatibility
+    if [ "$has_hbbs_api" = true ]; then
         if [ -f "$RUSTDESK_PATH/hbbs" ] && [ ! -L "$RUSTDESK_PATH/hbbs" ]; then
             mv "$RUSTDESK_PATH/hbbs" "$RUSTDESK_PATH/hbbs.original"
             ln -sf "$RUSTDESK_PATH/hbbs-v8-api" "$RUSTDESK_PATH/hbbs"
-            print_success "Created hbbs symlink"
+            print_success "Created hbbs symlink → hbbs-v8-api"
+        elif [ ! -f "$RUSTDESK_PATH/hbbs" ]; then
+            ln -sf "$RUSTDESK_PATH/hbbs-v8-api" "$RUSTDESK_PATH/hbbs"
+            print_success "Created hbbs symlink → hbbs-v8-api"
         fi
-    else
-        print_warning "No precompiled binaries found in hbbs-patch/bin-with-api/"
-        print_info "You may need to copy binaries manually"
     fi
+    
+    if [ "$has_hbbr_api" = true ]; then
+        if [ -f "$RUSTDESK_PATH/hbbr" ] && [ ! -L "$RUSTDESK_PATH/hbbr" ]; then
+            mv "$RUSTDESK_PATH/hbbr" "$RUSTDESK_PATH/hbbr.original"
+            ln -sf "$RUSTDESK_PATH/hbbr-v8-api" "$RUSTDESK_PATH/hbbr"
+            print_success "Created hbbr symlink → hbbr-v8-api"
+        elif [ ! -f "$RUSTDESK_PATH/hbbr" ]; then
+            ln -sf "$RUSTDESK_PATH/hbbr-v8-api" "$RUSTDESK_PATH/hbbr"
+            print_success "Created hbbr symlink → hbbr-v8-api"
+        fi
+    fi
+    
+    # ALWAYS update systemd services if API binaries exist
+    if [ "$has_hbbs_api" = true ] || [ "$has_hbbr_api" = true ]; then
+        update_systemd_services "$has_hbbs_api" "$has_hbbr_api"
+    else
+        print_warning "No API-enabled binaries found!"
+        print_info "You need to copy hbbs-v8-api and hbbr-v8-api to $RUSTDESK_PATH"
+        print_info "Or build them from source using hbbs-patch-v2/"
+    fi
+}
+
+# =============================================================================
+# Update Systemd Services for HBBS/HBBR
+# =============================================================================
+
+update_systemd_services() {
+    local has_hbbs_api="${1:-true}"
+    local has_hbbr_api="${2:-true}"
+    
+    print_info "Checking and updating systemd services..."
+    
+    local services_updated=false
+    local hbbs_found=false
+    local hbbr_found=false
+    
+    # Common service names for HBBS (signal server)
+    local hbbs_services=("rustdesksignal.service" "hbbs.service" "rustdesk-hbbs.service")
+    # Common service names for HBBR (relay server)
+    local hbbr_services=("rustdeskrelay.service" "hbbr.service" "rustdesk-hbbr.service")
+    
+    # Find and update HBBS service
+    if [ "$has_hbbs_api" = true ]; then
+        for service in "${hbbs_services[@]}"; do
+            local service_file="/etc/systemd/system/$service"
+            if [ -f "$service_file" ]; then
+                hbbs_found=true
+                print_info "Found HBBS service: $service"
+                
+                # Backup original service file
+                if [ -d "$BACKUP_DIR" ]; then
+                    cp "$service_file" "$BACKUP_DIR/" 2>/dev/null || true
+                fi
+                
+                # Get current ExecStart
+                local current_exec=$(grep "^ExecStart=" "$service_file" 2>/dev/null || echo "")
+                
+                # Check if service already uses hbbs-v8-api
+                if echo "$current_exec" | grep -q "hbbs-v8-api"; then
+                    print_success "Service $service already uses hbbs-v8-api"
+                else
+                    # Try multiple patterns to find hbbs binary
+                    # Pattern 1: /path/to/hbbs (with space or end of line after)
+                    # Pattern 2: /path/to/hbbs -flag
+                    if echo "$current_exec" | grep -qE "/hbbs(\s|$)"; then
+                        # Replace /hbbs with /hbbs-v8-api
+                        local new_exec=$(echo "$current_exec" | sed -E 's|/hbbs(\s|$)|/hbbs-v8-api\1|g')
+                        
+                        if [ "$current_exec" != "$new_exec" ]; then
+                            # Use a temporary file approach for safer replacement
+                            sed -i "s|^ExecStart=.*|$new_exec|" "$service_file"
+                            print_success "Updated $service: /hbbs → /hbbs-v8-api"
+                            echo "  Old: $current_exec"
+                            echo "  New: $new_exec"
+                            services_updated=true
+                        fi
+                    else
+                        print_warning "Could not find hbbs in ExecStart of $service"
+                        print_info "Current: $current_exec"
+                        print_info "You may need to update this service manually"
+                    fi
+                fi
+                break  # Found and processed HBBS service
+            fi
+        done
+        
+        if [ "$hbbs_found" = false ]; then
+            print_warning "No HBBS service found. Checked: ${hbbs_services[*]}"
+        fi
+    fi
+    
+    # Find and update HBBR service
+    if [ "$has_hbbr_api" = true ]; then
+        for service in "${hbbr_services[@]}"; do
+            local service_file="/etc/systemd/system/$service"
+            if [ -f "$service_file" ]; then
+                hbbr_found=true
+                print_info "Found HBBR service: $service"
+                
+                # Backup original service file
+                if [ -d "$BACKUP_DIR" ]; then
+                    cp "$service_file" "$BACKUP_DIR/" 2>/dev/null || true
+                fi
+                
+                # Get current ExecStart
+                local current_exec=$(grep "^ExecStart=" "$service_file" 2>/dev/null || echo "")
+                
+                # Check if service already uses hbbr-v8-api
+                if echo "$current_exec" | grep -q "hbbr-v8-api"; then
+                    print_success "Service $service already uses hbbr-v8-api"
+                else
+                    # Try to find hbbr binary
+                    if echo "$current_exec" | grep -qE "/hbbr(\s|$)"; then
+                        local new_exec=$(echo "$current_exec" | sed -E 's|/hbbr(\s|$)|/hbbr-v8-api\1|g')
+                        
+                        if [ "$current_exec" != "$new_exec" ]; then
+                            sed -i "s|^ExecStart=.*|$new_exec|" "$service_file"
+                            print_success "Updated $service: /hbbr → /hbbr-v8-api"
+                            echo "  Old: $current_exec"
+                            echo "  New: $new_exec"
+                            services_updated=true
+                        fi
+                    else
+                        print_warning "Could not find hbbr in ExecStart of $service"
+                        print_info "Current: $current_exec"
+                        print_info "You may need to update this service manually"
+                    fi
+                fi
+                break  # Found and processed HBBR service
+            fi
+        done
+        
+        if [ "$hbbr_found" = false ]; then
+            print_warning "No HBBR service found. Checked: ${hbbr_services[*]}"
+        fi
+    fi
+    
+    # Reload systemd if services were updated
+    if [ "$services_updated" = true ]; then
+        print_info "Reloading systemd daemon..."
+        systemctl daemon-reload
+        print_success "Systemd daemon reloaded"
+        print_success "Services updated to use API-enabled binaries!"
+    else
+        print_info "No service updates needed"
+    fi
+    
+    # Show current service status
+    echo ""
+    print_info "Current RustDesk service configuration:"
+    for service in "${hbbs_services[@]}" "${hbbr_services[@]}"; do
+        if [ -f "/etc/systemd/system/$service" ]; then
+            local status=$(systemctl is-active "$service" 2>/dev/null || echo "unknown")
+            local exec_line=$(grep '^ExecStart=' "/etc/systemd/system/$service" 2>/dev/null | head -1)
+            echo "  $service ($status):"
+            echo "    $exec_line"
+        fi
+    done
 }
 
 # =============================================================================
@@ -775,18 +955,49 @@ fresh_installation() {
 restart_services() {
     print_header "Restarting Services"
     
-    # Restart HBBS
-    if systemctl is-enabled hbbs.service &>/dev/null 2>&1; then
-        print_info "Restarting HBBS..."
-        systemctl restart hbbs.service
-        print_success "HBBS restarted"
+    # Common service names for HBBS (signal server)
+    local hbbs_services=("rustdesksignal.service" "hbbs.service" "rustdesk-hbbs.service")
+    # Common service names for HBBR (relay server)
+    local hbbr_services=("rustdeskrelay.service" "hbbr.service" "rustdesk-hbbr.service")
+    
+    # Restart HBBS service (try all possible names)
+    local hbbs_restarted=false
+    for service in "${hbbs_services[@]}"; do
+        if systemctl is-enabled "$service" &>/dev/null 2>&1; then
+            print_info "Restarting $service..."
+            systemctl restart "$service"
+            if systemctl is-active "$service" &>/dev/null 2>&1; then
+                print_success "$service restarted successfully"
+            else
+                print_error "Failed to restart $service"
+                print_info "Check logs: journalctl -u $service -n 20"
+            fi
+            hbbs_restarted=true
+            break
+        fi
+    done
+    if [ "$hbbs_restarted" = false ]; then
+        print_warning "No HBBS service found (checked: ${hbbs_services[*]})"
     fi
     
-    # Restart HBBR
-    if systemctl is-enabled hbbr.service &>/dev/null 2>&1; then
-        print_info "Restarting HBBR..."
-        systemctl restart hbbr.service
-        print_success "HBBR restarted"
+    # Restart HBBR service (try all possible names)
+    local hbbr_restarted=false
+    for service in "${hbbr_services[@]}"; do
+        if systemctl is-enabled "$service" &>/dev/null 2>&1; then
+            print_info "Restarting $service..."
+            systemctl restart "$service"
+            if systemctl is-active "$service" &>/dev/null 2>&1; then
+                print_success "$service restarted successfully"
+            else
+                print_error "Failed to restart $service"
+                print_info "Check logs: journalctl -u $service -n 20"
+            fi
+            hbbr_restarted=true
+            break
+        fi
+    done
+    if [ "$hbbr_restarted" = false ]; then
+        print_warning "No HBBR service found (checked: ${hbbr_services[*]})"
     fi
     
     # Restart BetterDesk Console
@@ -801,6 +1012,20 @@ restart_services() {
             print_info "Check logs: journalctl -u betterdesk.service -n 50"
         fi
     fi
+    
+    # Show final status
+    echo ""
+    print_info "Service Status Summary:"
+    for service in "${hbbs_services[@]}" "${hbbr_services[@]}" "betterdesk.service"; do
+        if [ -f "/etc/systemd/system/$service" ]; then
+            local status=$(systemctl is-active "$service" 2>/dev/null || echo "inactive")
+            if [ "$status" = "active" ]; then
+                echo -e "  ${GREEN}●${NC} $service - $status"
+            else
+                echo -e "  ${RED}●${NC} $service - $status"
+            fi
+        fi
+    done
 }
 
 # =============================================================================

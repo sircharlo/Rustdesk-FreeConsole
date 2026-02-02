@@ -1,9 +1,22 @@
-v1.5.2
+v1.5.3
 
-BetterDesk Console Version 1.5.2
-Database Schema Fix & File Naming Cleanup
+BetterDesk Console Version 1.5.3
+Critical: Automatic Systemd Service Update
 
-New in v1.5.1:
+New in v1.5.3:
+- 🔧 Automatic systemd service update for API-enabled binaries
+- 🔍 Detection of all RustDesk service naming conventions
+- 🔄 Auto-update of ExecStart in service files
+- 📋 Backup of original service files before modification
+- ✅ Improved service restart with status summary
+- 🛠️ New tool: dev_modules/fix_systemd_services.sh
+
+Previous v1.5.2:
+- 🗃️ Database schema fixes (sessions, audit_log, peer tables)
+- 📁 File naming cleanup (removed version numbers)
+- 🐍 Improved Python package installation
+
+Previous v1.5.1:
 - 🚀 GPU optimization (removed backdrop-filter, heavy animations)
 - 🧹 Clean project structure (removed old files)
 - 🔒 Client Generator disabled (under development)
@@ -18,16 +31,9 @@ Previous v1.5.0:
 - 👤 User Management panel (admin only)
 - 🛡️ CSRF protection and rate limiting
 - 📊 Extended About page with open source credits
-- � Complete troubleshooting documentation
+- 📝 Complete troubleshooting documentation
 - ⚠️ Visual warnings for dangerous operations
 - ✅ Pre-flight validation checks
-
-Critical Fixes:
-- Fixed "keys do not match" errors after installation
-- Fixed public key mismatch in WebConsole
-- Fixed accidental key regeneration
-- Fixed Docker installation conflicts
-- Added automatic key backup verification
 
 Installation & Update:
 sudo bash install-improved.sh

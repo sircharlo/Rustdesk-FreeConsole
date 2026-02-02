@@ -17,7 +17,7 @@ This directory contains development and testing utilities for BetterDesk Console
   - Lists devices and their status
   - Usage: `python3 check_database.py`
 
-- **check_and_fix_database.sh** - **Database Schema Checker & Fixer** ⭐ NEW
+- **check_and_fix_database.sh** - **Database Schema Checker & Fixer** ⭐
   - Automatically detects database location
   - Validates all required tables and columns
   - Fixes missing or incorrect schema
@@ -27,11 +27,19 @@ This directory contains development and testing utilities for BetterDesk Console
   - Example: `sudo ./check_and_fix_database.sh /opt/rustdesk/db_v2.sqlite3`
   - **Use this if you have login problems!**
 
-- **fix_peer_columns.sh** - **Quick Fix for Device Errors** ⭐ NEW
+- **fix_peer_columns.sh** - **Quick Fix for Device Errors** ⭐
   - Adds missing columns to peer table (updated_at, deleted_at, etc.)
   - Fixes "no such column: updated_at" error
   - Usage: `sudo ./fix_peer_columns.sh [database_path]`
   - **Use this if you get 500 errors when editing devices!**
+
+- **fix_systemd_services.sh** - **Fix Systemd Services for API Binaries** ⭐ NEW
+  - Scans for all RustDesk systemd services (hbbs.service, rustdesksignal.service, etc.)
+  - Updates ExecStart to use API-enabled binaries (hbbs-v8-api, hbbr-v8-api)
+  - Creates backup of original service files
+  - Usage: `sudo ./fix_systemd_services.sh [rustdesk_path]`
+  - Example: `sudo ./fix_systemd_services.sh /opt/rustdesk`
+  - **Use this if RustDesk services still use original binaries after installation!**
 
 ### Development Scripts
 - **update.ps1** - PowerShell update script (Windows development environment)
