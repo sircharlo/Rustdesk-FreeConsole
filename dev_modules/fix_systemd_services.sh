@@ -5,6 +5,11 @@
 # This script checks and fixes systemd service files to use the modified
 # hbbs-v8-api and hbbr-v8-api binaries with API support.
 #
+# Handles cases where:
+# - ExecStart is missing entirely
+# - ExecStart uses original hbbs/hbbr binaries
+# - ExecStart already uses hbbs-v8-api/hbbr-v8-api
+#
 # Usage: sudo ./fix_systemd_services.sh [RUSTDESK_PATH]
 # =============================================================================
 
@@ -50,17 +55,27 @@ echo ""
 
 print_info "Checking for API-enabled binaries..."
 
+HBBS_BINARY=""
+HBBR_BINARY=""
+
 if [ -f "$RUSTDESK_PATH/hbbs-v8-api" ]; then
-    print_success "Found hbbs-v8-api"
+    HBBS_BINARY="$RUSTDESK_PATH/hbbs-v8-api"
+    print_success "Found hbbs-v8-api: $HBBS_BINARY"
 else
     print_error "hbbs-v8-api not found in $RUSTDESK_PATH"
-    print_info "Make sure you've copied the API-enabled binaries first"
 fi
 
 if [ -f "$RUSTDESK_PATH/hbbr-v8-api" ]; then
-    print_success "Found hbbr-v8-api"
+    HBBR_BINARY="$RUSTDESK_PATH/hbbr-v8-api"
+    print_success "Found hbbr-v8-api: $HBBR_BINARY"
 else
     print_error "hbbr-v8-api not found in $RUSTDESK_PATH"
+fi
+
+if [ -z "$HBBS_BINARY" ] && [ -z "$HBBR_BINARY" ]; then
+    print_error "No API-enabled binaries found!"
+    print_info "Please copy hbbs-v8-api and hbbr-v8-api to $RUSTDESK_PATH first"
+    exit 1
 fi
 
 echo ""
@@ -73,12 +88,34 @@ print_info "Scanning for RustDesk services..."
 echo ""
 
 found_services=()
+services_need_fix=()
+
 for service in "${HBBS_SERVICES[@]}" "${HBBR_SERVICES[@]}"; do
     if [ -f "/etc/systemd/system/$service" ]; then
         found_services+=("$service")
+        
+        local exec_start=$(grep "^ExecStart=" "/etc/systemd/system/$service" 2>/dev/null || echo "")
+        local work_dir=$(grep "^WorkingDirectory=" "/etc/systemd/system/$service" 2>/dev/null || echo "")
+        local user=$(grep "^User=" "/etc/systemd/system/$service" 2>/dev/null || echo "")
+        
         echo "Found: $service"
         echo "  Status: $(systemctl is-active "$service" 2>/dev/null || echo 'unknown')"
-        echo "  ExecStart: $(grep '^ExecStart=' "/etc/systemd/system/$service" 2>/dev/null || echo 'not found')"
+        
+        if [ -n "$exec_start" ]; then
+            echo "  $exec_start"
+            if echo "$exec_start" | grep -q "v8-api"; then
+                echo -e "  ${GREEN}✓ Already using API binary${NC}"
+            else
+                echo -e "  ${YELLOW}⚠ Needs update to use API binary${NC}"
+                services_need_fix+=("$service")
+            fi
+        else
+            echo -e "  ${RED}ExecStart: MISSING!${NC}"
+            services_need_fix+=("$service")
+        fi
+        
+        [ -n "$work_dir" ] && echo "  $work_dir"
+        [ -n "$user" ] && echo "  $user"
         echo ""
     fi
 done
@@ -93,12 +130,19 @@ if [ ${#found_services[@]} -eq 0 ]; then
     exit 1
 fi
 
+if [ ${#services_need_fix[@]} -eq 0 ]; then
+    print_success "All services are already configured correctly!"
+    exit 0
+fi
+
 # =============================================================================
 # Fix services
 # =============================================================================
 
 echo ""
-read -p "Do you want to update these services to use API-enabled binaries? [y/N] " -n 1 -r
+print_info "Services that need fixing: ${services_need_fix[*]}"
+echo ""
+read -p "Do you want to fix these services? [y/N] " -n 1 -r
 echo ""
 
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
@@ -109,72 +153,66 @@ fi
 echo ""
 services_updated=false
 
-# Fix HBBS service
-for service in "${HBBS_SERVICES[@]}"; do
+for service in "${services_need_fix[@]}"; do
     service_file="/etc/systemd/system/$service"
-    if [ -f "$service_file" ]; then
-        print_info "Processing $service..."
-        
-        # Backup
-        cp "$service_file" "$service_file.backup.$(date +%Y%m%d_%H%M%S)"
-        print_success "Created backup"
-        
-        if grep -q "hbbs-v8-api" "$service_file"; then
-            print_success "Already using hbbs-v8-api"
-        else
-            # Get current ExecStart
-            old_exec=$(grep "^ExecStart=" "$service_file")
-            echo "  Current: $old_exec"
-            
-            # Replace hbbs with hbbs-v8-api
-            if echo "$old_exec" | grep -qE "/hbbs([[:space:]]|$)"; then
-                new_exec=$(echo "$old_exec" | sed -E 's|/hbbs([[:space:]]|$)|/hbbs-v8-api\1|g')
-                echo "  New:     $new_exec"
-                
-                sed -i "s|^ExecStart=.*$|$new_exec|" "$service_file"
-                print_success "Updated $service"
-                services_updated=true
-            else
-                print_warning "Could not find /hbbs in ExecStart line"
-            fi
-        fi
-        echo ""
-        break
+    print_info "Processing $service..."
+    
+    # Create timestamped backup
+    backup_name="${service}.backup.$(date +%Y%m%d_%H%M%S)"
+    cp "$service_file" "/etc/systemd/system/$backup_name"
+    print_success "Created backup: $backup_name"
+    
+    # Determine which binary to use
+    binary=""
+    if [[ " ${HBBS_SERVICES[*]} " =~ " ${service} " ]]; then
+        binary="$HBBS_BINARY"
+        binary_type="hbbs"
+    else
+        binary="$HBBR_BINARY"
+        binary_type="hbbr"
     fi
-done
-
-# Fix HBBR service
-for service in "${HBBR_SERVICES[@]}"; do
-    service_file="/etc/systemd/system/$service"
-    if [ -f "$service_file" ]; then
-        print_info "Processing $service..."
-        
-        # Backup
-        cp "$service_file" "$service_file.backup.$(date +%Y%m%d_%H%M%S)"
-        print_success "Created backup"
-        
-        if grep -q "hbbr-v8-api" "$service_file"; then
-            print_success "Already using hbbr-v8-api"
-        else
-            # Get current ExecStart
-            old_exec=$(grep "^ExecStart=" "$service_file")
-            echo "  Current: $old_exec"
-            
-            # Replace hbbr with hbbr-v8-api
-            if echo "$old_exec" | grep -qE "/hbbr([[:space:]]|$)"; then
-                new_exec=$(echo "$old_exec" | sed -E 's|/hbbr([[:space:]]|$)|/hbbr-v8-api\1|g')
-                echo "  New:     $new_exec"
-                
-                sed -i "s|^ExecStart=.*$|$new_exec|" "$service_file"
-                print_success "Updated $service"
-                services_updated=true
-            else
-                print_warning "Could not find /hbbr in ExecStart line"
-            fi
-        fi
-        echo ""
-        break
+    
+    if [ -z "$binary" ]; then
+        print_error "No $binary_type-v8-api binary available, skipping $service"
+        continue
     fi
+    
+    # Get current ExecStart
+    current_exec=$(grep "^ExecStart=" "$service_file" 2>/dev/null || echo "")
+    
+    if [ -z "$current_exec" ]; then
+        # NO ExecStart - need to add it
+        print_warning "No ExecStart found - adding it..."
+        
+        # Add ExecStart after [Service] line
+        sed -i "/^\[Service\]/a ExecStart=$binary" "$service_file"
+        print_success "Added: ExecStart=$binary"
+        services_updated=true
+        
+    elif echo "$current_exec" | grep -q "${binary_type}-v8-api"; then
+        print_success "Already using ${binary_type}-v8-api"
+        
+    else
+        # Update existing ExecStart
+        echo "  Current: $current_exec"
+        
+        # Replace binary path
+        new_exec=$(echo "$current_exec" | sed -E "s|/${binary_type}([[:space:]]|\$|-)|/${binary_type}-v8-api\1|g")
+        
+        if [ "$current_exec" != "$new_exec" ]; then
+            sed -i "s|^ExecStart=.*|$new_exec|" "$service_file"
+            print_success "Updated: $new_exec"
+            services_updated=true
+        else
+            # If sed didn't change anything, try replacing the whole ExecStart
+            print_warning "Pattern replacement failed, replacing entire ExecStart..."
+            sed -i "s|^ExecStart=.*|ExecStart=$binary|" "$service_file"
+            print_success "Set: ExecStart=$binary"
+            services_updated=true
+        fi
+    fi
+    
+    echo ""
 done
 
 # =============================================================================
@@ -187,13 +225,13 @@ if [ "$services_updated" = true ]; then
     print_success "Systemd reloaded"
     
     echo ""
-    read -p "Do you want to restart the services now? [y/N] " -n 1 -r
+    read -p "Do you want to restart the fixed services now? [y/N] " -n 1 -r
     echo ""
     
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        for service in "${found_services[@]}"; do
+        for service in "${services_need_fix[@]}"; do
             print_info "Restarting $service..."
-            systemctl restart "$service"
+            systemctl restart "$service" 2>/dev/null || true
             sleep 1
             if systemctl is-active "$service" &>/dev/null; then
                 print_success "$service is running"
@@ -218,17 +256,21 @@ for service in "${found_services[@]}"; do
     exec_start=$(grep "^ExecStart=" "/etc/systemd/system/$service" 2>/dev/null | head -1)
     
     if [ "$status" = "active" ]; then
-        echo -e "${GREEN}●${NC} $service - $status"
+        echo -e "${GREEN}●${NC} $service - running"
     else
         echo -e "${RED}●${NC} $service - $status"
     fi
-    echo "  $exec_start"
+    
+    if [ -n "$exec_start" ]; then
+        echo "  $exec_start"
+    else
+        echo -e "  ${RED}ExecStart: STILL MISSING!${NC}"
+    fi
     echo ""
 done
 
 print_success "Done!"
 echo ""
-print_info "If you have issues, restore backups with:"
-echo "  cp /etc/systemd/system/SERVICE.backup.* /etc/systemd/system/SERVICE"
-echo "  systemctl daemon-reload && systemctl restart SERVICE"
+print_info "Backups saved in /etc/systemd/system/*.backup.*"
+print_info "To restore: cp /etc/systemd/system/SERVICE.backup.TIMESTAMP /etc/systemd/system/SERVICE"
 echo ""

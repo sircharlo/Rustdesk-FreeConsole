@@ -745,7 +745,7 @@ update_systemd_services() {
     local has_hbbs_api="${1:-true}"
     local has_hbbr_api="${2:-true}"
     
-    print_info "Checking and updating systemd services..."
+    print_header "Updating Systemd Services"
     
     local services_updated=false
     local hbbs_found=false
@@ -756,7 +756,9 @@ update_systemd_services() {
     # Common service names for HBBR (relay server)
     local hbbr_services=("rustdeskrelay.service" "hbbr.service" "rustdesk-hbbr.service")
     
-    # Find and update HBBS service
+    # =========================================================================
+    # Process HBBS (Signal Server) service
+    # =========================================================================
     if [ "$has_hbbs_api" = true ]; then
         for service in "${hbbs_services[@]}"; do
             local service_file="/etc/systemd/system/$service"
@@ -764,49 +766,102 @@ update_systemd_services() {
                 hbbs_found=true
                 print_info "Found HBBS service: $service"
                 
-                # Backup original service file
+                # Create timestamped backup
+                local backup_name="${service}.backup.$(date +%Y%m%d_%H%M%S)"
+                cp "$service_file" "/etc/systemd/system/$backup_name"
+                print_success "Created backup: $backup_name"
+                
+                # Also backup to BACKUP_DIR if exists
                 if [ -d "$BACKUP_DIR" ]; then
-                    cp "$service_file" "$BACKUP_DIR/" 2>/dev/null || true
+                    cp "$service_file" "$BACKUP_DIR/$service.original"
                 fi
                 
-                # Get current ExecStart
+                # Check current ExecStart
                 local current_exec=$(grep "^ExecStart=" "$service_file" 2>/dev/null || echo "")
                 
-                # Check if service already uses hbbs-v8-api
-                if echo "$current_exec" | grep -q "hbbs-v8-api"; then
-                    print_success "Service $service already uses hbbs-v8-api"
-                else
-                    # Try multiple patterns to find hbbs binary
-                    # Pattern 1: /path/to/hbbs (with space or end of line after)
-                    # Pattern 2: /path/to/hbbs -flag
-                    if echo "$current_exec" | grep -qE "/hbbs(\s|$)"; then
-                        # Replace /hbbs with /hbbs-v8-api
-                        local new_exec=$(echo "$current_exec" | sed -E 's|/hbbs(\s|$)|/hbbs-v8-api\1|g')
-                        
-                        if [ "$current_exec" != "$new_exec" ]; then
-                            # Use a temporary file approach for safer replacement
-                            sed -i "s|^ExecStart=.*|$new_exec|" "$service_file"
-                            print_success "Updated $service: /hbbs → /hbbs-v8-api"
-                            echo "  Old: $current_exec"
-                            echo "  New: $new_exec"
-                            services_updated=true
-                        fi
-                    else
-                        print_warning "Could not find hbbs in ExecStart of $service"
-                        print_info "Current: $current_exec"
-                        print_info "You may need to update this service manually"
+                if [ -z "$current_exec" ]; then
+                    # NO ExecStart found - need to add it
+                    print_warning "No ExecStart found in $service - adding it..."
+                    
+                    # Extract existing settings from the service file
+                    local work_dir=$(grep "^WorkingDirectory=" "$service_file" 2>/dev/null | cut -d= -f2 || echo "$RUSTDESK_PATH")
+                    
+                    # Determine binary path
+                    local hbbs_binary=""
+                    if [ -f "$work_dir/hbbs-v8-api" ]; then
+                        hbbs_binary="$work_dir/hbbs-v8-api"
+                    elif [ -f "$RUSTDESK_PATH/hbbs-v8-api" ]; then
+                        hbbs_binary="$RUSTDESK_PATH/hbbs-v8-api"
+                    elif [ -f "/opt/rustdesk/hbbs-v8-api" ]; then
+                        hbbs_binary="/opt/rustdesk/hbbs-v8-api"
                     fi
+                    
+                    if [ -n "$hbbs_binary" ]; then
+                        # Add ExecStart after [Service] section
+                        sed -i "/^\[Service\]/a ExecStart=$hbbs_binary" "$service_file"
+                        print_success "Added ExecStart=$hbbs_binary"
+                        services_updated=true
+                    else
+                        print_error "Could not find hbbs-v8-api binary!"
+                        print_info "Please copy hbbs-v8-api to $RUSTDESK_PATH"
+                    fi
+                    
+                elif echo "$current_exec" | grep -q "hbbs-v8-api"; then
+                    # Already using hbbs-v8-api
+                    print_success "Service $service already uses hbbs-v8-api"
+                    
+                elif echo "$current_exec" | grep -q "/hbbs"; then
+                    # Has ExecStart with /hbbs - update it safely
+                    # Extract just the binary path and replace hbbs with hbbs-v8-api
+                    # This handles: /opt/rustdesk/hbbs, /opt/rustdesk/hbbs -r server, etc.
+                    
+                    # Use simple string replacement - more reliable than complex regex
+                    local new_exec="${current_exec//\/hbbs /\/hbbs-v8-api }"  # /hbbs space -> /hbbs-v8-api space
+                    new_exec="${new_exec//\/hbbs$/\/hbbs-v8-api}"              # /hbbs at end -> /hbbs-v8-api
+                    
+                    # If the simple replacement didn't work, try sed
+                    if [ "$current_exec" = "$new_exec" ]; then
+                        # Try with sed - replace /hbbs followed by space, end, or dash
+                        new_exec=$(echo "$current_exec" | sed 's|/hbbs |/hbbs-v8-api |g; s|/hbbs$|/hbbs-v8-api|g')
+                    fi
+                    
+                    if [ "$current_exec" != "$new_exec" ]; then
+                        # Write the new ExecStart line directly (safer than sed replacement)
+                        # First remove old ExecStart, then add new one
+                        grep -v "^ExecStart=" "$service_file" > "$service_file.tmp"
+                        
+                        # Insert new ExecStart after [Service]
+                        sed -i "/^\[Service\]/a $new_exec" "$service_file.tmp"
+                        mv "$service_file.tmp" "$service_file"
+                        
+                        print_success "Updated $service:"
+                        echo "  Old: $current_exec"
+                        echo "  New: $new_exec"
+                        services_updated=true
+                    else
+                        print_warning "Could not parse ExecStart for replacement"
+                        print_info "Current: $current_exec"
+                        print_info "Please update manually"
+                    fi
+                else
+                    print_warning "ExecStart exists but doesn't contain /hbbs path"
+                    print_info "Current: $current_exec"
+                    print_info "Please update manually if needed"
                 fi
+                
                 break  # Found and processed HBBS service
             fi
         done
         
         if [ "$hbbs_found" = false ]; then
             print_warning "No HBBS service found. Checked: ${hbbs_services[*]}"
+            print_info "You may need to create the service file manually"
         fi
     fi
     
-    # Find and update HBBR service
+    # =========================================================================
+    # Process HBBR (Relay Server) service
+    # =========================================================================
     if [ "$has_hbbr_api" = true ]; then
         for service in "${hbbr_services[@]}"; do
             local service_file="/etc/systemd/system/$service"
@@ -814,35 +869,79 @@ update_systemd_services() {
                 hbbr_found=true
                 print_info "Found HBBR service: $service"
                 
-                # Backup original service file
+                # Create timestamped backup
+                local backup_name="${service}.backup.$(date +%Y%m%d_%H%M%S)"
+                cp "$service_file" "/etc/systemd/system/$backup_name"
+                print_success "Created backup: $backup_name"
+                
+                # Also backup to BACKUP_DIR if exists
                 if [ -d "$BACKUP_DIR" ]; then
-                    cp "$service_file" "$BACKUP_DIR/" 2>/dev/null || true
+                    cp "$service_file" "$BACKUP_DIR/$service.original"
                 fi
                 
-                # Get current ExecStart
+                # Check current ExecStart
                 local current_exec=$(grep "^ExecStart=" "$service_file" 2>/dev/null || echo "")
                 
-                # Check if service already uses hbbr-v8-api
-                if echo "$current_exec" | grep -q "hbbr-v8-api"; then
-                    print_success "Service $service already uses hbbr-v8-api"
-                else
-                    # Try to find hbbr binary
-                    if echo "$current_exec" | grep -qE "/hbbr(\s|$)"; then
-                        local new_exec=$(echo "$current_exec" | sed -E 's|/hbbr(\s|$)|/hbbr-v8-api\1|g')
-                        
-                        if [ "$current_exec" != "$new_exec" ]; then
-                            sed -i "s|^ExecStart=.*|$new_exec|" "$service_file"
-                            print_success "Updated $service: /hbbr → /hbbr-v8-api"
-                            echo "  Old: $current_exec"
-                            echo "  New: $new_exec"
-                            services_updated=true
-                        fi
-                    else
-                        print_warning "Could not find hbbr in ExecStart of $service"
-                        print_info "Current: $current_exec"
-                        print_info "You may need to update this service manually"
+                if [ -z "$current_exec" ]; then
+                    # NO ExecStart found - need to add it
+                    print_warning "No ExecStart found in $service - adding it..."
+                    
+                    # Extract existing settings
+                    local work_dir=$(grep "^WorkingDirectory=" "$service_file" 2>/dev/null | cut -d= -f2 || echo "$RUSTDESK_PATH")
+                    
+                    # Determine binary path
+                    local hbbr_binary=""
+                    if [ -f "$work_dir/hbbr-v8-api" ]; then
+                        hbbr_binary="$work_dir/hbbr-v8-api"
+                    elif [ -f "$RUSTDESK_PATH/hbbr-v8-api" ]; then
+                        hbbr_binary="$RUSTDESK_PATH/hbbr-v8-api"
+                    elif [ -f "/opt/rustdesk/hbbr-v8-api" ]; then
+                        hbbr_binary="/opt/rustdesk/hbbr-v8-api"
                     fi
+                    
+                    if [ -n "$hbbr_binary" ]; then
+                        sed -i "/^\[Service\]/a ExecStart=$hbbr_binary" "$service_file"
+                        print_success "Added ExecStart=$hbbr_binary"
+                        services_updated=true
+                    else
+                        print_error "Could not find hbbr-v8-api binary!"
+                        print_info "Please copy hbbr-v8-api to $RUSTDESK_PATH"
+                    fi
+                    
+                elif echo "$current_exec" | grep -q "hbbr-v8-api"; then
+                    print_success "Service $service already uses hbbr-v8-api"
+                    
+                elif echo "$current_exec" | grep -q "/hbbr"; then
+                    # Has ExecStart with /hbbr - update it safely
+                    # Use simple string replacement - more reliable than complex regex
+                    local new_exec="${current_exec//\/hbbr /\/hbbr-v8-api }"  # /hbbr space -> /hbbr-v8-api space
+                    new_exec="${new_exec//\/hbbr$/\/hbbr-v8-api}"              # /hbbr at end -> /hbbr-v8-api
+                    
+                    # If the simple replacement didn't work, try sed
+                    if [ "$current_exec" = "$new_exec" ]; then
+                        new_exec=$(echo "$current_exec" | sed 's|/hbbr |/hbbr-v8-api |g; s|/hbbr$|/hbbr-v8-api|g')
+                    fi
+                    
+                    if [ "$current_exec" != "$new_exec" ]; then
+                        # Write the new ExecStart line directly (safer than sed replacement)
+                        grep -v "^ExecStart=" "$service_file" > "$service_file.tmp"
+                        sed -i "/^\[Service\]/a $new_exec" "$service_file.tmp"
+                        mv "$service_file.tmp" "$service_file"
+                        
+                        print_success "Updated $service:"
+                        echo "  Old: $current_exec"
+                        echo "  New: $new_exec"
+                        services_updated=true
+                    else
+                        print_warning "Could not parse ExecStart for replacement"
+                        print_info "Current: $current_exec"
+                        print_info "Please update manually"
+                    fi
+                else
+                    print_warning "ExecStart exists but doesn't contain /hbbr path"
+                    print_info "Current: $current_exec"
                 fi
+                
                 break  # Found and processed HBBR service
             fi
         done
@@ -852,27 +951,53 @@ update_systemd_services() {
         fi
     fi
     
-    # Reload systemd if services were updated
+    # =========================================================================
+    # Reload systemd and show status
+    # =========================================================================
     if [ "$services_updated" = true ]; then
         print_info "Reloading systemd daemon..."
         systemctl daemon-reload
         print_success "Systemd daemon reloaded"
         print_success "Services updated to use API-enabled binaries!"
     else
-        print_info "No service updates needed"
+        if [ "$hbbs_found" = true ] || [ "$hbbr_found" = true ]; then
+            print_info "No service updates were needed"
+        fi
     fi
     
-    # Show current service status
+    # Show current service configuration
     echo ""
     print_info "Current RustDesk service configuration:"
+    echo ""
     for service in "${hbbs_services[@]}" "${hbbr_services[@]}"; do
         if [ -f "/etc/systemd/system/$service" ]; then
             local status=$(systemctl is-active "$service" 2>/dev/null || echo "unknown")
             local exec_line=$(grep '^ExecStart=' "/etc/systemd/system/$service" 2>/dev/null | head -1)
-            echo "  $service ($status):"
-            echo "    $exec_line"
+            local work_dir=$(grep '^WorkingDirectory=' "/etc/systemd/system/$service" 2>/dev/null | head -1)
+            
+            if [ "$status" = "active" ]; then
+                echo -e "  ${GREEN}●${NC} $service (running)"
+            else
+                echo -e "  ${YELLOW}○${NC} $service ($status)"
+            fi
+            
+            if [ -n "$exec_line" ]; then
+                echo "      $exec_line"
+            else
+                echo -e "      ${RED}ExecStart: MISSING!${NC}"
+            fi
+            
+            if [ -n "$work_dir" ]; then
+                echo "      $work_dir"
+            fi
+            echo ""
         fi
     done
+    
+    # Show backup info
+    echo ""
+    print_info "Service backups created in /etc/systemd/system/*.backup.*"
+    print_info "To restore: cp /etc/systemd/system/SERVICE.backup.TIMESTAMP /etc/systemd/system/SERVICE"
 }
 
 # =============================================================================
