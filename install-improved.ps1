@@ -1,4 +1,4 @@
-# BetterDesk Console - Windows Installation Script v1.5.1
+﻿# BetterDesk Console - Windows Installation Script v1.5.1
 # 
 # This script installs the enhanced RustDesk HBBS/HBBR servers with 
 # bidirectional ban enforcement, HTTP API, and web management console.
@@ -72,22 +72,22 @@ function Write-Header {
 
 function Write-Success {
     param([string]$Message)
-    Write-Host "✓ $Message" -ForegroundColor Green
+    Write-Host "[OK] $Message" -ForegroundColor Green
 }
 
 function Write-ErrorMsg {
     param([string]$Message)
-    Write-Host "✗ $Message" -ForegroundColor Red
+    Write-Host "[ERROR] $Message" -ForegroundColor Red
 }
 
 function Write-WarningMsg {
     param([string]$Message)
-    Write-Host "⚠ $Message" -ForegroundColor Yellow
+    Write-Host "[WARN] $Message" -ForegroundColor Yellow
 }
 
 function Write-InfoMsg {
     param([string]$Message)
-    Write-Host "ℹ $Message" -ForegroundColor Blue
+    Write-Host "[INFO] $Message" -ForegroundColor Blue
 }
 
 #endregion
@@ -440,10 +440,10 @@ function Install-RustDeskBinaries {
     Write-Host ""
     Write-InfoMsg "HBBS/HBBR version: $VERSION"
     Write-InfoMsg "Features:"
-    Write-Host "  ✓ HTTP API on port $HBBS_API_PORT" -ForegroundColor Green
-    Write-Host "  ✓ Real-time device status" -ForegroundColor Green
-    Write-Host "  ✓ Bidirectional ban enforcement" -ForegroundColor Green
-    Write-Host "  ✓ Source + Target device ban checks" -ForegroundColor Green
+    Write-Host "  [+] HTTP API on port $HBBS_API_PORT" -ForegroundColor Green
+    Write-Host "  [+] Real-time device status" -ForegroundColor Green
+    Write-Host "  [+] Bidirectional ban enforcement" -ForegroundColor Green
+    Write-Host "  [+] Source + Target device ban checks" -ForegroundColor Green
     Write-Host ""
 }
 
@@ -565,30 +565,30 @@ function Show-Summary {
     Write-Host "BetterDesk Console $VERSION has been successfully installed!" -ForegroundColor Green
     Write-Host ""
     Write-Host "Installation details:"
-    Write-Host "  • RustDesk Directory: $RustDeskPath"
-    Write-Host "  • Console Directory:  $ConsolePath"
+    Write-Host "  - RustDesk Directory: $RustDeskPath"
+    Write-Host "  - Console Directory:  $ConsolePath"
     Write-Host ""
     
     if ($BackupPath) {
         Write-Host "Backup location:"
-        Write-Host "  • $BackupPath"
+        Write-Host "  - $BackupPath"
         Write-Host ""
     }
     
     Write-Host "Features:"
-    Write-Host "  ✓ HTTP API on port $HBBS_API_PORT" -ForegroundColor Green
-    Write-Host "  ✓ Real-time device status monitoring" -ForegroundColor Green
-    Write-Host "  ✓ Bidirectional ban enforcement" -ForegroundColor Green
-    Write-Host "  ✓ Web management console" -ForegroundColor Green
+    Write-Host "  [+] HTTP API on port $HBBS_API_PORT" -ForegroundColor Green
+    Write-Host "  [+] Real-time device status monitoring" -ForegroundColor Green
+    Write-Host "  [+] Bidirectional ban enforcement" -ForegroundColor Green
+    Write-Host "  [+] Web management console" -ForegroundColor Green
     Write-Host ""
     
     Write-Host "RustDesk Ports:"
-    Write-Host "  • 21115 - NAT test"
-    Write-Host "  • 21116 - TCP/UDP"
-    Write-Host "  • 21117 - Relay"
-    Write-Host "  • 21118 - WebSocket"
-    Write-Host "  • 21119 - Relay (additional)"
-    Write-Host "  • $HBBS_API_PORT - HTTP API"
+    Write-Host "  - 21115 - NAT test"
+    Write-Host "  - 21116 - TCP/UDP"
+    Write-Host "  - 21117 - Relay"
+    Write-Host "  - 21118 - WebSocket"
+    Write-Host "  - 21119 - Relay (additional)"
+    Write-Host "  - $HBBS_API_PORT - HTTP API"
     Write-Host ""
     
     Write-Host "Usage Instructions:" -ForegroundColor Yellow
@@ -601,12 +601,12 @@ function Show-Summary {
     Write-Host "  7. Start Console: cd $ConsolePath ; python app.py"
     Write-Host ""
     Write-Host "Access Points:" -ForegroundColor Cyan
-    Write-Host "  • Web Console: http://localhost:5000"
-    Write-Host "  • HTTP API: http://localhost:$HBBS_API_PORT"
+    Write-Host "  - Web Console: http://localhost:5000"
+    Write-Host "  - HTTP API: http://localhost:$HBBS_API_PORT"
     Write-Host ""
     
     Write-InfoMsg "For support and documentation:"
-    Write-Host "  • GitHub: https://github.com/UNITRONIX/Rustdesk-FreeConsole"
+    Write-Host "  - GitHub: https://github.com/UNITRONIX/Rustdesk-FreeConsole"
     Write-Host ""
 }
 
@@ -854,10 +854,10 @@ function Main {
     }
     
     Write-Host "This script will install:"
-    Write-Host "  • Enhanced RustDesk HBBS/HBBR with HTTP API"
-    Write-Host "  • Bidirectional ban enforcement"
-    Write-Host "  • Real-time device status monitoring"
-    Write-Host "  • Web Management Console with Material Design"
+    Write-Host "  - Enhanced RustDesk HBBS/HBBR with HTTP API"
+    Write-Host "  - Bidirectional ban enforcement"
+    Write-Host "  - Real-time device status monitoring"
+    Write-Host "  - Web Management Console with Material Design"
     Write-Host ""
     Write-Host "Installation method: Precompiled binaries (no compilation required)"
     Write-Host ""
