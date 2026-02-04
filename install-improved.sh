@@ -1,9 +1,14 @@
 #!/bin/bash
 # =============================================================================
-# BetterDesk Console - Universal Installation Script v1.5.4
+# BetterDesk Console - Universal Installation Script v1.5.5
 # =============================================================================
 # This script can install fresh or update existing BetterDesk Console
 # It automatically detects existing installations and acts accordingly.
+#
+# Usage:
+#   ./install-improved.sh           # Full installation/update
+#   ./install-improved.sh --fix     # Fix offline status (replace binaries)
+#   ./install-improved.sh --diagnose # Diagnose common issues
 #
 # Features:
 # - Fresh installation support
@@ -12,6 +17,8 @@
 # - Service management
 # - Backup creation
 # - Binary updates (v2 with HTTP API on port 21120)
+# - Diagnostic mode for troubleshooting
+# - Fix mode for quick binary replacement
 #
 # Binary Priority:
 #   1. hbbs-patch-v2/hbbs-linux-x86_64 (pre-compiled, recommended)
@@ -31,8 +38,12 @@ NC='\033[0m' # No Color
 
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TARGET_VERSION="1.5.4"
+TARGET_VERSION="1.5.5"
 BACKUP_DIR="/opt/BetterDeskConsole_backup_$(date +%Y%m%d_%H%M%S)"
+
+# Command line options
+FIX_MODE=false
+DIAGNOSE_MODE=false
 
 # Possible installation paths
 CONSOLE_PATHS=(
@@ -1339,11 +1350,328 @@ restart_services() {
 }
 
 # =============================================================================
+# Diagnostic and Fix Functions
+# =============================================================================
+
+check_betterdesk_binary() {
+    local binary_path="$1"
+    if [ ! -f "$binary_path" ]; then
+        return 1
+    fi
+    
+    # Check if it's BetterDesk version
+    if "$binary_path" --help 2>&1 | grep -qi "betterdesk\|api-port"; then
+        return 0
+    fi
+    return 1
+}
+
+run_diagnose() {
+    print_header "BetterDesk Diagnostic Tool"
+    
+    local issues_found=0
+    
+    # Detect RustDesk path
+    print_info "Checking RustDesk installation..."
+    if ! detect_rustdesk_path; then
+        print_error "RustDesk installation not found"
+        issues_found=$((issues_found + 1))
+    else
+        print_success "Found RustDesk at: $RUSTDESK_PATH"
+    fi
+    
+    # Check HBBS binary
+    echo ""
+    print_info "Checking HBBS binary..."
+    local hbbs_path="$RUSTDESK_PATH/hbbs"
+    local hbbs_v8_path="$RUSTDESK_PATH/hbbs-v8-api"
+    
+    if [ -f "$hbbs_path" ]; then
+        print_success "Found hbbs at: $hbbs_path"
+        
+        if check_betterdesk_binary "$hbbs_path"; then
+            print_success "HBBS is BetterDesk Enhanced version ✓"
+        else
+            print_error "HBBS is ORIGINAL RustDesk (not BetterDesk)"
+            echo ""
+            echo -e "${RED}  ┌─────────────────────────────────────────────────────┐${NC}"
+            echo -e "${RED}  │  THIS IS THE CAUSE OF YOUR OFFLINE STATUS PROBLEM  │${NC}"
+            echo -e "${RED}  └─────────────────────────────────────────────────────┘${NC}"
+            echo ""
+            echo "  The original hbbs does NOT update the 'status' field in the database."
+            echo ""
+            echo -e "  ${YELLOW}Quick fix:${NC}"
+            echo "    sudo ./install-improved.sh --fix"
+            echo ""
+            issues_found=$((issues_found + 1))
+        fi
+    elif [ -f "$hbbs_v8_path" ]; then
+        print_success "Found hbbs-v8-api at: $hbbs_v8_path"
+        if check_betterdesk_binary "$hbbs_v8_path"; then
+            print_success "HBBS-V8-API is BetterDesk Enhanced version ✓"
+        fi
+    else
+        print_error "HBBS binary not found"
+        issues_found=$((issues_found + 1))
+    fi
+    
+    # Check running processes
+    echo ""
+    print_info "Checking running processes..."
+    local hbbs_running=$(pgrep -a hbbs 2>/dev/null || echo "")
+    local hbbr_running=$(pgrep -a hbbr 2>/dev/null || echo "")
+    
+    if [ -n "$hbbs_running" ]; then
+        print_success "HBBS is running"
+        echo "  $hbbs_running"
+        
+        if echo "$hbbs_running" | grep -q "api-port"; then
+            print_success "HBBS running with --api-port parameter ✓"
+        else
+            print_warning "HBBS running WITHOUT --api-port parameter"
+            echo "  The --api-port parameter is required for online status"
+            issues_found=$((issues_found + 1))
+        fi
+    else
+        print_warning "HBBS is NOT running"
+    fi
+    
+    if [ -n "$hbbr_running" ]; then
+        print_success "HBBR is running"
+    else
+        print_warning "HBBR is NOT running"
+    fi
+    
+    # Check database
+    echo ""
+    print_info "Checking database..."
+    if detect_database; then
+        print_success "Found database: $DB_PATH"
+        
+        # Check peer table
+        local total_peers=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM peer" 2>/dev/null || echo "0")
+        local online_peers=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM peer WHERE status = 1" 2>/dev/null || echo "0")
+        
+        echo "  Total peers: $total_peers"
+        echo "  Online peers: $online_peers"
+        
+        if [ "$total_peers" -gt 0 ] && [ "$online_peers" -eq 0 ]; then
+            print_warning "All $total_peers peers have offline status"
+            issues_found=$((issues_found + 1))
+        fi
+    else
+        print_warning "Database not found"
+    fi
+    
+    # Check ports
+    echo ""
+    print_info "Checking ports..."
+    for port in 21114 21115 21116 21117; do
+        if command -v ss &>/dev/null; then
+            if ss -tuln 2>/dev/null | grep -q ":$port "; then
+                print_success "Port $port is listening"
+            else
+                print_warning "Port $port is NOT listening"
+            fi
+        fi
+    done
+    
+    # Summary
+    echo ""
+    print_header "Diagnostic Summary"
+    
+    if [ $issues_found -eq 0 ]; then
+        echo -e "${GREEN}No critical issues found!${NC}"
+    else
+        echo -e "${YELLOW}Found $issues_found issue(s)${NC}"
+        echo ""
+        echo "Most common cause: Using original RustDesk hbbs instead of BetterDesk."
+        echo ""
+        echo -e "${CYAN}Quick fix:${NC}"
+        echo "  sudo ./install-improved.sh --fix"
+    fi
+}
+
+run_fix() {
+    print_header "BetterDesk Binary Fix Tool"
+    
+    print_info "This will replace your RustDesk binaries with BetterDesk enhanced versions."
+    echo ""
+    
+    # Detect RustDesk path
+    if ! detect_rustdesk_path; then
+        print_error "RustDesk installation not found"
+        print_info "Please specify the path manually or run the full installer"
+        exit 1
+    fi
+    
+    print_success "Found RustDesk at: $RUSTDESK_PATH"
+    
+    # Find BetterDesk binaries
+    local v2_hbbs="$SCRIPT_DIR/hbbs-patch-v2/hbbs-linux-x86_64"
+    local v2_hbbr="$SCRIPT_DIR/hbbs-patch-v2/hbbr-linux-x86_64"
+    
+    if [ ! -f "$v2_hbbs" ] || [ ! -f "$v2_hbbr" ]; then
+        print_error "BetterDesk binaries not found!"
+        print_info "Expected location: $SCRIPT_DIR/hbbs-patch-v2/"
+        print_info "Please download from: https://github.com/UNITRONIX/Rustdesk-FreeConsole"
+        exit 1
+    fi
+    
+    print_success "Found BetterDesk v2.0.0 binaries"
+    
+    # Stop running processes
+    print_info "Stopping RustDesk processes..."
+    pkill -f hbbs 2>/dev/null || true
+    pkill -f hbbr 2>/dev/null || true
+    sleep 2
+    
+    # Backup existing binaries
+    local hbbs_path="$RUSTDESK_PATH/hbbs"
+    local hbbr_path="$RUSTDESK_PATH/hbbr"
+    
+    if [ -f "$hbbs_path" ]; then
+        local backup_name="hbbs.backup-original.$(date +%Y%m%d_%H%M%S)"
+        print_info "Backing up original hbbs..."
+        cp "$hbbs_path" "$RUSTDESK_PATH/$backup_name"
+        print_success "Backup created: $backup_name"
+    fi
+    
+    if [ -f "$hbbr_path" ]; then
+        local backup_name="hbbr.backup-original.$(date +%Y%m%d_%H%M%S)"
+        print_info "Backing up original hbbr..."
+        cp "$hbbr_path" "$RUSTDESK_PATH/$backup_name"
+        print_success "Backup created: $backup_name"
+    fi
+    
+    # Copy new binaries
+    print_info "Installing BetterDesk binaries..."
+    cp "$v2_hbbs" "$hbbs_path"
+    cp "$v2_hbbr" "$hbbr_path"
+    chmod +x "$hbbs_path" "$hbbr_path"
+    
+    # Also copy as hbbs-v8-api for compatibility with services
+    cp "$v2_hbbs" "$RUSTDESK_PATH/hbbs-v8-api"
+    cp "$v2_hbbr" "$RUSTDESK_PATH/hbbr-v8-api"
+    chmod +x "$RUSTDESK_PATH/hbbs-v8-api" "$RUSTDESK_PATH/hbbr-v8-api"
+    
+    print_success "BetterDesk binaries installed!"
+    
+    # Verify
+    print_info "Verifying installation..."
+    if check_betterdesk_binary "$hbbs_path"; then
+        print_success "HBBS is now BetterDesk Enhanced version ✓"
+    else
+        print_warning "Could not verify HBBS version"
+    fi
+    
+    # Try to restart services
+    echo ""
+    print_info "Attempting to restart services..."
+    
+    local service_restarted=false
+    for service in rustdesksignal.service hbbs.service; do
+        if systemctl is-enabled "$service" &>/dev/null 2>&1; then
+            systemctl restart "$service" 2>/dev/null && service_restarted=true
+            print_success "Restarted $service"
+        fi
+    done
+    
+    for service in rustdeskrelay.service hbbr.service; do
+        if systemctl is-enabled "$service" &>/dev/null 2>&1; then
+            systemctl restart "$service" 2>/dev/null
+            print_success "Restarted $service"
+        fi
+    done
+    
+    if [ "$service_restarted" = false ]; then
+        echo ""
+        print_warning "No systemd services found - manual start required"
+    fi
+    
+    echo ""
+    print_header "Fix Complete!"
+    echo ""
+    echo -e "${YELLOW}Next steps:${NC}"
+    echo "  1. Start HBBS with API port:"
+    echo -e "     ${CYAN}cd $RUSTDESK_PATH && ./hbbs -k _ --api-port 21114 &${NC}"
+    echo ""
+    echo "  2. Start HBBR:"
+    echo -e "     ${CYAN}./hbbr &${NC}"
+    echo ""
+    echo "  3. Restart your RustDesk clients to see online status"
+}
+
+# =============================================================================
 # Main
 # =============================================================================
 
+show_usage() {
+    echo "BetterDesk Console Installer v$TARGET_VERSION"
+    echo ""
+    echo "Usage: $0 [OPTIONS]"
+    echo ""
+    echo "Options:"
+    echo "  --fix       Fix offline status by replacing binaries with BetterDesk"
+    echo "  --diagnose  Diagnose common issues (offline status, wrong binary, etc.)"
+    echo "  --help      Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  sudo $0              # Full installation/update"
+    echo "  sudo $0 --diagnose   # Check for problems"
+    echo "  sudo $0 --fix        # Quick fix for offline status"
+    echo ""
+}
+
 main() {
+    # Parse command line arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --fix)
+                FIX_MODE=true
+                shift
+                ;;
+            --diagnose)
+                DIAGNOSE_MODE=true
+                shift
+                ;;
+            --help|-h)
+                show_usage
+                exit 0
+                ;;
+            *)
+                print_error "Unknown option: $1"
+                show_usage
+                exit 1
+                ;;
+        esac
+    done
+    
+    # Handle --diagnose mode
+    if [ "$DIAGNOSE_MODE" = true ]; then
+        run_diagnose
+        exit 0
+    fi
+    
+    # Handle --fix mode
+    if [ "$FIX_MODE" = true ]; then
+        # Check if running as root
+        if [ "$EUID" -ne 0 ]; then
+            print_error "This script must be run as root (sudo)"
+            exit 1
+        fi
+        run_fix
+        exit 0
+    fi
+    
+    # Regular installation flow
     print_header "BetterDesk Console v$TARGET_VERSION - Install/Update"
+    
+    echo -e "${BLUE}Available modes:${NC}"
+    echo "  [default]   Full installation/update"
+    echo "  --diagnose  Diagnose common issues"
+    echo "  --fix       Quick fix for offline status"
+    echo ""
     
     # Check if running as root
     if [ "$EUID" -ne 0 ]; then

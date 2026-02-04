@@ -242,7 +242,160 @@ Always use unique function names, e.g., `Write-CustomError` or `Write-ErrorMsg`.
 
 ---
 
-**Last Updated:** January 31, 2026  
-**Fixed in commit:** [add hash after commit]
+**Last Updated:** February 4, 2026  
 
 Thank you for reporting the problems! 🙏
+
+---
+
+## 🔴 Problem 3: All Devices Show as "Offline"
+
+### Symptoms
+- All devices in BetterDesk Console are shown as "Offline"
+- RustDesk clients can connect to each other normally
+- `status` column in database is always 0 or NULL
+
+### Cause
+You are using the **original RustDesk hbbs binary** instead of the **BetterDesk enhanced binary**.
+
+The original hbbs does NOT update the `status` field in the database - this is a BetterDesk-specific feature.
+
+### How to Check
+
+Run this command to see which binary you have:
+```bash
+/opt/rustdesk/hbbs --help | head -5
+```
+
+**BetterDesk binary shows:**
+```
+hbbs 1.1.14
+Purslane Ltd. <info@rustdesk.com>
+BetterDesk Enhanced Server v2.0.0
+```
+
+**Original binary shows:**
+```
+hbbs 1.1.14
+Purslane Ltd. <info@rustdesk.com>
+RustDesk ID/Rendezvous Server
+```
+
+### Solution
+
+#### Option 1: Use Diagnostic Script (Recommended)
+```bash
+cd /path/to/Rustdesk-FreeConsole
+chmod +x dev_modules/diagnose_offline_status.sh
+./dev_modules/diagnose_offline_status.sh
+```
+
+#### Option 2: Manual Fix
+
+1. **Stop current hbbs:**
+```bash
+sudo pkill -f hbbs
+```
+
+2. **Backup original binary:**
+```bash
+sudo cp /opt/rustdesk/hbbs /opt/rustdesk/hbbs.backup-original
+```
+
+3. **Install BetterDesk binary:**
+```bash
+# Download if you don't have it
+git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
+cd Rustdesk-FreeConsole
+
+# Copy enhanced binary
+sudo cp hbbs-patch-v2/hbbs-linux-x86_64 /opt/rustdesk/hbbs
+sudo cp hbbs-patch-v2/hbbr-linux-x86_64 /opt/rustdesk/hbbr
+sudo chmod +x /opt/rustdesk/hbbs /opt/rustdesk/hbbr
+```
+
+4. **Start with API port:**
+```bash
+cd /opt/rustdesk
+sudo ./hbbs -k _ --api-port 21114 &
+sudo ./hbbr &
+```
+
+5. **Verify:**
+```bash
+/opt/rustdesk/hbbs --help | grep -i betterdesk
+# Should show: BetterDesk Enhanced Server v2.0.0
+```
+
+### For Manual (non-systemd) Installations
+
+If you're NOT using systemd services, you need to:
+
+1. **Create a startup script** (`/opt/rustdesk/start.sh`):
+```bash
+#!/bin/bash
+cd /opt/rustdesk
+./hbbs -k _ --api-port 21114 > hbbs.log 2>&1 &
+./hbbr > hbbr.log 2>&1 &
+echo "RustDesk servers started"
+```
+
+2. **Or create systemd services** (recommended):
+```bash
+# Signal server service
+sudo tee /etc/systemd/system/rustdesksignal.service << 'EOF'
+[Unit]
+Description=RustDesk Signal Server (BetterDesk)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/rustdesk
+ExecStart=/opt/rustdesk/hbbs -k _ --api-port 21114
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Relay server service
+sudo tee /etc/systemd/system/rustdeskrelay.service << 'EOF'
+[Unit]
+Description=RustDesk Relay Server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/rustdesk
+ExecStart=/opt/rustdesk/hbbr
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Enable and start
+sudo systemctl daemon-reload
+sudo systemctl enable rustdesksignal rustdeskrelay
+sudo systemctl start rustdesksignal rustdeskrelay
+```
+
+### Understanding How Online Status Works
+
+```
+┌─────────────┐     register      ┌──────────────┐     updates      ┌──────────────┐
+│  RustDesk   │ ───────────────► │  BetterDesk  │ ───────────────► │   SQLite     │
+│   Client    │                  │    hbbs      │   status=1       │  db_v2.sqlite│
+└─────────────┘                  └──────────────┘   last_online    └──────────────┘
+                                                                           │
+                                                                           │ reads
+                                                                           ▼
+                                 ┌──────────────┐                   ┌──────────────┐
+                                 │  BetterDesk  │ ◄──────────────── │   Web UI     │
+                                 │   Console    │    status=1?     │   Browser    │
+                                 └──────────────┘    → Online       └──────────────┘
+```
+
+**Key point:** Only the **BetterDesk enhanced hbbs** updates the database with online status. The original RustDesk hbbs does not have this feature.

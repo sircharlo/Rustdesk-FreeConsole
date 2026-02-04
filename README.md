@@ -312,14 +312,15 @@ cd Rustdesk-FreeConsole
 
 The installers automatically use the correct binaries for your platform:
 
-**Linux (v2.0.0 - Recommended):**
-- Uses `hbbs-patch-v2/hbbs-linux-x86_64` (pre-compiled, port 21120)
+**Linux x86_64 (v2.0.0 - Recommended):**
+- Uses `hbbs-patch-v2/hbbs-linux-x86_64` (pre-compiled)
 - Uses `hbbs-patch-v2/hbbr-linux-x86_64` (pre-compiled)
-- Features: 15s offline detection, connection pooling, auto-retry
+- Features: 15s offline detection, connection pooling, auto-retry, API port 21114
 
-**Legacy binaries (deprecated):**
-- `hbbs-patch/bin-with-api/hbbs-v8-api` - port 21114, 30s detection
-- Not recommended for new installations
+**Windows x86_64 (v2.0.0 - Recommended):**
+- Uses `hbbs-patch-v2/hbbs-windows-x86_64.exe` (pre-compiled)
+- Uses `hbbs-patch-v2/hbbr-windows-x86_64.exe` (pre-compiled)
+- Features: Same as Linux binaries
 
 **Do not mix binaries between platforms!** Each installer is designed to work only on its respective operating system.
 

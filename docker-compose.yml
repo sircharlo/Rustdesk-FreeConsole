@@ -10,7 +10,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.hbbs
-    image: betterdesk-hbbs:latest
+    # Note: Image will be built locally from Dockerfile.hbbs
     container_name: betterdesk-hbbs
     hostname: betterdesk-hbbs
     command: >
@@ -49,7 +49,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.hbbr
-    image: betterdesk-hbbr:latest
+    # Note: Image will be built locally from Dockerfile.hbbr
     container_name: betterdesk-hbbr
     hostname: betterdesk-hbbr
     command: >

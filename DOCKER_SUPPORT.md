@@ -2,6 +2,8 @@
 
 Complete guide for running BetterDesk Console with RustDesk in Docker containers.
 
+> ⚠️ **IMPORTANT**: BetterDesk images are built locally - they are NOT published to Docker Hub. Always use `docker compose build` or `docker compose up --build` instead of `docker compose pull`.
+
 ## Table of Contents
 
 - [Quick Start (Recommended)](#quick-start-recommended)

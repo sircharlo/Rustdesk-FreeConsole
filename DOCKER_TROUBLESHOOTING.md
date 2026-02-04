@@ -1,5 +1,46 @@
 # 🚀 Docker Quick Start for BetterDesk Console
 
+## Problem: "Pull Access Denied" for betterdesk-hbbs / betterdesk-hbbr
+
+### Symptom
+```
+! Image betterdesk-hbbs:latest pull access denied for betterdesk-hbbs, repository does not exist
+! Image betterdesk-hbbr:latest pull access denied for betterdesk-hbbr, repository does not exist
+Error response from daemon: pull access denied for betterdesk-hbbr, repository does not exist
+```
+
+### Cause
+BetterDesk images are **NOT published to Docker Hub**. They must be **built locally** from the provided Dockerfiles.
+
+### ✅ Solution
+
+**Option 1: Use docker compose build**
+```bash
+# Build images locally first
+docker compose build
+
+# Then start services
+docker compose up -d
+```
+
+**Option 2: Build and start in one command**
+```bash
+docker compose up -d --build
+```
+
+**Option 3: Use the quick setup script**
+```bash
+chmod +x docker-quickstart.sh
+./docker-quickstart.sh
+```
+
+This is the expected behavior - the images are built from:
+- `Dockerfile.hbbs` - Signal server with BetterDesk API
+- `Dockerfile.hbbr` - Relay server
+- `Dockerfile.console` - Web console
+
+---
+
 ## Problem: Missing Admin Login Credentials
 
 If you started BetterDesk Console using Docker Compose following "Option 2" and don't see admin login credentials in the logs, it means the **database migration was not automatically executed**.

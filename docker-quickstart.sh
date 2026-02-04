@@ -1,5 +1,5 @@
-# Quick Setup Script for Docker
 #!/bin/bash
+# Quick Setup Script for Docker
 
 set -e
 
@@ -109,8 +109,9 @@ fi
 echo ""
 echo "🚀 Starting BetterDesk Console..."
 
-# Pull latest images
-$COMPOSE_CMD pull
+# Build images locally (required - images are not published to Docker Hub)
+echo "🔨 Building Docker images locally..."
+$COMPOSE_CMD build
 
 # Run install-docker.sh if it exists
 if [ -f "./install-docker.sh" ]; then
@@ -152,4 +153,4 @@ echo "🔧 Management Commands:"
 echo "   View logs: $COMPOSE_CMD logs -f"
 echo "   Stop all: $COMPOSE_CMD down"
 echo "   Restart: $COMPOSE_CMD restart"
-echo "   Update: $COMPOSE_CMD pull && $COMPOSE_CMD up -d"
+echo "   Rebuild: $COMPOSE_CMD build && $COMPOSE_CMD up -d"

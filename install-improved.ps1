@@ -1,7 +1,13 @@
-# BetterDesk Console - Windows Installation Script v1.5.0
+# BetterDesk Console - Windows Installation Script v1.5.1
 # 
 # This script installs the enhanced RustDesk HBBS/HBBR servers with 
 # bidirectional ban enforcement, HTTP API, and web management console.
+#
+# NEW in v1.5.1:
+# - Support for hbbs-patch-v2 Windows binaries (v2.0.0)
+# - Added --Fix parameter to repair existing installations
+# - Added --Diagnose parameter to check for common issues
+# - Automatic detection of original vs BetterDesk binaries
 #
 # NEW in v1.5.0:
 # - Authentication system with bcrypt password hashing
@@ -38,13 +44,19 @@ param(
     [switch]$SkipBackup = $false,
     
     [Parameter(Mandatory=$false)]
-    [switch]$NoInteractive = $false
+    [switch]$NoInteractive = $false,
+    
+    [Parameter(Mandatory=$false)]
+    [switch]$Fix = $false,
+    
+    [Parameter(Mandatory=$false)]
+    [switch]$Diagnose = $false
 )
 
 # Set strict mode for better error detection
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
-$VERSION = "v1.5.0"
+$VERSION = "v1.5.1"
 $BINARY_VERSION = "v8-api"
 $HBBS_API_PORT = 21114
 
@@ -315,28 +327,64 @@ function Install-RustDeskBinaries {
     Write-Header "Installing Enhanced HBBS/HBBR $VERSION"
     
     $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-    $binDir = Join-Path $scriptDir "hbbs-patch\bin-with-api"
+    $hbbsSource = $null
+    $hbbrSource = $null
+    $binaryVersion = "v2.0.0"
     
-    $hbbsSource = Join-Path $binDir "hbbs-$BINARY_VERSION.exe"
-    $hbbrSource = Join-Path $binDir "hbbr-$BINARY_VERSION.exe"
+    # Priority 1: hbbs-patch-v2 pre-compiled Windows binaries (RECOMMENDED)
+    $v2BinDir = Join-Path $scriptDir "hbbs-patch-v2"
+    $v2Hbbs = Join-Path $v2BinDir "hbbs-windows-x86_64.exe"
+    $v2Hbbr = Join-Path $v2BinDir "hbbr-windows-x86_64.exe"
     
-    # Check for binaries
-    if (-not (Test-Path $hbbsSource) -or -not (Test-Path $hbbrSource)) {
-        # Try fallback location
-        $binDir = Join-Path $scriptDir "hbbs-patch\bin"
-        $hbbsSource = Join-Path $binDir "hbbs-v8.exe"
-        $hbbrSource = Join-Path $binDir "hbbr-v8.exe"
-        
-        if (-not (Test-Path $hbbsSource) -or -not (Test-Path $hbbrSource)) {
-            Write-ErrorMsg "Precompiled binaries not found"
-            Write-InfoMsg "Checked locations:"
-            Write-InfoMsg "  - $scriptDir\hbbs-patch\bin-with-api\hbbs-$BINARY_VERSION.exe"
-            Write-InfoMsg "  - $scriptDir\hbbs-patch\bin\hbbs-v8.exe"
-            exit 1
-        }
-        
-        Write-WarningMsg "Using older binaries without HTTP API"
+    if ((Test-Path $v2Hbbs) -and (Test-Path $v2Hbbr)) {
+        Write-Success "Found hbbs-patch-v2 Windows binaries (v2.0.0, port 21114)"
+        $hbbsSource = $v2Hbbs
+        $hbbrSource = $v2Hbbr
+        $binaryVersion = "v2.0.0"
     }
+    else {
+        # Priority 2: Old hbbs-patch binaries (DEPRECATED)
+        $oldBinDir = Join-Path $scriptDir "hbbs-patch\bin-with-api"
+        $oldHbbs = Join-Path $oldBinDir "hbbs-$BINARY_VERSION.exe"
+        $oldHbbr = Join-Path $oldBinDir "hbbr-$BINARY_VERSION.exe"
+        
+        if ((Test-Path $oldHbbs) -and (Test-Path $oldHbbr)) {
+            Write-WarningMsg "Found OLD hbbs-patch binaries (v1, DEPRECATED)"
+            Write-InfoMsg "These binaries have known issues. Recommended: use v2 from hbbs-patch-v2/"
+            $hbbsSource = $oldHbbs
+            $hbbrSource = $oldHbbr
+            $binaryVersion = "v1-old"
+        }
+        else {
+            # Priority 3: Fallback old location
+            $fallbackBinDir = Join-Path $scriptDir "hbbs-patch\bin"
+            $fallbackHbbs = Join-Path $fallbackBinDir "hbbs-v8.exe"
+            $fallbackHbbr = Join-Path $fallbackBinDir "hbbr-v8.exe"
+            
+            if ((Test-Path $fallbackHbbs) -and (Test-Path $fallbackHbbr)) {
+                Write-WarningMsg "Using legacy binaries without full HTTP API"
+                $hbbsSource = $fallbackHbbs
+                $hbbrSource = $fallbackHbbr
+                $binaryVersion = "legacy"
+            }
+        }
+    }
+    
+    # Check if we found any binaries
+    if (-not $hbbsSource -or -not $hbbrSource) {
+        Write-ErrorMsg "Precompiled binaries not found!"
+        Write-Host ""
+        Write-InfoMsg "Checked locations (in priority order):"
+        Write-InfoMsg "  1. $v2BinDir\hbbs-windows-x86_64.exe (RECOMMENDED)"
+        Write-InfoMsg "  2. $scriptDir\hbbs-patch\bin-with-api\hbbs-$BINARY_VERSION.exe"
+        Write-InfoMsg "  3. $scriptDir\hbbs-patch\bin\hbbs-v8.exe"
+        Write-Host ""
+        Write-InfoMsg "Please ensure you have the BetterDesk binaries."
+        Write-InfoMsg "Download from: https://github.com/UNITRONIX/Rustdesk-FreeConsole"
+        exit 1
+    }
+    
+    Write-InfoMsg "Using binaries version: $binaryVersion"
     
     # Create target directory
     if (-not (Test-Path $TargetPath)) {
@@ -562,10 +610,248 @@ function Show-Summary {
     Write-Host ""
 }
 
+function Test-BetterDeskBinary {
+    param([string]$BinaryPath)
+    
+    if (-not (Test-Path $BinaryPath)) {
+        return $false
+    }
+    
+    try {
+        # Run hbbs --help and check for BetterDesk signature
+        $output = & $BinaryPath --help 2>&1 | Out-String
+        return $output -match "BetterDesk|api-port"
+    }
+    catch {
+        return $false
+    }
+}
+
+function Invoke-Diagnose {
+    param([string]$RustDeskPath)
+    
+    Write-Header "BetterDesk Diagnostic Tool"
+    
+    $issuesFound = 0
+    
+    # Check 1: RustDesk installation
+    Write-InfoMsg "Checking RustDesk installation..."
+    if (-not (Test-Path $RustDeskPath)) {
+        Write-ErrorMsg "RustDesk directory not found: $RustDeskPath"
+        $issuesFound++
+    }
+    else {
+        Write-Success "RustDesk directory found: $RustDeskPath"
+    }
+    
+    # Check 2: HBBS binary
+    $hbbsPath = Join-Path $RustDeskPath "hbbs.exe"
+    Write-InfoMsg "Checking HBBS binary..."
+    if (Test-Path $hbbsPath) {
+        Write-Success "HBBS binary found"
+        
+        # Check if it's BetterDesk version
+        if (Test-BetterDeskBinary -BinaryPath $hbbsPath) {
+            Write-Success "HBBS is BetterDesk Enhanced version"
+        }
+        else {
+            Write-ErrorMsg "HBBS is ORIGINAL RustDesk (not BetterDesk)"
+            Write-Host ""
+            Write-Host "  ┌─────────────────────────────────────────────────────┐" -ForegroundColor Red
+            Write-Host "  │  THIS IS THE CAUSE OF YOUR OFFLINE STATUS PROBLEM  │" -ForegroundColor Red
+            Write-Host "  └─────────────────────────────────────────────────────┘" -ForegroundColor Red
+            Write-Host ""
+            Write-Host "  The original hbbs does NOT update the 'status' field in the database."
+            Write-Host "  Run this script with -Fix parameter to replace binaries:"
+            Write-Host "    .\install-improved.ps1 -Fix" -ForegroundColor Yellow
+            Write-Host ""
+            $issuesFound++
+        }
+    }
+    else {
+        Write-ErrorMsg "HBBS binary not found at: $hbbsPath"
+        $issuesFound++
+    }
+    
+    # Check 3: HBBR binary
+    $hbbrPath = Join-Path $RustDeskPath "hbbr.exe"
+    Write-InfoMsg "Checking HBBR binary..."
+    if (Test-Path $hbbrPath) {
+        Write-Success "HBBR binary found"
+    }
+    else {
+        Write-WarningMsg "HBBR binary not found at: $hbbrPath"
+    }
+    
+    # Check 4: Database
+    Write-InfoMsg "Checking database..."
+    $dbPath = Join-Path $RustDeskPath "db_v2.sqlite3"
+    if (Test-Path $dbPath) {
+        Write-Success "Database found: $dbPath"
+        $dbSize = (Get-Item $dbPath).Length / 1KB
+        Write-InfoMsg "Database size: $([math]::Round($dbSize, 2)) KB"
+    }
+    else {
+        Write-WarningMsg "Database not found (will be created on first run)"
+    }
+    
+    # Check 5: Running processes
+    Write-InfoMsg "Checking running processes..."
+    $hbbsProcess = Get-Process -Name "hbbs" -ErrorAction SilentlyContinue
+    $hbbrProcess = Get-Process -Name "hbbr" -ErrorAction SilentlyContinue
+    
+    if ($hbbsProcess) {
+        Write-Success "HBBS is running (PID: $($hbbsProcess.Id))"
+    }
+    else {
+        Write-WarningMsg "HBBS is NOT running"
+    }
+    
+    if ($hbbrProcess) {
+        Write-Success "HBBR is running (PID: $($hbbrProcess.Id))"
+    }
+    else {
+        Write-WarningMsg "HBBR is NOT running"
+    }
+    
+    # Check 6: Ports
+    Write-InfoMsg "Checking ports..."
+    $ports = @(
+        @{Port = 21114; Name = "HTTP API"},
+        @{Port = 21115; Name = "NAT test"},
+        @{Port = 21116; Name = "ID Server"},
+        @{Port = 21117; Name = "Relay"}
+    )
+    
+    foreach ($p in $ports) {
+        $connection = Get-NetTCPConnection -LocalPort $p.Port -ErrorAction SilentlyContinue
+        if ($connection) {
+            Write-Success "Port $($p.Port) ($($p.Name)) is listening"
+        }
+        else {
+            Write-WarningMsg "Port $($p.Port) ($($p.Name)) is NOT listening"
+        }
+    }
+    
+    # Summary
+    Write-Host ""
+    Write-Header "Diagnostic Summary"
+    
+    if ($issuesFound -eq 0) {
+        Write-Host "No critical issues found!" -ForegroundColor Green
+    }
+    else {
+        Write-Host "Found $issuesFound issue(s)" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "Most common cause: Using original RustDesk hbbs instead of BetterDesk." -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "Quick fix:" -ForegroundColor Cyan
+        Write-Host "  .\install-improved.ps1 -Fix"
+    }
+}
+
+function Invoke-Fix {
+    param([string]$RustDeskPath)
+    
+    Write-Header "BetterDesk Binary Fix Tool"
+    
+    Write-InfoMsg "This will replace your RustDesk binaries with BetterDesk enhanced versions."
+    Write-Host ""
+    
+    # Find BetterDesk binaries
+    $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+    $v2BinDir = Join-Path $scriptDir "hbbs-patch-v2"
+    $v2Hbbs = Join-Path $v2BinDir "hbbs-windows-x86_64.exe"
+    $v2Hbbr = Join-Path $v2BinDir "hbbr-windows-x86_64.exe"
+    
+    if (-not (Test-Path $v2Hbbs) -or -not (Test-Path $v2Hbbr)) {
+        Write-ErrorMsg "BetterDesk binaries not found!"
+        Write-InfoMsg "Expected location: $v2BinDir"
+        Write-InfoMsg "Please download from: https://github.com/UNITRONIX/Rustdesk-FreeConsole"
+        return
+    }
+    
+    Write-Success "Found BetterDesk v2.0.0 binaries"
+    
+    # Stop running processes
+    Write-InfoMsg "Stopping RustDesk processes..."
+    Get-Process -Name "hbbs","hbbr" -ErrorAction SilentlyContinue | Stop-Process -Force
+    Start-Sleep -Seconds 2
+    
+    # Backup existing binaries
+    $hbbsPath = Join-Path $RustDeskPath "hbbs.exe"
+    $hbbrPath = Join-Path $RustDeskPath "hbbr.exe"
+    
+    if (Test-Path $hbbsPath) {
+        $backupName = "hbbs.backup-original.$(Get-Date -Format 'yyyyMMdd-HHmmss').exe"
+        Write-InfoMsg "Backing up original hbbs.exe..."
+        Copy-Item $hbbsPath (Join-Path $RustDeskPath $backupName)
+        Write-Success "Backup created: $backupName"
+    }
+    
+    if (Test-Path $hbbrPath) {
+        $backupName = "hbbr.backup-original.$(Get-Date -Format 'yyyyMMdd-HHmmss').exe"
+        Write-InfoMsg "Backing up original hbbr.exe..."
+        Copy-Item $hbbrPath (Join-Path $RustDeskPath $backupName)
+        Write-Success "Backup created: $backupName"
+    }
+    
+    # Copy new binaries
+    Write-InfoMsg "Installing BetterDesk binaries..."
+    Copy-Item $v2Hbbs $hbbsPath -Force
+    Copy-Item $v2Hbbr $hbbrPath -Force
+    
+    Write-Success "BetterDesk binaries installed!"
+    
+    # Verify
+    Write-InfoMsg "Verifying installation..."
+    if (Test-BetterDeskBinary -BinaryPath $hbbsPath) {
+        Write-Success "HBBS is now BetterDesk Enhanced version"
+    }
+    else {
+        Write-WarningMsg "Could not verify HBBS version"
+    }
+    
+    Write-Host ""
+    Write-Header "Fix Complete!"
+    Write-Host ""
+    Write-Host "Next steps:" -ForegroundColor Yellow
+    Write-Host "  1. Start HBBS with API port:" -ForegroundColor Cyan
+    Write-Host "     cd $RustDeskPath" 
+    Write-Host "     .\hbbs.exe -k _ --api-port 21114"
+    Write-Host ""
+    Write-Host "  2. Start HBBR:" -ForegroundColor Cyan
+    Write-Host "     .\hbbr.exe"
+    Write-Host ""
+    Write-Host "  3. Restart your RustDesk clients to see online status" -ForegroundColor Cyan
+}
+
 # Main installation flow
 function Main {
     Clear-Host
     Write-Header "BetterDesk Console Installer $VERSION (Windows)"
+    
+    # Handle -Diagnose mode
+    if ($Diagnose) {
+        if ([string]::IsNullOrWhiteSpace($RustDeskPath)) {
+            $RustDeskPath = Find-RustDeskInstallation
+        }
+        if ($RustDeskPath) {
+            Invoke-Diagnose -RustDeskPath $RustDeskPath
+        }
+        return
+    }
+    
+    # Handle -Fix mode
+    if ($Fix) {
+        if ([string]::IsNullOrWhiteSpace($RustDeskPath)) {
+            $RustDeskPath = Find-RustDeskInstallation
+        }
+        if ($RustDeskPath) {
+            Invoke-Fix -RustDeskPath $RustDeskPath
+        }
+        return
+    }
     
     Write-Host "This script will install:"
     Write-Host "  • Enhanced RustDesk HBBS/HBBR with HTTP API"
@@ -574,6 +860,10 @@ function Main {
     Write-Host "  • Web Management Console with Material Design"
     Write-Host ""
     Write-Host "Installation method: Precompiled binaries (no compilation required)"
+    Write-Host ""
+    Write-Host "Additional options:" -ForegroundColor Yellow
+    Write-Host "  -Diagnose  : Check for common issues (offline status, etc.)"
+    Write-Host "  -Fix       : Replace original RustDesk binaries with BetterDesk"
     Write-Host ""
     
     # Check admin rights

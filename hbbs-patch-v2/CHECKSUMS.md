@@ -67,8 +67,51 @@ sudo chmod +x /opt/rustdesk/hbbr-v8-api
 
 ---
 
+## hbbs-windows-x86_64.exe (Signal Server for Windows)
+
+| Property | Value |
+|----------|-------|
+| **SHA256** | `50BA3BCE44AC607917C2B6870B2859D2F5DB59769E79F6BFB3E757244A53A7F7` |
+| **Size** | 6.6 MB |
+| **Date** | 2026-02-04 |
+| **Platform** | Windows x86_64 (Windows 10+, Server 2019+) |
+| **Base** | RustDesk Server 1.1.14 |
+| **API Port** | 21114 (configurable with --api-port) |
+
+### Usage (PowerShell)
+
+```powershell
+# Run with key
+.\hbbs-windows-x86_64.exe -k YOUR_KEY
+
+# Run with custom API port
+.\hbbs-windows-x86_64.exe -k YOUR_KEY --api-port 21114
+```
+
+---
+
+## hbbr-windows-x86_64.exe (Relay Server for Windows)
+
+| Property | Value |
+|----------|-------|
+| **SHA256** | `78E7B0F61B7DF8FD780550B8AB9F81F802C3C63CD8171BD93194EC23CA51EB94` |
+| **Size** | 2.7 MB |
+| **Date** | 2026-02-04 |
+| **Platform** | Windows x86_64 |
+| **Base** | RustDesk Server 1.1.14 |
+
+### Usage (PowerShell)
+
+```powershell
+# Run
+.\hbbr-windows-x86_64.exe
+```
+
+---
+
 ## Verification
 
+### Linux
 ```bash
 # Verify SHA256 checksums
 sha256sum hbbs-linux-x86_64
@@ -76,6 +119,16 @@ sha256sum hbbs-linux-x86_64
 
 sha256sum hbbr-linux-x86_64
 # Expected: c7197cf9fcbfb47bb4c9f6d4663df29b27d2a9ab008ff7ae32a13c6150024528
+```
+
+### Windows (PowerShell)
+```powershell
+# Verify SHA256 checksums
+(Get-FileHash hbbs-windows-x86_64.exe -Algorithm SHA256).Hash
+# Expected: 50BA3BCE44AC607917C2B6870B2859D2F5DB59769E79F6BFB3E757244A53A7F7
+
+(Get-FileHash hbbr-windows-x86_64.exe -Algorithm SHA256).Hash
+# Expected: 78E7B0F61B7DF8FD780550B8AB9F81F802C3C63CD8171BD93194EC23CA51EB94
 ```
 
 ---
