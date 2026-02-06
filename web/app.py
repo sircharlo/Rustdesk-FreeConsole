@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, g, send_file
 import sqlite3
+import json
 from datetime import datetime
 import os
 import requests
@@ -318,57 +319,95 @@ def client_generator():
 @require_auth
 @limiter.exempt  # Authenticated users bypass rate limit
 def get_devices():
-    """Fetch all devices from the database with online status from HBBS API."""
+    """Fetch all devices from the database with online status based on last_online."""
     try:
-        # Try to get status from HBBS API
-        online_ids = set()
-        api_device_info = {}
-        try:
-            headers = {}
-            if HBBS_API_KEY:
-                headers['X-API-Key'] = HBBS_API_KEY
-            
-            response = requests.get(f'{HBBS_API_URL}/peers', headers=headers, timeout=2)
-            if response.status_code == 200:
-                api_data = response.json()
-                if api_data.get('success') and api_data.get('data'):
-                    for peer in api_data['data']:
-                        device_id = peer.get('id')
-                        if device_id:
-                            api_device_info[device_id] = peer
-                            if peer.get('online'):
-                                online_ids.add(device_id)
-            elif response.status_code == 401:
-                print(f"Warning: HBBS API authentication failed. Check API key.")
-        except Exception as e:
-            print(f"Warning: Could not connect to HBBS API: {e}")
+        # Get server config for timeout settings
+        config = get_server_config()
+        peer_timeout_secs = config.get('peer_timeout_secs', 60)
+        warning_threshold = config.get('warning_threshold', 2)
+        critical_threshold = config.get('critical_threshold', 4)
+        heartbeat_interval = config.get('heartbeat_interval_secs', 5)
         
         # Get devices from database
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute('''
-            SELECT 
-                guid, id, uuid, pk, created_at, user, status, note, info,
-                is_banned, banned_at, banned_by, ban_reason
-            FROM peer
-            WHERE is_deleted = 0
-            ORDER BY created_at DESC
-        ''')
+        
+        # Check if last_online column exists
+        cursor.execute("PRAGMA table_info(peer)")
+        columns = [row[1] for row in cursor.fetchall()]
+        has_last_online = 'last_online' in columns
+        
+        if has_last_online:
+            cursor.execute('''
+                SELECT 
+                    guid, id, uuid, pk, created_at, user, status, note, info,
+                    is_banned, banned_at, banned_by, ban_reason,
+                    previous_ids, id_changed_at, last_online
+                FROM peer
+                WHERE is_deleted = 0
+                ORDER BY created_at DESC
+            ''')
+        else:
+            cursor.execute('''
+                SELECT 
+                    guid, id, uuid, pk, created_at, user, status, note, info,
+                    is_banned, banned_at, banned_by, ban_reason,
+                    previous_ids, id_changed_at
+                FROM peer
+                WHERE is_deleted = 0
+                ORDER BY created_at DESC
+            ''')
         
         devices = []
+        now = datetime.now()
+        
         for row in cursor.fetchall():
             device_id = row['id']
             
-            # IMPORTANT: API /peers has a bug in http_api.rs:
-            # 1. Query: "WHERE (status IS NULL OR status = 0)" - returns only offline
-            # 2. Hardcoded: online = false - always false for all
-            # Due to these bugs, the API is not suitable for determining online status
-            # 
-            # SOLUTION: We use ONLY the status field from database (updated by HBBS)
-            # status = 1 = online, status = 0/NULL = offline
-            # This is the source of truth - HBBS updates this field in real-time
+            # Determine online status based on last_online timestamp
+            online = False
+            status_detail = 'offline'
+            last_online = None
             
-            online = row['status'] == 1
+            if has_last_online and row['last_online']:
+                last_online = row['last_online']
+                try:
+                    # Parse timestamp - handle both formats
+                    if isinstance(last_online, str):
+                        if 'T' in last_online:
+                            last_online_dt = datetime.fromisoformat(last_online.replace('Z', '+00:00').replace('+00:00', ''))
+                        else:
+                            last_online_dt = datetime.strptime(last_online, '%Y-%m-%d %H:%M:%S')
+                    else:
+                        last_online_dt = last_online
+                    
+                    # Calculate time since last activity
+                    seconds_since = (now - last_online_dt).total_seconds()
+                    
+                    if seconds_since <= peer_timeout_secs:
+                        # Within timeout - check for degraded/critical states
+                        missed_heartbeats = int(seconds_since / heartbeat_interval)
+                        
+                        if missed_heartbeats >= critical_threshold:
+                            online = True
+                            status_detail = 'critical'
+                        elif missed_heartbeats >= warning_threshold:
+                            online = True
+                            status_detail = 'degraded'
+                        else:
+                            online = True
+                            status_detail = 'online'
+                    else:
+                        status_detail = 'offline'
+                except Exception as e:
+                    print(f"Warning: Could not parse last_online for {device_id}: {e}")
+                    # Fallback to status field
+                    online = row['status'] == 1
+                    status_detail = 'online' if online else 'offline'
+            else:
+                # No last_online - fallback to status field
+                online = row['status'] == 1
+                status_detail = 'online' if online else 'offline'
             
             device = {
                 'guid': row['guid'].hex() if row['guid'] else '',
@@ -379,17 +418,21 @@ def get_devices():
                 'user': row['user'].hex() if row['user'] else '',
                 'status': row['status'],
                 'online': online,
+                'status_detail': status_detail,
+                'last_online': last_online,
                 'note': row['note'] or '',
                 'info': row['info'] or '',
                 'is_banned': row['is_banned'] == 1,
                 'banned_at': row['banned_at'],
                 'banned_by': row['banned_by'] or '',
-                'ban_reason': row['ban_reason'] or ''
+                'ban_reason': row['ban_reason'] or '',
+                'previous_ids': json.loads(row['previous_ids']) if row['previous_ids'] else [],
+                'id_changed_at': row['id_changed_at'] or ''
             }
             devices.append(device)
         
         conn.close()
-        return jsonify({'success': True, 'devices': devices})
+        return jsonify({'success': True, 'devices': devices, 'config': config})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -435,8 +478,23 @@ def update_device(device_id):
                 conn.close()
                 return jsonify({'success': False, 'error': 'Device ID already exists'}), 409
             
+            # Get current previous_ids and add old_id to history
+            cursor.execute('SELECT previous_ids FROM peer WHERE id = ? AND is_deleted = 0', (device_id,))
+            row = cursor.fetchone()
+            previous_ids = []
+            if row and row[0]:
+                try:
+                    previous_ids = json.loads(row[0]) if row[0] else []
+                except:
+                    previous_ids = []
+            previous_ids.append(device_id)
+            
             updates.append('id = ?')
             params.append(data['new_id'])
+            updates.append('previous_ids = ?')
+            params.append(json.dumps(previous_ids))
+            updates.append('id_changed_at = ?')
+            params.append(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         
         if not updates:
             conn.close()
@@ -547,6 +605,136 @@ def get_stats():
                 'banned': banned
             }
         })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# Default server configuration
+DEFAULT_SERVER_CONFIG = {
+    'peer_timeout_secs': 60,
+    'heartbeat_interval_secs': 5,
+    'warning_threshold': 2,
+    'critical_threshold': 4
+}
+
+def ensure_server_config_table():
+    """Ensure server_config table exists."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS server_config (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+def get_server_config():
+    """Get server configuration from database."""
+    ensure_server_config_table()
+    config = DEFAULT_SERVER_CONFIG.copy()
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT key, value FROM server_config')
+        rows = cursor.fetchall()
+        conn.close()
+        for row in rows:
+            key = row['key']
+            if key in config:
+                try:
+                    config[key] = int(row['value'])
+                except ValueError:
+                    config[key] = row['value']
+    except Exception as e:
+        print(f"Warning: Could not load server config: {e}")
+    return config
+
+def save_server_config(config):
+    """Save server configuration to database."""
+    ensure_server_config_table()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    for key, value in config.items():
+        cursor.execute('''
+            INSERT OR REPLACE INTO server_config (key, value, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+        ''', (key, str(value)))
+    conn.commit()
+    conn.close()
+
+
+@app.route('/api/server/config', methods=['GET'])
+@require_auth
+@limiter.exempt
+def get_server_config_endpoint():
+    """Get server configuration."""
+    try:
+        config = get_server_config()
+        return jsonify({
+            'success': True,
+            'config': config
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/server/config', methods=['POST'])
+@require_auth
+@require_role(ROLE_ADMIN)
+def update_server_config_endpoint():
+    """Update server configuration (admin only)."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
+        
+        # Validate and sanitize config values
+        config = get_server_config()
+        
+        if 'peer_timeout_secs' in data:
+            val = int(data['peer_timeout_secs'])
+            if val < 10 or val > 300:
+                return jsonify({'success': False, 'error': 'peer_timeout_secs must be between 10 and 300'}), 400
+            config['peer_timeout_secs'] = val
+        
+        if 'heartbeat_interval_secs' in data:
+            val = int(data['heartbeat_interval_secs'])
+            if val < 1 or val > 30:
+                return jsonify({'success': False, 'error': 'heartbeat_interval_secs must be between 1 and 30'}), 400
+            config['heartbeat_interval_secs'] = val
+        
+        if 'warning_threshold' in data:
+            val = int(data['warning_threshold'])
+            if val < 1 or val > 10:
+                return jsonify({'success': False, 'error': 'warning_threshold must be between 1 and 10'}), 400
+            config['warning_threshold'] = val
+        
+        if 'critical_threshold' in data:
+            val = int(data['critical_threshold'])
+            if val < 2 or val > 20:
+                return jsonify({'success': False, 'error': 'critical_threshold must be between 2 and 20'}), 400
+            config['critical_threshold'] = val
+        
+        # Validate thresholds relationship
+        if config['warning_threshold'] >= config['critical_threshold']:
+            return jsonify({'success': False, 'error': 'warning_threshold must be less than critical_threshold'}), 400
+        
+        save_server_config(config)
+        
+        # Log the change
+        user_id = g.user.get('id') if g.user else None
+        log_audit(user_id, 'config_change', None, f"Server config updated: {config}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Configuration saved successfully',
+            'config': config
+        })
+    except ValueError as e:
+        return jsonify({'success': False, 'error': 'Invalid numeric value'}), 400
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 

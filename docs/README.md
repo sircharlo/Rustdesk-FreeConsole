@@ -2,27 +2,40 @@
 
 This directory contains comprehensive documentation for BetterDesk Console.
 
-## Contents
+## Quick Start
+- **[INSTALLATION_V1.4.0.md](INSTALLATION_V1.4.0.md)** - Installation guide
+- **[UPDATE_GUIDE.md](UPDATE_GUIDE.md)** - Updating existing installations
+- **[TROUBLESHOOTING_EN.md](TROUBLESHOOTING_EN.md)** - Common issues & solutions
 
-### Release Documentation
-- **CHANGELOG.md** - Complete version history with all changes
-- **RELEASE_NOTES_v1.2.0.md** - Detailed release notes for v1.2.0
-- **DEPRECATION_NOTICE.md** - Information about deprecated features
+## Docker
+- **[DOCKER_SUPPORT.md](DOCKER_SUPPORT.md)** - Docker installation guide
+- **[DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOOTING.md)** - Docker-specific issues
 
-### Guides
-- **CONTRIBUTING.md** - Contribution guidelines for developers
-- **UPDATE_GUIDE.md** - How to update existing installations
-- **UPDATE_REFERENCE.md** - Detailed update procedures
-- **QUICKSTART_UPDATE.md** - Quick update instructions
+## Features
+- **[CLIENT_GENERATOR.md](CLIENT_GENERATOR.md)** - Custom client generator
+- **[CLIENT_GENERATOR_QUICKSTART_EN.md](CLIENT_GENERATOR_QUICKSTART_EN.md)** - Client generator quick start
+- **[ID_CHANGE_FEATURE.md](ID_CHANGE_FEATURE.md)** - Device ID change feature
+- **[STATUS_TRACKING_v3.md](STATUS_TRACKING_v3.md)** - Device status tracking system
 
-### Development
-- **DEVELOPMENT_ROADMAP.md** - Future features and development plans
-- **GITHUB_RELEASE_CHECKLIST.md** - Checklist for creating GitHub releases
+## Performance
+- **[GPU_OPTIMIZATION_EN.md](GPU_OPTIMIZATION_EN.md)** - GPU optimization
+- **[GPU_FIX_QUICKSTART_EN.md](GPU_FIX_QUICKSTART_EN.md)** - Quick GPU fix guide
+- **[OPTIMIZATION_SUMMARY_EN.md](OPTIMIZATION_SUMMARY_EN.md)** - Performance optimization summary
 
-## Main Documentation
+## Security & Troubleshooting
+- **[KEY_TROUBLESHOOTING.md](KEY_TROUBLESHOOTING.md)** - Key and encryption issues
+- **[PORT_SECURITY.md](PORT_SECURITY.md)** - Port configuration & security
+- **[QUICK_FIX_EN.md](QUICK_FIX_EN.md)** - Quick fixes for common issues
 
-For general information, see the main [README.md](../README.md) in the root directory.
+## Development
+- **[BUILD_GUIDE.md](BUILD_GUIDE.md)** - Building from source
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** - Contribution guidelines
+- **[PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)** - Project structure overview
+- **[CHANGELOG.md](CHANGELOG.md)** - Version history
+
+## Additional
+- **[TRANSLATION_SUMMARY.md](TRANSLATION_SUMMARY.md)** - Documentation translation status
 
 ## HBBS Patch Documentation
 
-HBBS-specific documentation is located in the [hbbs-patch/](../hbbs-patch/) directory.
+HBBS-specific documentation is in [hbbs-patch-v2/](../hbbs-patch-v2/).

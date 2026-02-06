@@ -6,45 +6,30 @@ This directory contains development and testing utilities for BetterDesk Console
 
 ### Testing Scripts
 - **test_ban_api.sh** - Test script for ban/unban API endpoints
-  - Tests device banning functionality
-  - Validates API responses
-  - Usage: `./test_ban_api.sh`
+- **test_change_id.py** - Test ID change API endpoint (requires HBBS_API_KEY environment variable)
+- **test_id_change.sh** - Test ID change via Web Console API (requires ADMIN_PASS environment variable)
+- **test_generator.py** - Test script for RustDesk Client Generator
 
 ### Diagnostic Tools
 - **check_database.py** - Database inspection and validation tool
-  - Checks database schema
-  - Verifies migrations applied
-  - Lists devices and their status
-  - Usage: `python3 check_database.py`
-
 - **check_and_fix_database.sh** - **Database Schema Checker & Fixer** ⭐
-  - Automatically detects database location
-  - Validates all required tables and columns
-  - Fixes missing or incorrect schema
-  - Creates backup before making changes
-  - Creates admin user if missing
-  - Usage: `sudo ./check_and_fix_database.sh [database_path]`
-  - Example: `sudo ./check_and_fix_database.sh /opt/rustdesk/db_v2.sqlite3`
-  - **Use this if you have login problems!**
-
+  - Use this if you have login problems!
+- **diagnose_offline_status.sh** - **Diagnose offline status issues** ⭐
+  - Use this if devices show as offline incorrectly!
 - **fix_peer_columns.sh** - **Quick Fix for Device Errors** ⭐
-  - Adds missing columns to peer table (updated_at, deleted_at, etc.)
-  - Fixes "no such column: updated_at" error
-  - Usage: `sudo ./fix_peer_columns.sh [database_path]`
-  - **Use this if you get 500 errors when editing devices!**
+  - Use this if you get 500 errors when editing devices!
+- **fix_systemd_services.sh** - **Fix Systemd Services for API Binaries** ⭐
+  - Use this if RustDesk services still use original binaries!
+- **fix_database.py** - Fix database.rs imports and change_id function
 
-- **fix_systemd_services.sh** - **Fix Systemd Services for API Binaries** ⭐ NEW
-  - Scans for all RustDesk systemd services (hbbs.service, rustdesksignal.service, etc.)
-  - Updates ExecStart to use API-enabled binaries (hbbs-v8-api, hbbr-v8-api)
-  - Creates backup of original service files
-  - Usage: `sudo ./fix_systemd_services.sh [rustdesk_path]`
-  - Example: `sudo ./fix_systemd_services.sh /opt/rustdesk`
-  - **Use this if RustDesk services still use original binaries after installation!**
+### Patching Tools
+- **patch_rendezvous.py** - Patch rendezvous_server.rs to call touch_peer on RegisterPeer
+- **patch_id_change.py** - Patch rendezvous_server.rs for ID change via old_id field
+- **patch_peer_remove.py** - Patch peer.rs to add remove function
+- **patch_database_simple.py** - Add change_id function to database.rs
 
 ### Development Scripts
 - **update.ps1** - PowerShell update script (Windows development environment)
-  - Alternative to update.sh for Windows
-  - Updates web console components
 
 ## Usage
 

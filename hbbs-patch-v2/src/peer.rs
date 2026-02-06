@@ -1,4 +1,3 @@
-// Enhanced peer.rs with improved heartbeat and monitoring
 use crate::common::*;
 use crate::database;
 use hbb_common::{
@@ -6,6 +5,7 @@ use hbb_common::{
     log,
     rendezvous_proto::*,
     tokio::sync::{Mutex, RwLock},
+    tokio,
     ResultType,
 };
 use serde_derive::{Deserialize, Serialize};
@@ -26,6 +26,10 @@ pub const IP_CHANGE_DUR_X2: u64 = IP_CHANGE_DUR * 2;
 pub const DAY_SECONDS: u64 = 3600 * 24;
 pub const IP_BLOCK_DUR: u64 = 60;
 
+// Status tracking constants
+const HEARTBEAT_TIMEOUT_SECS: u64 = 15;  // Mark offline after 15s without heartbeat (was 30s)
+const CLEANUP_INTERVAL_SECS: u64 = 60;   // Check for stale peers every 60s
+
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub(crate) struct PeerInfo {
     #[serde(default)]
@@ -35,57 +39,44 @@ pub(crate) struct PeerInfo {
 pub(crate) struct Peer {
     pub(crate) socket_addr: SocketAddr,
     pub(crate) last_reg_time: Instant,
-    pub(crate) last_heartbeat: Instant,  // New: track last heartbeat separately
     pub(crate) guid: Vec<u8>,
     pub(crate) uuid: Bytes,
     pub(crate) pk: Bytes,
     pub(crate) info: PeerInfo,
     pub(crate) reg_pk: (u32, Instant),
-    pub(crate) connection_quality: ConnectionQuality,  // New: track connection quality
+    // Track last heartbeat for online status
+    pub(crate) last_heartbeat: Instant,
 }
-
-#[derive(Debug, Clone)]
-pub(crate) struct ConnectionQuality {
-    pub(crate) last_response_time: Duration,
-    pub(crate) missed_heartbeats: u32,
-    pub(crate) total_heartbeats: u64,
-}
-
-impl Default for ConnectionQuality {
-    fn default() -> Self {
-        Self {
-            last_response_time: Duration::from_millis(0),
-            missed_heartbeats: 0,
-            total_heartbeats: 0,
-        }
-    }
-}
-
-use std::time::Duration;
 
 impl Default for Peer {
     fn default() -> Self {
         Self {
             socket_addr: "0.0.0.0:0".parse().unwrap(),
             last_reg_time: get_expired_time(),
-            last_heartbeat: get_expired_time(),
             guid: Vec::new(),
             uuid: Bytes::new(),
             pk: Bytes::new(),
             info: Default::default(),
             reg_pk: (0, get_expired_time()),
-            connection_quality: Default::default(),
+            last_heartbeat: Instant::now(),
         }
     }
 }
 
 pub(crate) type LockPeer = Arc<RwLock<Peer>>;
 
+/// Statistics about online peers
+pub struct PeerStats {
+    pub total: usize,
+    pub healthy: usize,
+    pub degraded: usize,
+    pub critical: usize,
+}
+
 #[derive(Clone)]
 pub(crate) struct PeerMap {
     map: Arc<RwLock<HashMap<String, LockPeer>>>,
     pub(crate) db: database::Database,
-    last_cleanup: Arc<RwLock<Instant>>,
 }
 
 impl PeerMap {
@@ -104,14 +95,104 @@ impl PeerMap {
             }
             db
         });
+        log::info!("DB_URL={}", db);
         
-        log::info!("Initializing PeerMap with DB: {}", db);
+        let database = database::Database::new(&db).await?;
+        
+        // Reset all devices to offline on startup (clean slate)
+        if let Err(e) = database.set_all_offline().await {
+            log::warn!("Failed to reset devices to offline: {}", e);
+        }
+        
         let pm = Self {
             map: Default::default(),
-            db: database::Database::new(&db).await?,
-            last_cleanup: Arc::new(RwLock::new(Instant::now())),
+            db: database,
         };
+        
+        // Start background task to check for stale peers and set them offline
+        let pm_clone = pm.clone();
+        tokio::spawn(async move {
+            pm_clone.status_cleanup_loop().await;
+        });
+        
         Ok(pm)
+    }
+    
+    /// Background loop to detect stale peers and mark them offline
+    async fn status_cleanup_loop(&self) {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(CLEANUP_INTERVAL_SECS));
+        
+        loop {
+            interval.tick().await;
+            
+            let now = Instant::now();
+            let timeout = std::time::Duration::from_secs(HEARTBEAT_TIMEOUT_SECS);
+            let mut stale_peers = Vec::new();
+            
+            // Find stale peers
+            {
+                let map = self.map.read().await;
+                for (id, peer) in map.iter() {
+                    let peer_data = peer.read().await;
+                    if now.duration_since(peer_data.last_heartbeat) > timeout {
+                        stale_peers.push(id.clone());
+                    }
+                }
+            }
+            
+            // Set stale peers offline and remove from memory
+            if !stale_peers.is_empty() {
+                log::info!("Marking {} stale peers as offline", stale_peers.len());
+                
+                // Batch update database
+                if let Err(e) = self.db.batch_set_offline(&stale_peers).await {
+                    log::error!("Failed to batch set offline: {}", e);
+                }
+                
+                // Remove from memory map
+                {
+                    let mut map = self.map.write().await;
+                    for id in &stale_peers {
+                        map.remove(id);
+                        log::debug!("Removed stale peer {} from memory", id);
+                    }
+                }
+            }
+            
+            // Cleanup IP blocker and IP changes maps
+            self.cleanup_ip_maps().await;
+        }
+    }
+    
+    /// Cleanup stale entries from IP maps
+    async fn cleanup_ip_maps(&self) {
+        let now = Instant::now();
+        
+        // Cleanup IP_BLOCKER
+        {
+            let mut blocker = IP_BLOCKER.lock().await;
+            blocker.retain(|_, ((_, t1), (_, t2))| {
+                now.duration_since(*t1).as_secs() < IP_BLOCK_DUR &&
+                now.duration_since(*t2).as_secs() < DAY_SECONDS
+            });
+        }
+        
+        // Cleanup IP_CHANGES
+        {
+            let mut changes = IP_CHANGES.lock().await;
+            changes.retain(|_, (t, _)| {
+                now.duration_since(*t).as_secs() < IP_CHANGE_DUR_X2
+            });
+        }
+    }
+
+    /// Update heartbeat and set device online
+    pub(crate) async fn touch_peer(&self, id: &str) {
+        if let Some(peer) = self.map.read().await.get(id) {
+            peer.write().await.last_heartbeat = Instant::now();
+        }
+        // Update database status
+        self.db.set_online(id).await;
     }
 
     #[inline]
@@ -124,7 +205,22 @@ impl PeerMap {
         pk: Bytes,
         ip: String,
     ) -> register_pk_response::Result {
-        log::debug!("update_pk {} {:?}", id, addr);
+        log::info!("update_pk {} {:?} {:?} {:?}", id, addr, uuid, pk);
+
+        // BAN CHECK: Verify device is not banned before registration
+        match self.db.is_device_banned(&id).await {
+            Ok(true) => {
+                log::warn!("Registration REJECTED for device {}: DEVICE IS BANNED", id);
+                self.map.write().await.remove(&id);
+                return register_pk_response::Result::UUID_MISMATCH;
+            }
+            Ok(false) => {
+                log::debug!("Ban check passed for device {}", id);
+            }
+            Err(e) => {
+                log::error!("Failed to check ban status for device {}: {}. Allowing (fail-open)", id, e);
+            }
+        }
         
         let (info_str, guid) = {
             let mut w = peer.write().await;
@@ -132,11 +228,8 @@ impl PeerMap {
             w.uuid = uuid.clone();
             w.pk = pk.clone();
             w.last_reg_time = Instant::now();
-            w.last_heartbeat = Instant::now();
+            w.last_heartbeat = Instant::now();  // Update heartbeat on registration
             w.info.ip = ip;
-            w.connection_quality.total_heartbeats += 1;
-            w.connection_quality.missed_heartbeats = 0;  // Reset on successful registration
-            
             (
                 serde_json::to_string(&w.info).unwrap_or_default(),
                 w.guid.clone(),
@@ -151,7 +244,6 @@ impl PeerMap {
                 }
                 Ok(guid) => {
                     peer.write().await.guid = guid;
-                    log::info!("New peer registered: {}", id);
                 }
             }
         } else {
@@ -159,13 +251,11 @@ impl PeerMap {
                 log::error!("db.update_pk failed: {}", err);
                 return register_pk_response::Result::SERVER_ERROR;
             }
-            log::debug!("Peer {} updated", id);
+            log::info!("pk updated instead of insert");
         }
         
-        // Set peer status to online (async, non-blocking)
-        if let Err(err) = self.db.set_online(&id).await {
-            log::error!("db.set_online failed for {}: {}", id, err);
-        }
+        // Device just registered, mark as online
+        self.db.set_online(&id).await;
         
         register_pk_response::Result::OK
     }
@@ -176,16 +266,21 @@ impl PeerMap {
         if p.is_some() {
             return p;
         } else if let Ok(Some(v)) = self.db.get_peer(id).await {
+            // BAN CHECK: Do not load banned devices into memory
+            if let Ok(true) = self.db.is_device_banned(id).await {
+                log::warn!("Blocked loading banned device {} from database", id);
+                return None;
+            }
             let peer = Peer {
                 guid: v.guid,
                 uuid: v.uuid.into(),
                 pk: v.pk.into(),
                 info: serde_json::from_str::<PeerInfo>(&v.info).unwrap_or_default(),
+                last_heartbeat: Instant::now(),
                 ..Default::default()
             };
             let peer = Arc::new(RwLock::new(peer));
             self.map.write().await.insert(id.to_owned(), peer.clone());
-            log::debug!("Peer {} loaded from database", id);
             return Some(peer);
         }
         None
@@ -215,141 +310,8 @@ impl PeerMap {
         self.map.read().await.contains_key(id)
     }
 
-    #[inline]
-    pub(crate) async fn set_offline(&self, id: &str) {
-        if let Err(err) = self.db.set_offline(id).await {
-            log::error!("db.set_offline failed for {}: {}", id, err);
-        }
-    }
-
-    /// Enhanced peer checking with configurable timeout and better logging
-    pub(crate) async fn check_online_peers(&self) {
-        // Get configurable timeout from environment (default 15 seconds)
-        let timeout_secs = std::env::var("PEER_TIMEOUT_SECS")
-            .ok()
-            .and_then(|s| s.parse::<u64>().ok())
-            .unwrap_or(15);  // Reduced from 20 to 15 seconds
-        
-        let now = Instant::now();
-        let mut offline_peers = Vec::new();
-        let mut total_peers = 0;
-        let mut degraded_peers = 0;
-        
-        {
-            let map = self.map.read().await;
-            total_peers = map.len();
-            
-            for (id, peer) in map.iter() {
-                let p = peer.read().await;
-                let last_heartbeat = p.last_heartbeat;
-                let elapsed = now.duration_since(last_heartbeat).as_secs();
-                
-                // Check connection quality
-                if p.connection_quality.missed_heartbeats > 2 {
-                    degraded_peers += 1;
-                    log::warn!("Peer {} has degraded connection (missed {} heartbeats)", 
-                              id, p.connection_quality.missed_heartbeats);
-                }
-                
-                if elapsed > timeout_secs {
-                    offline_peers.push((id.clone(), elapsed));
-                }
-            }
-        }
-        
-        if !offline_peers.is_empty() {
-            log::info!("Found {} offline peers (total: {}, degraded: {})", 
-                      offline_peers.len(), total_peers, degraded_peers);
-            
-            // Batch offline updates for better performance
-            let ids: Vec<String> = offline_peers.iter().map(|(id, _)| id.clone()).collect();
-            if let Err(e) = self.db.batch_set_offline(&ids).await {
-                log::error!("Batch offline update failed: {}", e);
-                // Fallback to individual updates
-                for (id, elapsed) in &offline_peers {
-                    log::info!("Setting peer {} as offline (last seen {}s ago)", id, elapsed);
-                    self.set_offline(id).await;
-                }
-            }
-            
-            // Remove from memory
-            let mut map = self.map.write().await;
-            for (id, _) in offline_peers {
-                map.remove(&id);
-            }
-        } else if total_peers > 0 {
-            log::debug!("All {} peers are online", total_peers);
-        }
-        
-        // Periodic cleanup of stale entries
-        self.periodic_cleanup().await;
-    }
-    
-    /// Periodic cleanup of old entries to prevent memory leaks
-    async fn periodic_cleanup(&self) {
-        let mut last = self.last_cleanup.write().await;
-        
-        // Run cleanup every 5 minutes
-        if last.elapsed().as_secs() < 300 {
-            return;
-        }
-        
-        log::info!("Running periodic cleanup...");
-        *last = Instant::now();
-        
-        // Cleanup IP blocker
-        let mut ip_blocker = IP_BLOCKER.lock().await;
-        let before = ip_blocker.len();
-        ip_blocker.retain(|_, (a, b)| {
-            a.1.elapsed().as_secs() <= IP_BLOCK_DUR
-                || b.1.elapsed().as_secs() <= DAY_SECONDS
-        });
-        let removed = before - ip_blocker.len();
-        if removed > 0 {
-            log::info!("Cleaned up {} entries from IP blocker", removed);
-        }
-        drop(ip_blocker);
-        
-        // Cleanup IP changes
-        let mut ip_changes = IP_CHANGES.lock().await;
-        let before = ip_changes.len();
-        ip_changes.retain(|_, v| v.0.elapsed().as_secs() < IP_CHANGE_DUR_X2 && v.1.len() > 1);
-        let removed = before - ip_changes.len();
-        if removed > 0 {
-            log::info!("Cleaned up {} entries from IP changes tracker", removed);
-        }
-    }
-
-    /// Update heartbeat for a peer (lightweight operation)
-    #[inline]
-    pub(crate) async fn update_heartbeat(&self, id: &str) -> bool {
-        if let Some(peer) = self.get_in_memory(id).await {
-            let mut p = peer.write().await;
-            p.last_heartbeat = Instant::now();
-            p.connection_quality.total_heartbeats += 1;
-            p.connection_quality.missed_heartbeats = 0;
-            true
-        } else {
-            false
-        }
-    }
-    
-    /// Record a missed heartbeat
-    #[inline]
-    pub(crate) async fn record_missed_heartbeat(&self, id: &str) {
-        if let Some(peer) = self.get_in_memory(id).await {
-            let mut p = peer.write().await;
-            p.connection_quality.missed_heartbeats += 1;
-            if p.connection_quality.missed_heartbeats > 3 {
-                log::warn!("Peer {} has missed {} consecutive heartbeats", 
-                          id, p.connection_quality.missed_heartbeats);
-            }
-        }
-    }
-
-    /// Find peer ID by socket address
-    #[inline]
-    pub(crate) async fn find_by_addr(&self, addr: SocketAddr) -> Option<String> {
+    /// Find device ID by socket address (for ban enforcement)
+    pub(crate) async fn get_id_by_addr(&self, addr: SocketAddr) -> Option<String> {
         let map = self.map.read().await;
         for (id, peer) in map.iter() {
             let peer_addr = peer.read().await.socket_addr;
@@ -360,36 +322,98 @@ impl PeerMap {
         None
     }
     
-    /// Get statistics about current peers
-    pub(crate) async fn get_stats(&self) -> PeerMapStats {
+    /// Get statistics about online peers  
+    pub(crate) async fn get_stats(&self) -> PeerStats {
         let map = self.map.read().await;
         let total = map.len();
+        let now = Instant::now();
+        
+        let timeout_secs = std::env::var("PEER_TIMEOUT_SECS")
+            .ok()
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(15);
+        let warning_threshold = std::env::var("HEARTBEAT_WARNING_THRESHOLD")
+            .ok()
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(2);
+        let critical_threshold = std::env::var("HEARTBEAT_CRITICAL_THRESHOLD")
+            .ok()
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(4);
+        let heartbeat_interval = std::env::var("HEARTBEAT_INTERVAL_SECS")
+            .ok()
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(3);
+        
         let mut healthy = 0;
         let mut degraded = 0;
         let mut critical = 0;
         
-        for (_, peer) in map.iter() {
-            let p = peer.read().await;
-            match p.connection_quality.missed_heartbeats {
-                0..=1 => healthy += 1,
-                2..=3 => degraded += 1,
-                _ => critical += 1,
+        for (_id, peer) in map.iter() {
+            if let Ok(p) = peer.try_read() {
+                let elapsed = now.duration_since(p.last_heartbeat).as_secs();
+                if elapsed <= timeout_secs {
+                    let missed = elapsed / heartbeat_interval;
+                    if missed >= critical_threshold {
+                        critical += 1;
+                    } else if missed >= warning_threshold {
+                        degraded += 1;
+                    } else {
+                        healthy += 1;
+                    }
+                }
             }
         }
         
-        PeerMapStats {
-            total,
-            healthy,
-            degraded,
-            critical,
+        PeerStats { total, healthy, degraded, critical }
+    }
+    
+    /// Check online peers and mark offline ones
+    pub(crate) async fn check_online_peers(&self) {
+        let timeout_secs = std::env::var("PEER_TIMEOUT_SECS")
+            .ok()
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(15);
+        
+        let now = Instant::now();
+        let mut offline_peers = Vec::new();
+        let mut online_peers = Vec::new();
+        
+        {
+            let map = self.map.read().await;
+            for (id, peer) in map.iter() {
+                let p = peer.read().await;
+                let elapsed = now.duration_since(p.last_heartbeat).as_secs();
+                
+                if elapsed > timeout_secs {
+                    offline_peers.push(id.clone());
+                } else {
+                    online_peers.push(id.clone());
+                }
+            }
+        }
+        
+        // Update online devices in database
+        for id in &online_peers {
+            self.db.set_online(id).await;
+        }
+        
+        // Mark offline devices
+        if !offline_peers.is_empty() {
+            log::info!("Setting {} peers as offline (timeout {}s)", offline_peers.len(), timeout_secs);
+            
+            if let Err(e) = self.db.batch_set_offline(&offline_peers).await {
+                log::error!("Batch offline update failed: {}", e);
+                for id in &offline_peers {
+                    self.db.set_offline(id).await;
+                }
+            }
+            
+            // Remove from memory
+            let mut map = self.map.write().await;
+            for id in offline_peers {
+                map.remove(&id);
+            }
         }
     }
-}
-
-#[derive(Debug)]
-pub(crate) struct PeerMapStats {
-    pub total: usize,
-    pub healthy: usize,
-    pub degraded: usize,
-    pub critical: usize,
 }

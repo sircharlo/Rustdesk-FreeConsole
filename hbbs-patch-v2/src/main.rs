@@ -1,6 +1,11 @@
-// BetterDesk Enhanced Server v2.0.0
+// BetterDesk Enhanced Server v2.1.1
 // Based on RustDesk Server 1.1.14 with HTTP API
 // https://tools.ietf.org/rfc/rfc5128.txt
+//
+// Features:
+// - HTTP API with peer management
+// - Peer ID change with history tracking
+// - Database with soft-delete support
 
 use flexi_logger::*;
 use hbb_common::{bail, config::RENDEZVOUS_PORT, ResultType, tokio};
@@ -9,7 +14,7 @@ use hbbs::{common::*, *};
 mod http_api;
 
 const RMEM: usize = 0;
-const API_PORT: u16 = 21120;
+const API_PORT: u16 = 21114;
 
 fn main() -> ResultType<()> {
     let _logger = Logger::try_with_env_or_str("info")?
@@ -30,7 +35,7 @@ fn main() -> ResultType<()> {
         -k, --key=[KEY] 'Only allow the client with the same key'
         -a, --api-port=[NUMBER(default={API_PORT})] 'Sets the HTTP API port'",
     );
-    init_args(&args, "hbbs", "BetterDesk Enhanced Server v2.0.0");
+    init_args(&args, "hbbs", "BetterDesk Enhanced Server v2.1.1");
     
     let port = get_arg_or("port", RENDEZVOUS_PORT.to_string()).parse::<i32>()?;
     if port < 3 {
@@ -41,7 +46,7 @@ fn main() -> ResultType<()> {
     let api_port = get_arg("api-port").parse::<u16>().unwrap_or(API_PORT);
     
     hbb_common::log::info!("========================================");
-    hbb_common::log::info!("  BetterDesk Enhanced Server v2.0.0");
+    hbb_common::log::info!("  BetterDesk Enhanced Server v2.1.1");
     hbb_common::log::info!("  Based on RustDesk Server 1.1.14");
     hbb_common::log::info!("========================================");
     hbb_common::log::info!("  Signal Port: {}", port);

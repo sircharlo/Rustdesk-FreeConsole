@@ -366,6 +366,16 @@ body {
     color: var(--success-color);
 }
 
+.status-warning {
+    background: rgba(255, 193, 7, 0.2);
+    color: #ffc107;
+}
+
+.status-critical {
+    background: rgba(255, 152, 0, 0.2);
+    color: #ff9800;
+}
+
 .status-inactive {
     background: rgba(245, 87, 108, 0.2);
     color: var(--danger-color);
@@ -560,6 +570,37 @@ textarea.form-control {
     resize: vertical;
     min-height: 100px;
     font-family: inherit;
+}
+
+.form-text {
+    font-size: 0.8rem;
+    margin-top: 0.25rem;
+}
+
+.text-muted {
+    color: var(--text-secondary);
+    opacity: 0.7;
+}
+
+/* ID History Display */
+.id-history-list {
+    padding: 0.75rem;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 8px;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.id-history-item {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 4px;
+    margin: 0.1rem;
+    font-family: monospace;
+    font-size: 0.85rem;
+    color: var(--text-primary);
 }
 
 .warning-text {

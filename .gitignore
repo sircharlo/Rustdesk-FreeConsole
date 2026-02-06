@@ -59,6 +59,9 @@ test_*.sh
 verify_*.sh
 .security_scan_report.md
 
+# Archive folder (contains old files with potential sensitive data)
+archive/
+
 # Backups
 *.backup
 *backup*/

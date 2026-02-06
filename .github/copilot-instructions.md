@@ -5,7 +5,7 @@
 
 ---
 
-## 📊 Stan Projektu (aktualizacja: 2026-02-06)
+## 📊 Stan Projektu (aktualizacja: 2026-02-07)
 
 ### Wersja Instalatorów
 
@@ -84,6 +84,9 @@ Rustdesk-FreeConsole/
 │   ├── hbbs-windows-x86_64.exe  # Signal server Windows
 │   ├── hbbr-windows-x86_64.exe  # Relay server Windows
 │   └── src/                 # Source code for modifications
+├── docs/                    # Documentation (English)
+├── dev_modules/             # Development & testing utilities
+├── archive/                 # Archived files (not in git)
 ├── Dockerfile.*             # Docker images
 ├── docker-compose.yml       # Docker orchestration
 └── migrations/              # Database migrations
@@ -163,30 +166,128 @@ sudo apt-get install -y build-essential libsqlite3-dev pkg-config libssl-dev git
 13. [x] **Naprawiono DNS issues** - dodano fallback DNS w Dockerfile.console (AlmaLinux/CentOS)
 14. [x] Zaktualizowano DOCKER_TROUBLESHOOTING.md z nowymi rozwiązaniami
 
+### ✅ Ukończone (2026-02-07)
+15. [x] **Stworzono build-betterdesk.sh** - interaktywny skrypt do kompilacji (Linux/macOS)
+16. [x] **Stworzono build-betterdesk.ps1** - interaktywny skrypt do kompilacji (Windows)
+17. [x] **Stworzono GitHub Actions workflow** - automatyczna kompilacja multi-platform (.github/workflows/build.yml)
+18. [x] **Stworzono BUILD_GUIDE.md** - dokumentacja budowania ze źródeł
+19. [x] **System statusu v3.0** - konfigurowalny timeout, nowe statusy (Online/Degraded/Critical/Offline)
+20. [x] **Nowe endpointy API** - /api/config, /api/peers/stats, /api/server/stats
+21. [x] **Dokumentacja v3.0** - STATUS_TRACKING_v3.md
+22. [x] **Zmiana ID urządzenia** - moduł id_change.rs, endpoint POST /api/peers/:id/change-id
+23. [x] **Dokumentacja ID Change** - docs/ID_CHANGE_FEATURE.md
+
 ### 🔜 Do Zrobienia (priorytety)
-1. [ ] **Auto-update workflow** - GitHub Actions do automatycznego pobierania nowej wersji RustDesk i aplikowania patchy
-2. [ ] Dodać ARM64 binarki dla Linux (Raspberry Pi)
-3. [ ] Dodać automatyczne CI/CD builds (GitHub Actions)
-4. [ ] Ulepszyć dokumentację instalacji Windows
-5. [ ] Dodać testy jednostkowe dla HTTP API
+1. [ ] Kompilacja binarek v3.0.0 z nowymi plikami źródłowymi
+2. [ ] WebSocket real-time push dla statusu
+3. [ ] Dodać testy jednostkowe dla HTTP API
+4. [ ] Integracja id_change.rs z rendezvous_server_core.rs
 
-### 🔄 Planowany Auto-Update Workflow
+---
 
-**Cel:** Automatyczne aktualizowanie bazy RustDesk Server z zachowaniem patchy BetterDesk
+## 🔄 System Statusu v3.0
 
-**Proces:**
-1. GitHub Actions sprawdza nowe tagi w `rustdesk/rustdesk-server`
-2. Klonuje nową wersję i aplikuje patche z `hbbs-patch-v2/src/`
-3. Próbuje skompilować (`cargo build --release`)
-4. Uruchamia testy funkcjonalne API
-5. Jeśli sukces → tworzy PR z nową wersją
-6. Jeśli błąd → tworzy Issue z logiem błędów
+### Nowe Pliki Źródłowe
 
-**Pliki do aplikowania:**
-- `src/main.rs` - dodaje `--api-port` i uruchamia HTTP API
-- `src/http_api.rs` - cały moduł HTTP API (nowy plik)
+| Plik | Opis |
+|------|------|
+| `peer_v3.rs` | Ulepszony system statusu z konfigurowalnymi timeoutami |
+| `database_v3.rs` | Rozszerzona baza danych z server_config |
+| `http_api_v3.rs` | Nowe endpointy API dla konfiguracji |
 
-**Ryzyko:** Zmiany w API axum/sqlx między wersjami RustDesk
+### Konfiguracja przez Zmienne Środowiskowe
+
+```bash
+PEER_TIMEOUT_SECS=15        # Timeout dla offline (domyślnie 15s)
+HEARTBEAT_INTERVAL_SECS=3   # Interwał sprawdzania (domyślnie 3s)
+HEARTBEAT_WARNING_THRESHOLD=2   # Próg dla DEGRADED
+HEARTBEAT_CRITICAL_THRESHOLD=4  # Próg dla CRITICAL
+```
+
+### Nowe Statusy Urządzeń
+
+```
+ONLINE   → Wszystko OK
+DEGRADED → 2-3 pominięte heartbeaty
+CRITICAL → 4+ pominięte, wkrótce offline
+OFFLINE  → Przekroczony timeout
+```
+
+### Dokumentacja
+
+Pełna dokumentacja: [docs/STATUS_TRACKING_v3.md](docs/STATUS_TRACKING_v3.md)
+
+---
+
+## � Zmiana ID Urządzenia
+
+### Endpoint API
+
+```
+POST /api/peers/:old_id/change-id
+Content-Type: application/json
+X-API-Key: <api-key>
+
+{ "new_id": "NEWID123" }
+```
+
+### Pliki Źródłowe
+
+| Plik | Opis |
+|------|------|
+| `id_change.rs` | Moduł obsługi zmiany ID przez protokół klienta |
+| `database_v3.rs` | Funkcje `change_peer_id()`, `get_peer_id_history()` |
+| `http_api_v3.rs` | Endpoint POST `/api/peers/:id/change-id` |
+
+### Walidacja
+
+- **Długość ID**: 6-16 znaków
+- **Dozwolone znaki**: A-Z, 0-9, `-`, `_`
+- **Unikatowość**: Nowe ID nie może być zajęte
+- **Rate limiting** (klient): 5 min cooldown
+
+### Dokumentacja
+
+Pełna dokumentacja: [docs/ID_CHANGE_FEATURE.md](docs/ID_CHANGE_FEATURE.md)
+
+---
+
+## �🔨 Skrypty Budowania
+
+### Interaktywne skrypty kompilacji
+
+| Skrypt | Platforma | Opis |
+|--------|-----------|------|
+| `build-betterdesk.sh` | Linux/macOS | Interaktywny build z wyborem wersji/platformy |
+| `build-betterdesk.ps1` | Windows | Interaktywny build PowerShell |
+
+### Użycie
+
+```bash
+# Linux - tryb interaktywny
+./build-betterdesk.sh
+
+# Linux - tryb automatyczny
+./build-betterdesk.sh --auto
+
+# Windows - tryb interaktywny
+.\build-betterdesk.ps1
+
+# Windows - tryb automatyczny
+.\build-betterdesk.ps1 -Auto
+```
+
+### GitHub Actions CI/CD
+
+Workflow `.github/workflows/build.yml` automatycznie:
+- Buduje binarki dla Linux x64, Linux ARM64, Windows x64
+- Uruchamia się przy zmianach w `hbbs-patch-v2/src/**`
+- Pozwala na ręczne uruchomienie z wyborem wersji
+- Opcjonalnie tworzy GitHub Release
+
+### Dokumentacja
+
+Pełna dokumentacja budowania: [docs/BUILD_GUIDE.md](docs/BUILD_GUIDE.md)
 
 ---
 
@@ -227,4 +328,4 @@ sudo apt-get install -y build-essential libsqlite3-dev pkg-config libssl-dev git
 
 ---
 
-*Ostatnia aktualizacja: 2026-02-04 przez GitHub Copilot*
+*Ostatnia aktualizacja: 2026-02-07 przez GitHub Copilot*

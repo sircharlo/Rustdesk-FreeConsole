@@ -6,6 +6,7 @@ let authToken = null;
 let userRole = null;
 let username = null;
 let publicKeyCache = null;
+let refreshIntervalId = null;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
@@ -22,15 +23,45 @@ document.addEventListener('DOMContentLoaded', function() {
     loadDevices();
     loadStats();
     
-    // Auto-refresh dashboard every 5 seconds
-    setInterval(() => {
+    // Load server config first, then start auto-refresh with configured interval
+    loadServerConfigAndStartRefresh();
+});
+
+// Load server config and start auto-refresh with configured interval
+async function loadServerConfigAndStartRefresh() {
+    try {
+        const response = await fetch('/api/server/config', {
+            headers: getAuthHeaders()
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.config) {
+                serverConfig = data.config;
+                console.log('Server config loaded:', serverConfig);
+            }
+        }
+    } catch (error) {
+        console.warn('Could not load server config, using defaults');
+    }
+    
+    // Start auto-refresh with configured interval (default 5 seconds, min 3 seconds)
+    const refreshInterval = Math.max(3, serverConfig.heartbeat_interval_secs || 5) * 1000;
+    console.log('Starting auto-refresh every', refreshInterval, 'ms');
+    
+    // Clear any existing interval
+    if (refreshIntervalId) {
+        clearInterval(refreshIntervalId);
+    }
+    
+    refreshIntervalId = setInterval(() => {
         const dashboardSection = document.getElementById('dashboard');
         if (dashboardSection && dashboardSection.classList.contains('active')) {
             loadDevices();
             loadStats();
         }
-    }, 5000);
-});
+    }, refreshInterval);
+}
 
 // Authentication check
 function checkAuth() {
@@ -89,6 +120,9 @@ function setupSidebar() {
                 // Load section-specific data
                 if (sectionId === 'users' && userRole === 'admin') {
                     loadUsers();
+                }
+                if (sectionId === 'settings' && userRole === 'admin') {
+                    loadServerSettings();
                 }
             }
         });
@@ -222,6 +256,34 @@ function renderDevices(devices) {
         const canEdit = userRole === 'admin' || userRole === 'operator';
         const canBan = userRole === 'admin' || userRole === 'operator';
         
+        // Handle detailed status (online/degraded/critical/offline)
+        const statusDetail = device.status_detail || (device.online ? 'online' : 'offline');
+        let statusClass = 'status-inactive';
+        let statusIcon = 'fa-circle';
+        let statusText = 'Offline';
+        
+        switch (statusDetail) {
+            case 'online':
+                statusClass = 'status-active';
+                statusIcon = 'fa-circle';
+                statusText = 'Online';
+                break;
+            case 'degraded':
+                statusClass = 'status-warning';
+                statusIcon = 'fa-exclamation-circle';
+                statusText = 'Degraded';
+                break;
+            case 'critical':
+                statusClass = 'status-critical';
+                statusIcon = 'fa-exclamation-triangle';
+                statusText = 'Critical';
+                break;
+            default:
+                statusClass = 'status-inactive';
+                statusIcon = 'fa-circle';
+                statusText = 'Offline';
+        }
+        
         return `
         <tr ${rowClass}>
             <td>
@@ -230,9 +292,9 @@ function renderDevices(devices) {
             </td>
             <td>${escapeHtml(device.note) || '<span style="color: var(--text-secondary);">No note</span>'}</td>
             <td>
-                <span class="status-badge ${device.online ? 'status-active' : 'status-inactive'}">
-                    <i class="fas fa-circle"></i>
-                    ${device.online ? 'Online' : 'Offline'}
+                <span class="status-badge ${statusClass}">
+                    <i class="fas ${statusIcon}"></i>
+                    ${statusText}
                 </span>
             </td>
             <td>${formatDate(device.created_at)}</td>
@@ -341,9 +403,14 @@ function showDetails(deviceId) {
         <div class="detail-item">
             <div class="detail-label">Status:</div>
             <div class="detail-value">
-                <span class="status-badge ${device.online ? 'status-active' : 'status-inactive'}">
-                    <i class="fas fa-circle"></i>
-                    ${device.online ? 'Online' : 'Offline'}
+                <span class="status-badge ${device.status_detail === 'online' || device.status_detail === 'degraded' || device.status_detail === 'critical' ? 
+                    (device.status_detail === 'degraded' ? 'status-warning' : 
+                     device.status_detail === 'critical' ? 'status-critical' : 'status-active') : 'status-inactive'}">
+                    <i class="fas ${device.status_detail === 'degraded' ? 'fa-exclamation-circle' : 
+                                    device.status_detail === 'critical' ? 'fa-exclamation-triangle' : 'fa-circle'}"></i>
+                    ${device.status_detail === 'degraded' ? 'Degraded' :
+                      device.status_detail === 'critical' ? 'Critical' :
+                      device.online ? 'Online' : 'Offline'}
                 </span>
             </div>
         </div>
@@ -387,6 +454,23 @@ function editDevice(deviceId) {
     document.getElementById('editDeviceId').value = deviceId;
     document.getElementById('editNewId').value = '';
     document.getElementById('editNote').value = device.note || '';
+    
+    // Show ID history if available
+    const historyGroup = document.getElementById('idHistoryGroup');
+    const historyList = document.getElementById('idHistoryList');
+    
+    if (device.previous_ids && device.previous_ids.length > 0) {
+        historyGroup.style.display = 'block';
+        historyList.innerHTML = device.previous_ids.map(id => 
+            `<span class="id-history-item">${escapeHtml(id)}</span>`
+        ).join(' → ');
+        if (device.id_changed_at) {
+            historyList.innerHTML += `<br><small class="text-muted">Last changed: ${device.id_changed_at}</small>`;
+        }
+    } else {
+        historyGroup.style.display = 'none';
+        historyList.innerHTML = '';
+    }
     
     openModal('editModal');
 }
@@ -837,6 +921,108 @@ window.onclick = function(event) {
     if (event.target.classList.contains('modal')) {
         event.target.classList.remove('active');
     }
+}
+
+// ============================================================================
+// SERVER SETTINGS (ADMIN ONLY)
+// ============================================================================
+
+// Global server config cache
+let serverConfig = {
+    peer_timeout_secs: 60,
+    heartbeat_interval_secs: 5,
+    warning_threshold: 2,
+    critical_threshold: 4
+};
+
+async function loadServerSettings() {
+    if (!checkAuth()) return;
+    if (userRole !== 'admin') return;
+    
+    try {
+        const response = await fetch('/api/server/config', {
+            headers: getAuthHeaders()
+        });
+        
+        if (handleAuthError(null, response)) return;
+        
+        const data = await response.json();
+        
+        if (data.success && data.config) {
+            serverConfig = data.config;
+            
+            // Update form fields
+            document.getElementById('peerTimeoutSecs').value = serverConfig.peer_timeout_secs || 60;
+            document.getElementById('heartbeatIntervalSecs').value = serverConfig.heartbeat_interval_secs || 5;
+            document.getElementById('warningThreshold').value = serverConfig.warning_threshold || 2;
+            document.getElementById('criticalThreshold').value = serverConfig.critical_threshold || 4;
+            
+            console.log('Server settings loaded:', serverConfig);
+        }
+    } catch (error) {
+        console.error('Error loading server settings:', error);
+    }
+}
+
+async function saveServerSettings(event) {
+    event.preventDefault();
+    
+    if (!checkAuth()) return;
+    if (userRole !== 'admin') {
+        showToast('Only admins can change server settings', 'error');
+        return;
+    }
+    
+    const newConfig = {
+        peer_timeout_secs: parseInt(document.getElementById('peerTimeoutSecs').value) || 60,
+        heartbeat_interval_secs: parseInt(document.getElementById('heartbeatIntervalSecs').value) || 5,
+        warning_threshold: parseInt(document.getElementById('warningThreshold').value) || 2,
+        critical_threshold: parseInt(document.getElementById('criticalThreshold').value) || 4
+    };
+    
+    // Validation
+    if (newConfig.peer_timeout_secs < 10 || newConfig.peer_timeout_secs > 300) {
+        showToast('Peer timeout must be between 10 and 300 seconds', 'error');
+        return;
+    }
+    if (newConfig.heartbeat_interval_secs < 1 || newConfig.heartbeat_interval_secs > 30) {
+        showToast('Heartbeat interval must be between 1 and 30 seconds', 'error');
+        return;
+    }
+    if (newConfig.critical_threshold <= newConfig.warning_threshold) {
+        showToast('Critical threshold must be greater than warning threshold', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/server/config', {
+            method: 'POST',
+            headers: {
+                ...getAuthHeaders(),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(newConfig)
+        });
+        
+        if (handleAuthError(null, response)) return;
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            serverConfig = newConfig;
+            showToast('Server settings saved successfully');
+        } else {
+            showToast('Error: ' + (data.error || 'Failed to save settings'), 'error');
+        }
+    } catch (error) {
+        console.error('Error saving server settings:', error);
+        showToast('Failed to save server settings', 'error');
+    }
+}
+
+// Get peer timeout for online status calculation (in milliseconds)
+function getPeerTimeoutMs() {
+    return (serverConfig.peer_timeout_secs || 60) * 1000;
 }
 
 // ============================================================================

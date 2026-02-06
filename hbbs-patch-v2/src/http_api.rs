@@ -1,14 +1,17 @@
-// BetterDesk HTTP API v2.0.0
+// BetterDesk HTTP API v2.1.0
 // Compatible with axum 0.5 and sqlx 0.6
+// Added: POST /api/peers/:id/change-id endpoint
+
+extern crate serde_json;
 
 use axum::{
-    extract::Extension,
+    extract::{Extension, Path},
     http::{StatusCode, HeaderMap},
     response::Json,
-    routing::get,
+    routing::{get, post},
     Router,
 };
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 use sqlx::{sqlite::SqlitePool, Row};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -47,6 +50,19 @@ struct HealthStatus {
     version: String,
 }
 
+#[derive(Deserialize)]
+struct ChangeIdRequest {
+    new_id: String,
+}
+
+#[derive(Serialize)]
+struct ChangeIdResponse {
+    old_id: String,
+    new_id: String,
+    changed_at: String,
+    previous_ids: Vec<String>,
+}
+
 fn verify_api_key(headers: &HeaderMap, state: &ApiState) -> Result<(), StatusCode> {
     match headers.get("X-API-Key") {
         Some(key) => {
@@ -68,16 +84,43 @@ fn get_current_timestamp() -> String {
     chrono::Utc::now().to_rfc3339()
 }
 
+/// Check if a timestamp string is within the last N seconds (default 60s)
+/// Supports formats: "YYYY-MM-DD HH:MM:SS" (SQLite) and RFC3339
+fn is_online_recently(timestamp: &Option<String>, timeout_secs: i64) -> bool {
+    match timestamp {
+        Some(ts) => {
+            // Try SQLite format first: "2026-02-06 14:00:27"
+            if let Ok(dt) = chrono::NaiveDateTime::parse_from_str(ts, "%Y-%m-%d %H:%M:%S") {
+                let now = chrono::Utc::now().naive_utc();
+                let diff = now.signed_duration_since(dt);
+                return diff.num_seconds() < timeout_secs;
+            }
+            // Try RFC3339 format
+            if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(ts) {
+                let now = chrono::Utc::now();
+                let diff = now.signed_duration_since(dt);
+                return diff.num_seconds() < timeout_secs;
+            }
+            // If we can't parse, assume offline
+            false
+        }
+        None => false,
+    }
+}
+
+/// Default timeout for online status (60 seconds)
+const ONLINE_TIMEOUT_SECS: i64 = 60;
+
 async fn get_online_peers(
     headers: HeaderMap,
     Extension(state): Extension<Arc<ApiState>>,
 ) -> Result<Json<ApiResponse<Vec<PeerStatus>>>, StatusCode> {
     verify_api_key(&headers, &state)?;
     
-    hbb_common::log::debug!("API: Fetching online peers");
+    hbb_common::log::debug!("API: Fetching all peers");
     
     match sqlx::query(
-        "SELECT id, note, last_online FROM peer WHERE (status IS NULL OR status = 0) AND is_deleted = 0"
+        "SELECT id, note, last_online FROM peer WHERE is_deleted = 0"
     )
     .fetch_all(&state.db_pool)
     .await
@@ -89,7 +132,7 @@ async fn get_online_peers(
                 let id: String = row.get("id");
                 let note: Option<String> = row.get("note");
                 let last_online: Option<String> = row.get("last_online");
-                let online = last_online.is_some();
+                let online = is_online_recently(&last_online, ONLINE_TIMEOUT_SECS);
                 
                 peers.push(PeerStatus {
                     id,
@@ -160,7 +203,7 @@ async fn get_peer_details(
             let id: String = row.get("id");
             let note: Option<String> = row.get("note");
             let last_online: Option<String> = row.get("last_online");
-            let online = last_online.is_some();
+            let online = is_online_recently(&last_online, ONLINE_TIMEOUT_SECS);
             
             Ok(Json(ApiResponse {
                 success: true,
@@ -188,6 +231,140 @@ async fn get_peer_details(
                 success: false,
                 data: None,
                 error: Some(format!("Database error: {}", e)),
+                timestamp: get_current_timestamp(),
+            }))
+        }
+    }
+}
+
+/// Change peer ID (admin endpoint)
+/// POST /api/peers/:id/change-id
+/// Body: { "new_id": "NEW123456" }
+async fn change_peer_id(
+    headers: HeaderMap,
+    Extension(state): Extension<Arc<ApiState>>,
+    Path(old_id): Path<String>,
+    Json(payload): Json<ChangeIdRequest>,
+) -> Result<Json<ApiResponse<ChangeIdResponse>>, StatusCode> {
+    verify_api_key(&headers, &state)?;
+    
+    let new_id = payload.new_id.trim().to_uppercase();
+    let old_id = old_id.trim().to_uppercase();
+    
+    hbb_common::log::info!("API: Change ID request: {} -> {}", old_id, new_id);
+    
+    // Validate new ID format (6-16 chars, alphanumeric/dash/underscore)
+    if new_id.len() < 6 || new_id.len() > 16 {
+        return Ok(Json(ApiResponse {
+            success: false,
+            data: None,
+            error: Some("New ID must be 6-16 characters".to_string()),
+            timestamp: get_current_timestamp(),
+        }));
+    }
+    
+    if !new_id.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+        return Ok(Json(ApiResponse {
+            success: false,
+            data: None,
+            error: Some("New ID can only contain letters, numbers, dash and underscore".to_string()),
+            timestamp: get_current_timestamp(),
+        }));
+    }
+    
+    // Check if old_id exists
+    let old_peer = sqlx::query("SELECT previous_ids FROM peer WHERE id = ? AND is_deleted = 0")
+        .bind(&old_id)
+        .fetch_optional(&state.db_pool)
+        .await;
+    
+    let old_row = match old_peer {
+        Ok(Some(row)) => row,
+        Ok(None) => {
+            return Ok(Json(ApiResponse {
+                success: false,
+                data: None,
+                error: Some(format!("Peer '{}' not found", old_id)),
+                timestamp: get_current_timestamp(),
+            }));
+        }
+        Err(e) => {
+            return Ok(Json(ApiResponse {
+                success: false,
+                data: None,
+                error: Some(format!("Database error: {}", e)),
+                timestamp: get_current_timestamp(),
+            }));
+        }
+    };
+    
+    // Check if new_id already exists
+    let new_exists = sqlx::query("SELECT 1 FROM peer WHERE id = ? AND is_deleted = 0")
+        .bind(&new_id)
+        .fetch_optional(&state.db_pool)
+        .await;
+    
+    if let Ok(Some(_)) = new_exists {
+        return Ok(Json(ApiResponse {
+            success: false,
+            data: None,
+            error: Some(format!("ID '{}' is already in use", new_id)),
+            timestamp: get_current_timestamp(),
+        }));
+    }
+    
+    // Get and update previous_ids
+    let previous_ids_str: String = old_row.try_get("previous_ids").unwrap_or_default();
+    let mut previous_ids: Vec<String> = if previous_ids_str.is_empty() {
+        Vec::new()
+    } else {
+        serde_json::from_str(&previous_ids_str).unwrap_or_default()
+    };
+    previous_ids.push(old_id.clone());
+    let updated_history = serde_json::to_string(&previous_ids).unwrap_or_default();
+    
+    let now = get_current_timestamp();
+    
+    // Perform the update
+    let result = sqlx::query(
+        "UPDATE peer SET id = ?, previous_ids = ?, id_changed_at = ? WHERE id = ? AND is_deleted = 0"
+    )
+        .bind(&new_id)
+        .bind(&updated_history)
+        .bind(&now)
+        .bind(&old_id)
+        .execute(&state.db_pool)
+        .await;
+    
+    match result {
+        Ok(res) if res.rows_affected() > 0 => {
+            hbb_common::log::info!("API: ID changed successfully: {} -> {}", old_id, new_id);
+            Ok(Json(ApiResponse {
+                success: true,
+                data: Some(ChangeIdResponse {
+                    old_id,
+                    new_id,
+                    changed_at: now,
+                    previous_ids,
+                }),
+                error: None,
+                timestamp: get_current_timestamp(),
+            }))
+        }
+        Ok(_) => {
+            Ok(Json(ApiResponse {
+                success: false,
+                data: None,
+                error: Some("No rows affected".to_string()),
+                timestamp: get_current_timestamp(),
+            }))
+        }
+        Err(e) => {
+            hbb_common::log::error!("API: Failed to change ID: {}", e);
+            Ok(Json(ApiResponse {
+                success: false,
+                data: None,
+                error: Some(format!("Failed to change ID: {}", e)),
                 timestamp: get_current_timestamp(),
             }))
         }
@@ -243,7 +420,7 @@ pub async fn start_api_server(db_path: String, port: u16) -> Result<(), Box<dyn 
     
     // Try to connect, but don't fail if DB doesn't exist yet
     let connect_options = match SqliteConnectOptions::from_str(&format!("sqlite://{}", db_path)) {
-        Ok(opts) => opts.read_only(true).create_if_missing(false),
+        Ok(opts) => opts.read_only(false).create_if_missing(false),
         Err(e) => {
             hbb_common::log::error!("API: Invalid database path: {}", e);
             return Err(e.into());
@@ -257,7 +434,7 @@ pub async fn start_api_server(db_path: String, port: u16) -> Result<(), Box<dyn 
             // Wait and retry
             hbb_common::tokio::time::sleep(std::time::Duration::from_secs(10)).await;
             let opts = SqliteConnectOptions::from_str(&format!("sqlite://{}", db_path))?
-                .read_only(true)
+                .read_only(false)
                 .create_if_missing(false);
             SqlitePool::connect_with(opts).await?
         }
@@ -277,6 +454,7 @@ pub async fn start_api_server(db_path: String, port: u16) -> Result<(), Box<dyn 
         .route("/api/health", get(health_check))
         .route("/api/peers", get(get_online_peers))
         .route("/api/peers/:id", get(get_peer_details))
+        .route("/api/peers/:id/change-id", post(change_peer_id))
         .layer(Extension(state));
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
@@ -285,9 +463,10 @@ pub async fn start_api_server(db_path: String, port: u16) -> Result<(), Box<dyn 
     hbb_common::log::info!("HTTP API Server on port {}", port);
     hbb_common::log::info!("========================================");
     hbb_common::log::info!("Endpoints:");
-    hbb_common::log::info!("  GET /api/health");
-    hbb_common::log::info!("  GET /api/peers");
-    hbb_common::log::info!("  GET /api/peers/:id");
+    hbb_common::log::info!("  GET  /api/health");
+    hbb_common::log::info!("  GET  /api/peers");
+    hbb_common::log::info!("  GET  /api/peers/:id");
+    hbb_common::log::info!("  POST /api/peers/:id/change-id");
     hbb_common::log::info!("========================================");
 
     // axum 0.5 uses Server::bind
