@@ -12,11 +12,13 @@ Error response from daemon: pull access denied for betterdesk-hbbr, repository d
 ### Cause
 BetterDesk images are **NOT published to Docker Hub**. They must be **built locally** from the provided Dockerfiles.
 
+> **Note**: This issue is now fixed in the latest docker-compose.yml with `pull_policy: never`. If you still see this error, update your files.
+
 ### ✅ Solution
 
-**Option 1: Use docker compose build**
+**Option 1: Use docker compose build (REQUIRED)**
 ```bash
-# Build images locally first
+# Build images locally first - THIS IS REQUIRED
 docker compose build
 
 # Then start services
@@ -38,6 +40,112 @@ This is the expected behavior - the images are built from:
 - `Dockerfile.hbbs` - Signal server with BetterDesk API
 - `Dockerfile.hbbr` - Relay server
 - `Dockerfile.console` - Web console
+
+---
+
+## Problem: "no such table: peer" Error
+
+### Symptom
+The Dashboard shows an error every few seconds:
+```
+Error loading devices: no such table: peer
+```
+Or HTTP 500 errors to `/api/*` endpoints.
+
+### Cause
+This happens when you're using **original RustDesk binaries** instead of **BetterDesk enhanced binaries**. The original binaries don't create the `peer` table with the columns BetterDesk Console expects.
+
+**Root causes:**
+1. Using an outdated Dockerfile that copies from `rustdesk/rustdesk-server:latest`
+2. Not rebuilding images after updating the repository
+3. Manual installation with original RustDesk binaries
+
+### ✅ Solution
+
+**For Docker users:**
+```bash
+# 1. Update repository to get latest Dockerfiles
+git pull origin main
+
+# 2. Remove old images
+docker compose down
+docker rmi betterdesk-hbbs:local betterdesk-hbbr:local 2>/dev/null || true
+
+# 3. Rebuild with new BetterDesk binaries
+docker compose build --no-cache
+
+# 4. Start fresh
+docker compose up -d
+
+# 5. Wait 30 seconds for database to be created, then check
+docker compose exec hbbs ls -la /root/db_v2.sqlite3
+```
+
+**For manual installation (Linux):**
+```bash
+# Use the fix command to replace binaries
+sudo ./install-improved.sh --fix
+
+# Or full reinstall
+sudo ./install-improved.sh
+```
+
+The BetterDesk binaries in `hbbs-patch-v2/` include:
+- HTTP API on port 21114
+- Extended `peer` table with `is_banned`, `is_deleted`, `last_online` columns
+- Device tracking and management features
+
+---
+
+## Problem: DNS Failure During Build (AlmaLinux/CentOS)
+
+### Symptom
+```
+=> => # Temporary failure resolving 'deb.debian.org'
+target betterdesk-console: failed to solve: ...exit code: 100
+```
+
+### Cause
+Docker on some RHEL-based systems (AlmaLinux, CentOS, Rocky Linux) can have DNS resolution issues during build.
+
+### ✅ Solutions
+
+**Option 1: Configure Docker DNS (recommended)**
+```bash
+# Edit Docker daemon config
+sudo mkdir -p /etc/docker
+sudo tee /etc/docker/daemon.json > /dev/null <<EOF
+{
+    "dns": ["8.8.8.8", "1.1.1.1"]
+}
+EOF
+
+# Restart Docker
+sudo systemctl restart docker
+
+# Rebuild
+docker compose build --no-cache
+```
+
+**Option 2: Use host network during build**
+```bash
+# Build with host network
+docker build --network=host -f Dockerfile.console -t betterdesk-console:local .
+docker build --network=host -f Dockerfile.hbbs -t betterdesk-hbbs:local .
+docker build --network=host -f Dockerfile.hbbr -t betterdesk-hbbr:local .
+
+# Then start normally
+docker compose up -d
+```
+
+**Option 3: Disable IPv6 in Docker (if IPv6 issues)**
+```bash
+# Add to /etc/docker/daemon.json
+{
+    "dns": ["8.8.8.8", "1.1.1.1"],
+    "ipv6": false
+}
+```
 
 ---
 

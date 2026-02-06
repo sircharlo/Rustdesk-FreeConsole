@@ -1,19 +1,24 @@
 # Dockerfile for BetterDesk HBBS (Signal Server)
-# Creates a minimal image with shell support for healthchecks and debugging
-# Based on busybox with RustDesk binaries copied from official image
+# Creates a minimal image with BetterDesk enhanced binaries (HTTP API support)
+# Based on busybox (minimal) with BetterDesk binaries from hbbs-patch-v2/
 
-# Stage 1: Get RustDesk binaries from official image
-FROM rustdesk/rustdesk-server:latest AS rustdesk-source
-
-# Stage 2: Build minimal image with shell support
+# Build minimal image with shell support
 FROM busybox:musl
 
-# Copy RustDesk binaries from official image
-COPY --from=rustdesk-source /usr/bin/hbbs /usr/bin/hbbs
-COPY --from=rustdesk-source /usr/bin/hbbr /usr/bin/hbbr
-
 # Create necessary directories
-RUN mkdir -p /root /usr/local/bin
+RUN mkdir -p /root /usr/local/bin /opt/rustdesk
+
+# Copy BetterDesk enhanced binaries from local build
+# These binaries include HTTP API and extended peer tracking
+COPY hbbs-patch-v2/hbbs-linux-x86_64 /usr/local/bin/hbbs-betterdesk
+COPY hbbs-patch-v2/hbbr-linux-x86_64 /usr/local/bin/hbbr-betterdesk
+
+# Make binaries executable
+RUN chmod +x /usr/local/bin/hbbs-betterdesk /usr/local/bin/hbbr-betterdesk
+
+# Create symlinks for convenience
+RUN ln -s /usr/local/bin/hbbs-betterdesk /usr/bin/hbbs && \
+    ln -s /usr/local/bin/hbbr-betterdesk /usr/bin/hbbr
 
 # Set working directory and environment
 WORKDIR /root
@@ -26,5 +31,5 @@ ENV HOME=/root
 # 21114 - HTTP API (BetterDesk)
 EXPOSE 21115 21116/tcp 21116/udp 21114
 
-# Default command - use standard hbbs
-CMD ["hbbs", "-k", "_"]
+# Default command - use BetterDesk enhanced hbbs with API
+CMD ["/usr/local/bin/hbbs-betterdesk", "-k", "_", "--api-port", "21114"]

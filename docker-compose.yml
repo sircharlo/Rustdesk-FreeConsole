@@ -1,28 +1,23 @@
 # BetterDesk Console - Docker Compose Setup
 # This is a complete Docker setup that includes RustDesk servers and BetterDesk Console
+# IMPORTANT: Images must be built locally - do NOT try to pull from Docker Hub!
+# Use: docker compose build && docker compose up -d
 
 version: '3.8'
 
 services:
   # RustDesk HBBS (Signal Server) with BetterDesk API
-  # Using custom Dockerfile to add shell/tools support for healthchecks
+  # Built from Dockerfile.hbbs with BetterDesk enhanced binaries
   hbbs:
     build:
       context: .
       dockerfile: Dockerfile.hbbs
-    # Note: Image will be built locally from Dockerfile.hbbs
+    image: betterdesk-hbbs:local
+    pull_policy: never
     container_name: betterdesk-hbbs
     hostname: betterdesk-hbbs
-    command: >
-      sh -c "
-      # Wait for binaries to be copied if they exist
-      if [ -f /usr/local/bin/hbbs-betterdesk ]; then
-        echo 'Using BetterDesk enhanced binary';
-        /usr/local/bin/hbbs-betterdesk -k _ --api-port 21114;
-      else
-        echo 'Using standard RustDesk binary';
-        hbbs -k _;
-      fi"
+    # BetterDesk binary with HTTP API enabled on port 21114
+    command: ["/usr/local/bin/hbbs-betterdesk", "-k", "_", "--api-port", "21114"]
     ports:
       - "21115:21115"           # TCP hole punching
       - "21116:21116/tcp"       # TCP relay
@@ -44,24 +39,17 @@ services:
       start_period: 10s
 
   # RustDesk HBBR (Relay Server) with BetterDesk
-  # Using custom Dockerfile to add shell/tools support for healthchecks
+  # Built from Dockerfile.hbbr with BetterDesk enhanced binaries
   hbbr:
     build:
       context: .
       dockerfile: Dockerfile.hbbr
-    # Note: Image will be built locally from Dockerfile.hbbr
+    image: betterdesk-hbbr:local
+    pull_policy: never
     container_name: betterdesk-hbbr
     hostname: betterdesk-hbbr
-    command: >
-      sh -c "
-      # Wait for binaries to be copied if they exist
-      if [ -f /usr/local/bin/hbbr-betterdesk ]; then
-        echo 'Using BetterDesk enhanced binary';
-        /usr/local/bin/hbbr-betterdesk -k _;
-      else
-        echo 'Using standard RustDesk binary';
-        hbbr -k _;
-      fi"
+    # BetterDesk relay binary
+    command: ["/usr/local/bin/hbbr-betterdesk", "-k", "_"]
     ports:
       - "21117:21117"           # Relay port
     volumes:
@@ -78,6 +66,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.console
+    image: betterdesk-console:local
+    pull_policy: never
     container_name: betterdesk-console
     hostname: betterdesk-console
     ports:

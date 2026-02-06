@@ -156,6 +156,13 @@ sudo apt-get install -y build-essential libsqlite3-dev pkg-config libssl-dev git
 8. [x] Utworzono diagnose_offline_status.sh
 9. [x] Zaktualizowano TROUBLESHOOTING_EN.md (Problem 3: Offline Status)
 
+### ✅ Ukończone (2026-02-06)
+10. [x] **Naprawiono Docker** - Dockerfile.hbbs/hbbr teraz kopiują binarki BetterDesk z hbbs-patch-v2/
+11. [x] **Naprawiono "no such table: peer"** - obrazy Docker używają teraz zmodyfikowanych binarek
+12. [x] **Naprawiono "pull access denied"** - dodano `pull_policy: never` w docker-compose.yml
+13. [x] **Naprawiono DNS issues** - dodano fallback DNS w Dockerfile.console (AlmaLinux/CentOS)
+14. [x] Zaktualizowano DOCKER_TROUBLESHOOTING.md z nowymi rozwiązaniami
+
 ### 🔜 Do Zrobienia (priorytety)
 1. [ ] **Auto-update workflow** - GitHub Actions do automatycznego pobierania nowej wersji RustDesk i aplikowania patchy
 2. [ ] Dodać ARM64 binarki dla Linux (Raspberry Pi)
@@ -185,10 +192,11 @@ sudo apt-get install -y build-essential libsqlite3-dev pkg-config libssl-dev git
 
 ## ⚠️ Znane Problemy
 
-1. **Docker pull error** - Obrazy muszą być budowane lokalnie (`docker compose build`)
+1. ~~**Docker pull error**~~ ✅ ROZWIĄZANE - Obrazy budowane lokalnie z `pull_policy: never`
 2. **Axum 0.5 vs 0.6** - Projekt używa axum 0.5, nie 0.6 (różnica w API State vs Extension)
 3. **Windows API key path** - Na Windows `.api_key` jest w katalogu roboczym, nie w `/opt/rustdesk/`
-4. **Urządzenia offline** - Jeśli wszystkie urządzenia pokazują "Offline" → użytkownik ma oryginalny hbbs, nie BetterDesk. Rozwiązanie: zamień binarki na te z `hbbs-patch-v2/`
+4. ~~**Urządzenia offline**~~ ✅ ROZWIĄZANE - Docker obrazy używają teraz binarek BetterDesk
+5. ~~**"no such table: peer"**~~ ✅ ROZWIĄZANE - Dockerfile.hbbs kopiuje zmodyfikowane binarki
 
 ---
 

@@ -525,6 +525,9 @@ conn.close()
 | **API not responding** | Old/wrong binaries | Use v2 binaries from `hbbs-patch-v2/` (port 21120) |
 | **Update script not found** | Old version cloned | Run `git pull` to get latest files |
 | **Connect button not working** | Custom RustDesk client | Set custom scheme via browser console (see below) |
+| **"no such table: peer"** | Using original RustDesk binaries | Rebuild Docker: `docker compose build --no-cache` |
+| **"pull access denied"** | Images not on Docker Hub | Build locally: `docker compose build && docker compose up -d` |
+| **DNS failure in Docker build** | Resolver issues (AlmaLinux/CentOS) | See [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOOTING.md#problem-dns-failure-during-build-almalinuxcentos) |
 
 ### 🚨 Known Issues (v1.5.0)
 
