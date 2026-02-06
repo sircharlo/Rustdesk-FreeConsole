@@ -460,6 +460,15 @@ run_database_migration() {
         print_success "Ban columns already exist"
     fi
     
+    # note column (for device notes/descriptions)
+    if ! sqlite3 "$DB_PATH" "PRAGMA table_info(peer);" | grep -q "note"; then
+        print_info "Adding note column..."
+        sqlite3 "$DB_PATH" "ALTER TABLE peer ADD COLUMN note TEXT;"
+        print_success "Added note column"
+    else
+        print_success "note column already exists"
+    fi
+    
     # Check if users table exists (for auth system)
     if ! sqlite3 "$DB_PATH" "SELECT name FROM sqlite_master WHERE type='table' AND name='users';" | grep -q "users"; then
         print_info "Creating users table..."

@@ -5,14 +5,14 @@
 
 ---
 
-## 📊 Stan Projektu (aktualizacja: 2026-02-04)
+## 📊 Stan Projektu (aktualizacja: 2026-02-06)
 
 ### Wersja Instalatorów
 
 | Plik | Wersja | Status |
 |------|--------|--------|
-| `install-improved.sh` | v1.5.5 | ✅ z --fix i --diagnose |
-| `install-improved.ps1` | v1.5.1 | ✅ z -Fix i -Diagnose |
+| `install-improved.sh` | v1.5.5 | ✅ z --fix, --diagnose, pełna migracja DB |
+| `install-improved.ps1` | v1.5.2 | ✅ z -Fix, -Diagnose, pełna migracja DB |
 
 ### Binarki Serwera
 

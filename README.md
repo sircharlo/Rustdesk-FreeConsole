@@ -239,6 +239,16 @@ See [Client Generator Documentation](docs/CLIENT_GENERATOR.md) for planned featu
 
 ## 🚀 Installation
 
+### 📌 Primary Installation Scripts (Recommended)
+
+| Platform | Script | Features |
+|----------|--------|----------|
+| **Linux** | `install-improved.sh` | ✅ Full automation, database migration, service setup |
+| **Windows** | `install-improved.ps1` | ✅ Full automation, database migration, manual start |
+| **Docker** | `docker compose build && docker compose up -d` | ✅ Container-based deployment |
+
+> **⚠️ Important**: Always use the primary scripts above. Other scripts in this repository (`docker-quickstart.sh`, `install-docker.sh`, individual migration scripts) are **helper utilities** for specific scenarios and may not perform complete installations.
+
 ### Prerequisites
 
 - **Linux**: Ubuntu 20.04+, Debian 11+, CentOS 8+
@@ -250,24 +260,24 @@ See [Client Generator Documentation](docs/CLIENT_GENERATOR.md) for planned featu
 
 > **💡 Fresh Installation Support**: The script now automatically detects if you have RustDesk installed and can perform fresh installations or updates accordingly. No need for separate installation procedures!
 
-### 🐳 Docker Installation
+### 🐳 Docker Installation (Alternative)
+
+For containerized deployments using Docker Compose:
 
 ```bash
 git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
 cd Rustdesk-FreeConsole
 
-# Quick setup
-chmod +x docker-quickstart.sh
-./docker-quickstart.sh
-
-# OR: Custom installation
-chmod +x install-docker.sh
-sudo ./install-docker.sh
+# Build and start (REQUIRED - images are not on Docker Hub)
+docker compose build
+docker compose up -d
 ```
 
-**Full Docker guide**: [DOCKER_SUPPORT.md](DOCKER_SUPPORT.md)
+> **Note**: Helper scripts like `docker-quickstart.sh` and `install-docker.sh` are provided for convenience but may not include all features. For production, use `docker compose` directly.
 
-### 🐧 Linux Installation
+**Full Docker guide**: [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOOTING.md)
+
+### 🐧 Linux Installation (Primary Method)
 
 ```bash
 git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
@@ -276,7 +286,20 @@ chmod +x install-improved.sh
 sudo ./install-improved.sh
 ```
 
-**Key features:** Auto-detects existing installations, preserves encryption keys, creates automatic backups, supports Docker environments.
+**What the script does:**
+- ✅ Detects existing RustDesk installation
+- ✅ Creates automatic backup
+- ✅ Installs BetterDesk enhanced binaries
+- ✅ Runs database migration (adds all required columns)
+- ✅ Creates authentication tables and admin user
+- ✅ Configures systemd services
+- ✅ Preserves encryption keys
+
+**Troubleshooting options:**
+```bash
+sudo ./install-improved.sh --diagnose  # Check for issues
+sudo ./install-improved.sh --fix       # Fix offline status problem
+```
 
 ### 🔄 Updating Existing Installation
 
@@ -290,23 +313,44 @@ The script automatically backs up your installation, migrates the database, and 
 
 ### Quick Database Fix (if devices show as offline)
 
-If devices appear offline even though they're connected, run the database migration:
+> **Note**: The primary installers (`install-improved.sh` / `install-improved.ps1`) now run database migrations automatically. Use these manual steps only if you installed via other methods.
+
+If devices appear offline even though they're connected:
 
 ```bash
-# Run migration script
+# Option 1: Use the installer's fix mode (Recommended)
+sudo ./install-improved.sh --fix
+
+# Option 2: Run migration script manually
 python3 migrations/v1.5.0_fix_online_status.py
 
 # Restart services
 sudo systemctl restart hbbs betterdesk
 ```
 
-### 🪟 Windows Installation
+### 🪟 Windows Installation (Primary Method)
 
 ```powershell
 git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
 cd Rustdesk-FreeConsole
 .\install-improved.ps1  # Run as Administrator
 ```
+
+**What the script does:**
+- ✅ Detects existing RustDesk installation
+- ✅ Creates automatic backup
+- ✅ Installs BetterDesk enhanced binaries (.exe)
+- ✅ Runs database migration (adds all required columns)
+- ✅ Creates authentication tables and admin user
+- ✅ Installs Web Console to `C:\BetterDeskConsole`
+
+**Troubleshooting options:**
+```powershell
+.\install-improved.ps1 -Diagnose  # Check for issues
+.\install-improved.ps1 -Fix       # Fix offline status problem
+```
+
+> **Note**: Windows does not use systemd services. You need to start HBBS/HBBR manually or create scheduled tasks.
 
 ### ⚠️ Important: Platform-Specific Binaries
 

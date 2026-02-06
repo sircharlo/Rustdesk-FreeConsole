@@ -35,15 +35,50 @@ if not os.path.exists(DB_PATH):
 conn = sqlite3.connect(DB_PATH)
 cursor = conn.cursor()
 
+print('🔧 Step 1: Checking peer table columns...')
+
+# Get existing columns in peer table
+cursor.execute('PRAGMA table_info(peer)')
+existing_columns = {row[1] for row in cursor.fetchall()}
+print(f'   Existing columns: {len(existing_columns)}')
+
+# Required columns for BetterDesk Console
+required_peer_columns = {
+    'last_online': 'TEXT',
+    'is_deleted': 'INTEGER DEFAULT 0',
+    'deleted_at': 'INTEGER',
+    'updated_at': 'INTEGER',
+    'is_banned': 'INTEGER DEFAULT 0',
+    'banned_at': 'TEXT',
+    'banned_by': 'TEXT',
+    'ban_reason': 'TEXT',
+    'note': 'TEXT'
+}
+
+for column, col_type in required_peer_columns.items():
+    if column not in existing_columns:
+        print(f'   Adding column: {column}')
+        try:
+            cursor.execute(f'ALTER TABLE peer ADD COLUMN {column} {col_type}')
+            print(f'   ✅ Added: {column}')
+        except Exception as e:
+            if 'duplicate column' in str(e).lower():
+                print(f'   ✅ Already exists: {column}')
+            else:
+                print(f'   ⚠️  Could not add {column}: {e}')
+    else:
+        print(f'   ✅ Exists: {column}')
+
+print('🔧 Step 2: Checking authentication tables...')
+
 # Check if users table exists
 cursor.execute(\"SELECT name FROM sqlite_master WHERE type='table' AND name='users'\")
 if cursor.fetchone():
-    print('ℹ️  Migration already applied')
-    exit(0)
+    print('   ✅ Users table exists')
+else:
+    print('   Creating users table...')
 
-print('🔧 Creating authentication tables...')
-
-# Create authorization tables
+# Create authorization tables (IF NOT EXISTS makes this safe to run multiple times)
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -85,14 +120,18 @@ print('🔧 Creating indexes...')
 cursor.execute('CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)')
 cursor.execute('CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)')
 cursor.execute('CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id)')
+cursor.execute('CREATE INDEX IF NOT EXISTS idx_peer_deleted ON peer(is_deleted)')
+cursor.execute('CREATE INDEX IF NOT EXISTS idx_peer_banned ON peer(is_banned)')
+
+print('🔧 Step 3: Checking admin user...')
 
 # Check if admin already exists
 cursor.execute('SELECT id FROM users WHERE username = ?', (DEFAULT_ADMIN_USERNAME,))
 if cursor.fetchone():
-    print('ℹ️  Admin user already exists')
+    print('   ✅ Admin user already exists')
 else:
     # Create default admin
-    print('👤 Creating default admin user...')
+    print('   👤 Creating default admin user...')
     salt = bcrypt.gensalt()
     password_hash = bcrypt.hashpw(DEFAULT_ADMIN_PASSWORD.encode('utf-8'), salt).decode('utf-8')
     

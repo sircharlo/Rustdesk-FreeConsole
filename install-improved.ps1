@@ -1,7 +1,12 @@
-﻿# BetterDesk Console - Windows Installation Script v1.5.1
+﻿# BetterDesk Console - Windows Installation Script v1.5.2
 # 
 # This script installs the enhanced RustDesk HBBS/HBBR servers with 
 # bidirectional ban enforcement, HTTP API, and web management console.
+#
+# NEW in v1.5.2:
+# - Full database migration (adds all required peer columns)
+# - Automatic creation of auth tables (users, sessions, audit_log)
+# - Migration runs automatically during install and after -Fix
 #
 # NEW in v1.5.1:
 # - Support for hbbs-patch-v2 Windows binaries (v2.0.0)
@@ -56,7 +61,7 @@ param(
 # Set strict mode for better error detection
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
-$VERSION = "v1.5.1"
+$VERSION = "v1.5.2"
 $BINARY_VERSION = "v8-api"
 $HBBS_API_PORT = 21114
 
@@ -826,6 +831,181 @@ function Invoke-Fix {
     Write-Host "  3. Restart your RustDesk clients to see online status" -ForegroundColor Cyan
 }
 
+function Invoke-DatabaseMigration {
+    param([string]$RustDeskPath)
+    
+    Write-Header "Database Migration"
+    
+    $dbPath = Join-Path $RustDeskPath "db_v2.sqlite3"
+    
+    if (-not (Test-Path $dbPath)) {
+        Write-WarningMsg "Database not found at: $dbPath"
+        Write-InfoMsg "Database will be created when HBBS starts for the first time."
+        return
+    }
+    
+    Write-InfoMsg "Checking database schema at: $dbPath"
+    
+    # Check if Python is available for SQLite operations
+    $pythonCmd = Get-Command python3 -ErrorAction SilentlyContinue
+    if (-not $pythonCmd) {
+        $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+    }
+    
+    if (-not $pythonCmd) {
+        Write-WarningMsg "Python not found. Skipping automatic database migration."
+        Write-InfoMsg "You can run migrations manually later using: python migrations/v1.5.0_fix_online_status.py"
+        return
+    }
+    
+    $pythonExe = $pythonCmd.Source
+    Write-InfoMsg "Using Python: $pythonExe"
+    
+    # Run database migration script inline
+    $migrationScript = @"
+import sqlite3
+import sys
+
+db_path = r'$dbPath'
+
+def migrate():
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    
+    # Get existing columns in peer table
+    cursor.execute("PRAGMA table_info(peer)")
+    existing_columns = {row[1] for row in cursor.fetchall()}
+    
+    print('[INFO] Existing peer columns:', ', '.join(sorted(existing_columns)))
+    
+    # Required columns for BetterDesk Console
+    required_columns = {
+        'last_online': 'TEXT',
+        'is_deleted': 'INTEGER DEFAULT 0',
+        'deleted_at': 'INTEGER',
+        'updated_at': 'INTEGER',
+        'is_banned': 'INTEGER DEFAULT 0',
+        'banned_at': 'TEXT',
+        'banned_by': 'TEXT',
+        'ban_reason': 'TEXT',
+        'note': 'TEXT'
+    }
+    
+    changes_made = False
+    
+    for column, col_type in required_columns.items():
+        if column not in existing_columns:
+            print(f'[INFO] Adding column: {column}')
+            try:
+                cursor.execute(f'ALTER TABLE peer ADD COLUMN {column} {col_type}')
+                print(f'[OK] Added column: {column}')
+                changes_made = True
+            except sqlite3.OperationalError as e:
+                if 'duplicate column' in str(e).lower():
+                    print(f'[OK] Column already exists: {column}')
+                else:
+                    print(f'[WARN] Could not add column {column}: {e}')
+        else:
+            print(f'[OK] Column exists: {column}')
+    
+    # Create authentication tables if they don't exist
+    print('[INFO] Checking authentication tables...')
+    
+    # Check if users table exists
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+    if not cursor.fetchone():
+        print('[INFO] Creating users table...')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username VARCHAR(50) UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                role VARCHAR(20) NOT NULL DEFAULT 'viewer',
+                created_at DATETIME NOT NULL,
+                last_login DATETIME,
+                is_active BOOLEAN NOT NULL DEFAULT 1,
+                CHECK (role IN ('admin', 'operator', 'viewer'))
+            )
+        ''')
+        print('[OK] Created users table')
+        changes_made = True
+    else:
+        print('[OK] Users table exists')
+    
+    # Check if sessions table exists
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sessions'")
+    if not cursor.fetchone():
+        print('[INFO] Creating sessions table...')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS sessions (
+                token VARCHAR(64) PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                created_at DATETIME NOT NULL,
+                expires_at DATETIME NOT NULL,
+                last_activity DATETIME NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        ''')
+        print('[OK] Created sessions table')
+        changes_made = True
+    else:
+        print('[OK] Sessions table exists')
+    
+    # Check if audit_log table exists
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='audit_log'")
+    if not cursor.fetchone():
+        print('[INFO] Creating audit_log table...')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS audit_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                action VARCHAR(50) NOT NULL,
+                device_id VARCHAR(100),
+                details TEXT,
+                ip_address VARCHAR(50),
+                timestamp DATETIME NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+            )
+        ''')
+        print('[OK] Created audit_log table')
+        changes_made = True
+    else:
+        print('[OK] Audit_log table exists')
+    
+    conn.commit()
+    conn.close()
+    
+    if changes_made:
+        print('[OK] Database migration completed with changes')
+    else:
+        print('[OK] Database schema is up to date')
+    
+    return 0
+
+if __name__ == '__main__':
+    sys.exit(migrate())
+"@
+    
+    # Save script to temp file and execute
+    $tempScript = [System.IO.Path]::GetTempFileName() + ".py"
+    $migrationScript | Out-File -FilePath $tempScript -Encoding UTF8
+    
+    try {
+        & $pythonExe $tempScript
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "Database migration completed successfully"
+        } else {
+            Write-WarningMsg "Database migration completed with warnings"
+        }
+    }
+    catch {
+        Write-ErrorMsg "Database migration failed: $_"
+    }
+    finally {
+        Remove-Item $tempScript -Force -ErrorAction SilentlyContinue
+    }
+}
+
 # Main installation flow
 function Main {
     Clear-Host
@@ -849,6 +1029,8 @@ function Main {
         }
         if ($RustDeskPath) {
             Invoke-Fix -RustDeskPath $RustDeskPath
+            # Run database migration after fix
+            Invoke-DatabaseMigration -RustDeskPath $RustDeskPath
         }
         return
     }
@@ -892,6 +1074,9 @@ function Main {
     
     # Install web console
     Install-WebConsole -RustDeskPath $RustDeskPath
+    
+    # Run database migration (adds required columns and tables)
+    Invoke-DatabaseMigration -RustDeskPath $RustDeskPath
     
     # Test installation
     Test-Installation -RustDeskPath $RustDeskPath
