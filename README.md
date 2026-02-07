@@ -5,7 +5,7 @@
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![RustDesk](https://img.shields.io/badge/RustDesk-1.1.14-green.svg)
 ![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)
-![Version](https://img.shields.io/badge/version-1.5.4-brightgreen.svg)
+![Version](https://img.shields.io/badge/version-2.0.0-brightgreen.svg)
 ![Security](https://img.shields.io/badge/API-X--API--Key--Auth-green.svg)
 ![Access](https://img.shields.io/badge/LAN-Accessible-blue.svg)
 
@@ -19,14 +19,15 @@
 
 ## 📋 Table of Contents
 
+- [Quick Start](#-quick-start)
 - [Overview](#-overview)
 - [Features](#-features)
 - [Screenshots](#-screenshots)
 - [Architecture](#-architecture)
 - [Installation](#-installation)
-  - [Automatic Installation](#automatic-installation)
-  - [Manual Installation](#manual-installation)
-  - [🔑 Key Protection](#-key-protection-important)
+  - [Linux](#-linux-betterdesk-sh)
+  - [Windows](#-windows-betterdeskps1)
+  - [Docker](#-docker-betterdesk-dockersh)
 - [Troubleshooting](#-troubleshooting)
 - [Configuration](#-configuration)
 - [API Documentation](#-api-documentation)
@@ -35,6 +36,47 @@
 - [Contributing](#-contributing)
 - [License](#-license)
 - [Credits](#-credits)
+
+---
+
+## 🚀 Quick Start
+
+**BetterDesk 2.0** introduces new interactive ALL-IN-ONE scripts for managing installation.
+
+### Linux
+```bash
+git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
+cd Rustdesk-FreeConsole
+chmod +x betterdesk.sh
+sudo ./betterdesk.sh
+```
+
+### Windows (PowerShell as Administrator)
+```powershell
+git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
+cd Rustdesk-FreeConsole
+.\betterdesk.ps1
+```
+
+### Docker
+```bash
+git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
+cd Rustdesk-FreeConsole
+chmod +x betterdesk-docker.sh
+./betterdesk-docker.sh
+```
+
+**All scripts offer an interactive menu with options:**
+1. 🚀 Fresh Installation
+2. ⬆️ Update  
+3. 🔧 Repair Installation
+4. ✅ Validate Installation
+5. 💾 Backup
+6. 🔐 Reset Admin Password
+7. 🔨 Build Binaries
+8. 📊 Diagnostics
+9. 🗑️ Uninstall
+S. ⚙️ Settings (path configuration)
 
 ---
 
@@ -239,15 +281,53 @@ See [Client Generator Documentation](docs/CLIENT_GENERATOR.md) for planned featu
 
 ## 🚀 Installation
 
-### 📌 Primary Installation Scripts (Recommended)
+### 📌 Interactive ALL-IN-ONE Scripts (v2.0 - Recommended)
 
 | Platform | Script | Features |
 |----------|--------|----------|
-| **Linux** | `install-improved.sh` | ✅ Full automation, database migration, service setup |
-| **Windows** | `install-improved.ps1` | ✅ Full automation, database migration, manual start |
-| **Docker** | `docker compose build && docker compose up -d` | ✅ Container-based deployment |
+| **Linux** | `betterdesk.sh` | ✅ Interactive menu, install, update, backup, diagnostics, build |
+| **Windows** | `betterdesk.ps1` | ✅ Interactive menu, install, update, backup, diagnostics, build |
+| **Docker** | `betterdesk-docker.sh` | ✅ Interactive menu, build images, manage containers |
 
-> **⚠️ Important**: Always use the primary scripts above. Other scripts in this repository (`docker-quickstart.sh`, `install-docker.sh`, individual migration scripts) are **helper utilities** for specific scenarios and may not perform complete installations.
+> **💡 New in v2.0**: One script for all operations! Install, update, repair, backup, and diagnose from an interactive menu.
+
+### 🐧 Linux (`betterdesk.sh`)
+
+```bash
+git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
+cd Rustdesk-FreeConsole
+chmod +x betterdesk.sh
+sudo ./betterdesk.sh
+```
+
+### 🪟 Windows (`betterdesk.ps1`)
+
+```powershell
+git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
+cd Rustdesk-FreeConsole
+.\betterdesk.ps1  # Run as Administrator
+```
+
+### 🐳 Docker (`betterdesk-docker.sh`)
+
+```bash
+git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
+cd Rustdesk-FreeConsole
+chmod +x betterdesk-docker.sh
+./betterdesk-docker.sh
+```
+
+---
+
+### 📜 Legacy Scripts (for advanced users)
+
+| Platform | Script | Features |
+|----------|--------|----------|
+| **Linux** | `scripts/legacy/install-improved.sh` | Automatic installation without menu |
+| **Windows** | `scripts/legacy/install-improved.ps1` | Automatic installation without menu |
+| **Docker** | `docker compose build && docker compose up -d` | Manual Docker commands |
+
+> **⚠️ Note**: Legacy scripts are still supported but we recommend using the new ALL-IN-ONE scripts.
 
 ### Prerequisites
 

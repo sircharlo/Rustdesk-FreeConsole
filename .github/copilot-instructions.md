@@ -5,14 +5,22 @@
 
 ---
 
-## 📊 Stan Projektu (aktualizacja: 2026-02-07)
+## 📊 Stan Projektu (aktualizacja: 2026-02-08)
 
-### Wersja Instalatorów
+### Wersja Skryptów ALL-IN-ONE (v2.0.0)
+
+| Plik | Wersja | Platforma | Status |
+|------|--------|-----------|--------|
+| `betterdesk.sh` | v2.0.0 | Linux | ✅ Nowy - interaktywny ALL-IN-ONE |
+| `betterdesk.ps1` | v2.0.0 | Windows | ✅ Nowy - interaktywny ALL-IN-ONE |
+| `betterdesk-docker.sh` | v2.0.0 | Docker | ✅ Nowy - interaktywny ALL-IN-ONE |
+
+### Skrypty Legacy (dla zaawansowanych)
 
 | Plik | Wersja | Status |
 |------|--------|--------|
-| `install-improved.sh` | v1.5.5 | ✅ z --fix, --diagnose, pełna migracja DB |
-| `install-improved.ps1` | v1.5.2 | ✅ z -Fix, -Diagnose, pełna migracja DB |
+| `install-improved.sh` | v1.5.5 | ⚠️ Legacy - bez menu interaktywnego |
+| `install-improved.ps1` | v1.5.2 | ⚠️ Legacy - bez menu interaktywnego |
 
 ### Binarki Serwera
 
@@ -33,6 +41,35 @@ Linux:
 Windows:
   hbbs: 50BA3BCE44AC607917C2B6870B2859D2F5DB59769E79F6BFB3E757244A53A7F7
   hbbr: 78E7B0F61B7DF8FD780550B8AB9F81F802C3C63CD8171BD93194EC23CA51EB94
+```
+
+---
+
+## 🚀 Skrypty ALL-IN-ONE (v2.0.0)
+
+### Funkcje wspólne dla wszystkich skryptów
+
+1. 🚀 **Nowa instalacja** - pełna instalacja od zera
+2. ⬆️ **Aktualizacja** - aktualizacja istniejącej instalacji
+3. 🔧 **Naprawa** - automatyczna naprawa problemów
+4. ✅ **Walidacja** - sprawdzenie poprawności instalacji
+5. 💾 **Backup** - tworzenie kopii zapasowych
+6. 🔐 **Reset hasła** - reset hasła administratora
+7. 🔨 **Budowanie binarek** - kompilacja ze źródeł
+8. 📊 **Diagnostyka** - szczegółowa analiza problemów
+9. 🗑️ **Odinstalowanie** - pełne usunięcie
+
+### Użycie
+
+```bash
+# Linux
+sudo ./betterdesk.sh
+
+# Windows (PowerShell jako Administrator)
+.\betterdesk.ps1
+
+# Docker
+./betterdesk-docker.sh
 ```
 
 ---
@@ -215,7 +252,7 @@ OFFLINE  → Przekroczony timeout
 
 ### Dokumentacja
 
-Pełna dokumentacja: [docs/STATUS_TRACKING_v3.md](docs/STATUS_TRACKING_v3.md)
+Pełna dokumentacja: [STATUS_TRACKING_v3.md](../docs/STATUS_TRACKING_v3.md)
 
 ---
 
@@ -248,7 +285,7 @@ X-API-Key: <api-key>
 
 ### Dokumentacja
 
-Pełna dokumentacja: [docs/ID_CHANGE_FEATURE.md](docs/ID_CHANGE_FEATURE.md)
+Pełna dokumentacja: [ID_CHANGE_FEATURE.md](../docs/ID_CHANGE_FEATURE.md)
 
 ---
 
@@ -287,7 +324,7 @@ Workflow `.github/workflows/build.yml` automatycznie:
 
 ### Dokumentacja
 
-Pełna dokumentacja budowania: [docs/BUILD_GUIDE.md](docs/BUILD_GUIDE.md)
+Pełna dokumentacja budowania: [BUILD_GUIDE.md](../docs/BUILD_GUIDE.md)
 
 ---
 
