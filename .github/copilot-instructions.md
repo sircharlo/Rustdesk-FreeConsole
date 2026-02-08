@@ -7,45 +7,45 @@
 
 ## 📊 Stan Projektu (aktualizacja: 2026-02-08)
 
-### Wersja Skryptów ALL-IN-ONE (v2.0.0)
+### Wersja Skryptów ALL-IN-ONE (v2.1.1)
 
 | Plik | Wersja | Platforma | Status |
 |------|--------|-----------|--------|
-| `betterdesk.sh` | v2.0.0 | Linux | ✅ Nowy - interaktywny ALL-IN-ONE |
-| `betterdesk.ps1` | v2.0.0 | Windows | ✅ Nowy - interaktywny ALL-IN-ONE |
-| `betterdesk-docker.sh` | v2.0.0 | Docker | ✅ Nowy - interaktywny ALL-IN-ONE |
-
-### Skrypty Legacy (dla zaawansowanych)
-
-| Plik | Wersja | Status |
-|------|--------|--------|
-| `install-improved.sh` | v1.5.5 | ⚠️ Legacy - bez menu interaktywnego |
-| `install-improved.ps1` | v1.5.2 | ⚠️ Legacy - bez menu interaktywnego |
+| `betterdesk.sh` | v2.1.1 | Linux | ✅ ALL-IN-ONE + SHA256 verification + Auto mode |
+| `betterdesk.ps1` | v2.1.1 | Windows | ✅ ALL-IN-ONE + SHA256 verification + Auto mode |
+| `betterdesk-docker.sh` | v2.0.0 | Docker | ✅ Interaktywny ALL-IN-ONE |
 
 ### Binarki Serwera
 
 | Platforma | Plik | Wersja | Status | Data |
 |-----------|------|--------|--------|------|
-| Linux x86_64 | `hbbs-patch-v2/hbbs-linux-x86_64` | v2.0.0 | ✅ Przetestowana | 2026-02-02 |
-| Linux x86_64 | `hbbs-patch-v2/hbbr-linux-x86_64` | v2.0.0 | ✅ Przetestowana | 2026-02-02 |
-| Windows x86_64 | `hbbs-patch-v2/hbbs-windows-x86_64.exe` | v2.0.0 | ✅ Przetestowana | 2026-02-04 |
-| Windows x86_64 | `hbbs-patch-v2/hbbr-windows-x86_64.exe` | v2.0.0 | ✅ Przetestowana | 2026-02-04 |
+| Linux x86_64 | `hbbs-patch-v2/hbbs-linux-x86_64` | v2.1.1 | ✅ Przetestowana | 2026-02-08 |
+| Linux x86_64 | `hbbs-patch-v2/hbbr-linux-x86_64` | v2.1.1 | ✅ Przetestowana | 2026-02-08 |
+| Windows x86_64 | `hbbs-patch-v2/hbbs-windows-x86_64.exe` | v2.1.1 | ✅ Przetestowana | 2026-02-08 |
+| Windows x86_64 | `hbbs-patch-v2/hbbr-windows-x86_64.exe` | v2.1.1 | ✅ Przetestowana | 2026-02-08 |
 
 ### Sumy Kontrolne SHA256
 
 ```
 Linux:
-  hbbs: 2D99FE55378AC6CDED8A4D5BDA717367BBCF17B83B6AADA0D080C02C3BF1B2C1
-  hbbr: C7197CF9FCBFB47BB4C9F6D4663DF29B27D2A9AB008FF7AE32A13C6150024528
+  hbbs: 2B6C475A449ECBA3786D0DB46CBF4E038EDB74FC3497F9A45791ADDD5A28834C
+  hbbr: 507DC4DFDF118DBE9450DA0D7CCE4A5989D9308616A1F1C3D3FFFFC3B4E01DFD
 
 Windows:
-  hbbs: 50BA3BCE44AC607917C2B6870B2859D2F5DB59769E79F6BFB3E757244A53A7F7
-  hbbr: 78E7B0F61B7DF8FD780550B8AB9F81F802C3C63CD8171BD93194EC23CA51EB94
+  hbbs: 682AA117AEEC8A6408DB4462BD31EB9DE943D5F70F5C27F3383F1DF56028A6E3
+  hbbr: B585D077D5512035132BBCE3CE6CBC9D034E2DAE0805A799B3196C7372D82BEA
 ```
 
 ---
 
-## 🚀 Skrypty ALL-IN-ONE (v2.0.0)
+## 🚀 Skrypty ALL-IN-ONE (v2.1.1)
+
+### Nowe funkcje w v2.1.1
+
+- ✅ **Weryfikacja SHA256** - automatyczna weryfikacja sum kontrolnych binarek
+- ✅ **Tryb automatyczny** - instalacja bez interakcji użytkownika (`--auto` / `-Auto`)
+- ✅ **Konfigurowalne porty API** - zmienne środowiskowe `API_PORT`
+- ✅ **Ulepszone usługi systemd** - lepsze konfiguracje z dokumentacją
 
 ### Funkcje wspólne dla wszystkich skryptów
 
@@ -62,11 +62,23 @@ Windows:
 ### Użycie
 
 ```bash
-# Linux
+# Linux - tryb interaktywny
 sudo ./betterdesk.sh
 
-# Windows (PowerShell jako Administrator)
+# Linux - tryb automatyczny (bez interakcji)
+sudo ./betterdesk.sh --auto
+
+# Linux - pomiń weryfikację SHA256
+sudo ./betterdesk.sh --skip-verify
+
+# Windows (PowerShell jako Administrator) - tryb interaktywny
 .\betterdesk.ps1
+
+# Windows - tryb automatyczny
+.\betterdesk.ps1 -Auto
+
+# Windows - pomiń weryfikację SHA256
+.\betterdesk.ps1 -SkipVerify
 
 # Docker
 ./betterdesk-docker.sh
@@ -74,31 +86,29 @@ sudo ./betterdesk.sh
 
 ---
 
-## 🛠️ Narzędzia Diagnostyczne
+## 🛠️ Konfiguracja portu API
 
-### Linux
+### Zmienne środowiskowe
+
 ```bash
-# Diagnoza problemów (offline status, zła binarka, porty)
-sudo ./install-improved.sh --diagnose
+# Linux - niestandardowy port API
+API_PORT=21120 sudo ./betterdesk.sh --auto
 
-# Szybka naprawa - wymiana binarek na BetterDesk
-sudo ./install-improved.sh --fix
-
-# Pełna instalacja/aktualizacja
-sudo ./install-improved.sh
+# Windows
+$env:API_PORT = "21114"
+.\betterdesk.ps1 -Auto
 ```
 
-### Windows (PowerShell)
-```powershell
-# Diagnoza problemów
-.\install-improved.ps1 -Diagnose
+### Domyślne porty
 
-# Szybka naprawa binarek
-.\install-improved.ps1 -Fix
-
-# Pełna instalacja
-.\install-improved.ps1
-```
+| Port | Usługa | Opis |
+|------|--------|------|
+| 21120 | HTTP API (Linux) | BetterDesk HTTP API (domyślny Linux) |
+| 21114 | HTTP API (Windows) | BetterDesk HTTP API (domyślny Windows) |
+| 21115 | TCP | NAT type test |
+| 21116 | TCP/UDP | ID Server (rejestracja klientów) |
+| 21117 | TCP | Relay Server |
+| 5000 | HTTP | Web Console |
 
 ### Skrypt diagnostyczny (dev)
 ```bash

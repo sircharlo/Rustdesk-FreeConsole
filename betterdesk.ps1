@@ -1,6 +1,6 @@
 #===============================================================================
 #
-#   BetterDesk Console Manager v2.0
+#   BetterDesk Console Manager v2.1.1
 #   All-in-One Interactive Tool for Windows
 #
 #   Features:
@@ -12,16 +12,46 @@
 #     - Reset admin password
 #     - Build custom binaries
 #     - Full diagnostics
+#     - SHA256 binary verification
+#     - Auto mode (non-interactive)
 #
 #   Usage: Run as Administrator
-#          .\betterdesk.ps1
+#          Interactive: .\betterdesk.ps1
+#          Auto mode:   .\betterdesk.ps1 -Auto
 #
 #===============================================================================
+
+[CmdletBinding()]
+param(
+    [switch]$Auto,
+    [switch]$SkipVerify,
+    [switch]$Help
+)
 
 #Requires -RunAsAdministrator
 
 $ErrorActionPreference = "Stop"
-$Version = "2.0.0"
+$Version = "2.1.1"
+
+# Show help
+if ($Help) {
+    Write-Host "BetterDesk Console Manager v$Version"
+    Write-Host ""
+    Write-Host "Usage: .\betterdesk.ps1 [OPTIONS]"
+    Write-Host ""
+    Write-Host "Options:"
+    Write-Host "  -Auto         Run in automatic mode (non-interactive)"
+    Write-Host "  -SkipVerify   Skip SHA256 verification of binaries"
+    Write-Host "  -Help         Show this help message"
+    exit 0
+}
+
+# Binary checksums (SHA256) - v2.1.1
+$Script:HBBS_WINDOWS_SHA256 = "682AA117AEEC8A6408DB4462BD31EB9DE943D5F70F5C27F3383F1DF56028A6E3"
+$Script:HBBR_WINDOWS_SHA256 = "B585D077D5512035132BBCE3CE6CBC9D034E2DAE0805A799B3196C7372D82BEA"
+
+# API configuration
+$Script:ApiPort = if ($env:API_PORT) { $env:API_PORT } else { "21114" }
 
 # Default paths (can be overridden by environment variables)
 $Script:RustdeskPath = if ($env:RUSTDESK_PATH) { $env:RUSTDESK_PATH } else { "" }
@@ -396,6 +426,85 @@ function Install-Dependencies {
     Write-Success "Python installed"
 }
 
+#===============================================================================
+# Binary Verification Functions
+#===============================================================================
+
+function Test-BinaryChecksum {
+    param(
+        [string]$FilePath,
+        [string]$ExpectedHash
+    )
+    
+    $fileName = Split-Path $FilePath -Leaf
+    
+    if (-not (Test-Path $FilePath)) {
+        Write-Error2 "File not found: $FilePath"
+        return $false
+    }
+    
+    Write-Info "Verifying $fileName..."
+    $actualHash = (Get-FileHash -Path $FilePath -Algorithm SHA256).Hash
+    
+    if ($actualHash -eq $ExpectedHash) {
+        Write-Success "$fileName`: SHA256 OK"
+        return $true
+    } else {
+        Write-Error2 "$fileName`: SHA256 MISMATCH!"
+        Write-Error2 "  Expected: $ExpectedHash"
+        Write-Error2 "  Got:      $actualHash"
+        return $false
+    }
+}
+
+function Test-Binaries {
+    Write-Step "Verifying BetterDesk binaries..."
+    
+    $binSource = Join-Path $Script:ScriptDir "hbbs-patch-v2"
+    $errors = 0
+    
+    if ($SkipVerify) {
+        Write-Warning2 "Verification skipped (-SkipVerify)"
+        return $true
+    }
+    
+    # Verify Windows binaries
+    $hbbsPath = Join-Path $binSource "hbbs-windows-x86_64.exe"
+    $hbbrPath = Join-Path $binSource "hbbr-windows-x86_64.exe"
+    
+    if (Test-Path $hbbsPath) {
+        if (-not (Test-BinaryChecksum -FilePath $hbbsPath -ExpectedHash $Script:HBBS_WINDOWS_SHA256)) {
+            $errors++
+        }
+    }
+    
+    if (Test-Path $hbbrPath) {
+        if (-not (Test-BinaryChecksum -FilePath $hbbrPath -ExpectedHash $Script:HBBR_WINDOWS_SHA256)) {
+            $errors++
+        }
+    }
+    
+    if ($errors -gt 0) {
+        Write-Error2 "Binary verification failed! $errors error(s)"
+        Write-Warning2 "Binaries may be corrupted or outdated."
+        if (-not $Auto) {
+            if (-not (Confirm-Action "Continue anyway?")) {
+                return $false
+            }
+        } else {
+            return $false
+        }
+    } else {
+        Write-Success "All binaries verified"
+    }
+    
+    return $true
+}
+
+#===============================================================================
+# Installation Functions
+#===============================================================================
+
 function Install-Binaries {
     Write-Step "Installing BetterDesk binaries..."
     
@@ -418,11 +527,20 @@ function Install-Binaries {
         return $false
     }
     
+    # Verify binaries before installation
+    if (-not (Test-Binaries)) {
+        Write-Error2 "Aborting installation due to verification failure"
+        return $false
+    }
+    
     # Copy binaries
     Copy-Item "$binSource\hbbs-windows-x86_64.exe" "$Script:RustdeskPath\hbbs.exe" -Force
-    Copy-Item "$binSource\hbbr-windows-x86_64.exe" "$Script:RustdeskPath\hbbr.exe" -Force
+    Write-Success "Installed hbbs.exe (signal server)"
     
-    Write-Success "Binaries installed"
+    Copy-Item "$binSource\hbbr-windows-x86_64.exe" "$Script:RustdeskPath\hbbr.exe" -Force
+    Write-Success "Installed hbbr.exe (relay server)"
+    
+    Write-Success "BetterDesk binaries v$Version installed"
     return $true
 }
 
@@ -467,11 +585,14 @@ function Initialize-WindowsServices {
         "127.0.0.1"
     }
     
-    # Create start scripts
+    Write-Info "Server IP: $serverIp"
+    Write-Info "API Port: $Script:ApiPort"
+    
+    # Create start scripts with correct API port
     $hbbsStartScript = @"
 @echo off
 cd /d "$Script:RustdeskPath"
-hbbs.exe -r $serverIp -k _ --api-port 21114
+hbbs.exe -r $serverIp -k _ --api-port $Script:ApiPort
 "@
     
     $hbbrStartScript = @"
@@ -485,6 +606,7 @@ hbbr.exe -k _
 cd /d "$Script:ConsolePath"
 call venv\Scripts\activate
 set RUSTDESK_PATH=$Script:RustdeskPath
+set API_PORT=$Script:ApiPort
 python app.py
 "@
     
@@ -501,7 +623,7 @@ python app.py
     $action = New-ScheduledTaskAction -Execute "$Script:RustdeskPath\start-hbbs.bat"
     $trigger = New-ScheduledTaskTrigger -AtStartup
     $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount
-    Register-ScheduledTask -TaskName "BetterDesk-HBBS" -Action $action -Trigger $trigger -Principal $principal -Description "BetterDesk Signal Server" | Out-Null
+    Register-ScheduledTask -TaskName "BetterDesk-HBBS" -Action $action -Trigger $trigger -Principal $principal -Description "BetterDesk Signal Server v$Version" | Out-Null
     
     $taskExists = Get-ScheduledTask -TaskName "BetterDesk-HBBR" -ErrorAction SilentlyContinue
     if ($taskExists) {
@@ -509,9 +631,10 @@ python app.py
     }
     
     $action = New-ScheduledTaskAction -Execute "$Script:RustdeskPath\start-hbbr.bat"
-    Register-ScheduledTask -TaskName "BetterDesk-HBBR" -Action $action -Trigger $trigger -Principal $principal -Description "BetterDesk Relay Server" | Out-Null
+    Register-ScheduledTask -TaskName "BetterDesk-HBBR" -Action $action -Trigger $trigger -Principal $principal -Description "BetterDesk Relay Server v$Version" | Out-Null
     
-    Write-Success "Services configured"
+    Write-Success "Windows services configured"
+    Write-Info "Tasks: BetterDesk-HBBS, BetterDesk-HBBR"
 }
 
 function Invoke-Migrations {
@@ -639,22 +762,31 @@ function Invoke-Install {
     
     if ($Script:InstallStatus -eq "complete") {
         Write-Warning2 "BetterDesk is already installed!"
-        if (-not (Confirm-Action "Do you want to reinstall?")) {
-            return
+        if (-not $Auto) {
+            if (-not (Confirm-Action "Do you want to reinstall?")) {
+                return
+            }
         }
         Invoke-BackupSilent
     }
     
     Write-Host ""
-    Write-Info "Starting BetterDesk Console installation..."
+    Write-Info "Starting BetterDesk Console v$Version installation..."
     Write-Host ""
     
     Install-Dependencies
-    if (-not (Install-Binaries)) { Wait-ForEnter; return }
-    if (-not (Install-Console)) { Wait-ForEnter; return }
-    Setup-WindowsServices
-    Run-Migrations
-    Create-AdminUser
+    if (-not (Install-Binaries)) { 
+        Write-Error2 "Binary installation failed"
+        if (-not $Auto) { Wait-ForEnter }
+        return $false 
+    }
+    if (-not (Install-Console)) { 
+        if (-not $Auto) { Wait-ForEnter }
+        return $false 
+    }
+    Initialize-WindowsServices
+    Invoke-Migrations
+    New-AdminUser
     Start-Services
     
     Write-Host ""
@@ -671,16 +803,21 @@ function Invoke-Install {
     }
     
     Write-Host "  ╔════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "  ║              Information about installation               ║" -ForegroundColor Cyan
+    Write-Host "  ║              INSTALLATION INFO                             ║" -ForegroundColor Cyan
     Write-Host "  ╠════════════════════════════════════════════════════════════╣" -ForegroundColor Cyan
-    Write-Host "  ║  Web Panel:     http://${serverIp}:5000                    ║" -ForegroundColor Cyan
-    Write-Host "  ║  Server ID:     $serverIp                                  ║" -ForegroundColor Cyan
+    Write-Host "  ║  Web Panel:     http://${serverIp}:5000                         ║" -ForegroundColor Cyan
+    Write-Host "  ║  API Port:      $Script:ApiPort                                      ║" -ForegroundColor Cyan
+    Write-Host "  ║  Server ID:     $serverIp                                       ║" -ForegroundColor Cyan
     if ($publicKey) {
-        Write-Host "  ║  Key:           $($publicKey.Substring(0, [Math]::Min(20, $publicKey.Length)))...                           ║" -ForegroundColor Cyan
+        Write-Host "  ║  Key:           $($publicKey.Substring(0, [Math]::Min(20, $publicKey.Length)))...                               ║" -ForegroundColor Cyan
     }
     Write-Host "  ╚════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
     
-    Wait-ForEnter
+    if (-not $Auto) {
+        Wait-ForEnter
+    }
+    
+    return $true
 }
 
 #===============================================================================
@@ -1280,7 +1417,18 @@ Find-Paths
 Write-Host ""
 Start-Sleep -Seconds 1
 
-# Main
+# Auto mode - run installation directly
+if ($Auto) {
+    Write-Info "Running in AUTO mode..."
+    $result = Invoke-Install
+    if ($result) {
+        exit 0
+    } else {
+        exit 1
+    }
+}
+
+# Interactive Main Menu
 while ($true) {
     Show-Menu
     $choice = Read-Host "  Select option"

@@ -1,7 +1,7 @@
 #!/bin/bash
 #===============================================================================
 #
-#   BetterDesk Console Manager v2.0
+#   BetterDesk Console Manager v2.1.1
 #   All-in-One Interactive Tool for Linux
 #
 #   Features:
@@ -13,21 +13,65 @@
 #     - Reset admin password
 #     - Build custom binaries
 #     - Full diagnostics
+#     - SHA256 binary verification
+#     - Auto mode (non-interactive)
 #
-#   Usage: sudo ./betterdesk.sh
+#   Usage: 
+#     Interactive: sudo ./betterdesk.sh
+#     Auto mode:   sudo ./betterdesk.sh --auto
 #
 #===============================================================================
 
 set -e
 
 # Version
-VERSION="2.0.0"
+VERSION="2.1.1"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Auto mode flag
+AUTO_MODE=false
+SKIP_VERIFY=false
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --auto|-a)
+            AUTO_MODE=true
+            shift
+            ;;
+        --skip-verify)
+            SKIP_VERIFY=true
+            shift
+            ;;
+        --help|-h)
+            echo "BetterDesk Console Manager v$VERSION"
+            echo ""
+            echo "Usage: sudo ./betterdesk.sh [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  --auto, -a      Run in automatic mode (non-interactive)"
+            echo "  --skip-verify   Skip SHA256 verification of binaries"
+            echo "  --help, -h      Show this help message"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
+
+# Binary checksums (SHA256) - v2.1.1
+HBBS_LINUX_X86_64_SHA256="2B6C475A449ECBA3786D0DB46CBF4E038EDB74FC3497F9A45791ADDD5A28834C"
+HBBR_LINUX_X86_64_SHA256="507DC4DFDF118DBE9450DA0D7CCE4A5989D9308616A1F1C3D3FFFFC3B4E01DFD"
 
 # Default paths (can be overridden by environment variables)
 RUSTDESK_PATH="${RUSTDESK_PATH:-}"
 CONSOLE_PATH="${CONSOLE_PATH:-}"
 BACKUP_DIR="${BACKUP_DIR:-/opt/rustdesk-backups}"
+
+# API configuration
+API_PORT="${API_PORT:-21120}"
 
 # Common installation paths to search
 COMMON_RUSTDESK_PATHS=(
@@ -414,6 +458,82 @@ print_status() {
 }
 
 #===============================================================================
+# Binary Verification Functions
+#===============================================================================
+
+verify_binary_checksum() {
+    local file_path="$1"
+    local expected_hash="$2"
+    local file_name=$(basename "$file_path")
+    
+    if [ ! -f "$file_path" ]; then
+        print_error "File not found: $file_path"
+        return 1
+    fi
+    
+    print_info "Verifying $file_name..."
+    local actual_hash
+    actual_hash=$(sha256sum "$file_path" | awk '{print toupper($1)}')
+    
+    if [ "$actual_hash" = "$expected_hash" ]; then
+        print_success "$file_name: SHA256 OK"
+        return 0
+    else
+        print_error "$file_name: SHA256 MISMATCH!"
+        print_error "  Expected: $expected_hash"
+        print_error "  Got:      $actual_hash"
+        return 1
+    fi
+}
+
+verify_binaries() {
+    print_step "Verifying BetterDesk binaries..."
+    
+    local bin_source="$SCRIPT_DIR/hbbs-patch-v2"
+    local errors=0
+    
+    if [ "$SKIP_VERIFY" = true ]; then
+        print_warning "Verification skipped (--skip-verify)"
+        return 0
+    fi
+    
+    # Verify based on architecture
+    case "$ARCH_NAME" in
+        x86_64)
+            if [ -f "$bin_source/hbbs-linux-x86_64" ]; then
+                verify_binary_checksum "$bin_source/hbbs-linux-x86_64" "$HBBS_LINUX_X86_64_SHA256" || ((errors++))
+            fi
+            if [ -f "$bin_source/hbbr-linux-x86_64" ]; then
+                verify_binary_checksum "$bin_source/hbbr-linux-x86_64" "$HBBR_LINUX_X86_64_SHA256" || ((errors++))
+            fi
+            ;;
+        aarch64)
+            print_warning "ARM64 binaries - checksum verification not available"
+            print_info "Consider building from source for ARM64"
+            ;;
+        *)
+            print_warning "Unknown architecture - checksum verification skipped"
+            ;;
+    esac
+    
+    if [ $errors -gt 0 ]; then
+        print_error "Binary verification failed! $errors error(s)"
+        print_warning "Binaries may be corrupted or outdated."
+        if [ "$AUTO_MODE" = false ]; then
+            if ! confirm "Continue anyway?"; then
+                return 1
+            fi
+        else
+            return 1
+        fi
+    else
+        print_success "All binaries verified"
+    fi
+    
+    return 0
+}
+
+#===============================================================================
 # Installation Functions
 #===============================================================================
 
@@ -456,23 +576,32 @@ install_binaries() {
         return 1
     fi
     
+    # Verify binaries before installation
+    if ! verify_binaries; then
+        print_error "Aborting installation due to verification failure"
+        return 1
+    fi
+    
     # Copy binaries
     if [ -f "$bin_source/hbbs-linux-$ARCH_NAME" ]; then
         cp "$bin_source/hbbs-linux-$ARCH_NAME" "$RUSTDESK_PATH/hbbs"
+        print_success "Installed hbbs (signal server)"
     elif [ -f "$bin_source/hbbs" ]; then
         cp "$bin_source/hbbs" "$RUSTDESK_PATH/hbbs"
     fi
     
     if [ -f "$bin_source/hbbr-linux-$ARCH_NAME" ]; then
         cp "$bin_source/hbbr-linux-$ARCH_NAME" "$RUSTDESK_PATH/hbbr"
+        print_success "Installed hbbr (relay server)"
     elif [ -f "$bin_source/hbbr" ]; then
         cp "$bin_source/hbbr" "$RUSTDESK_PATH/hbbr"
     fi
     
     chmod +x "$RUSTDESK_PATH/hbbs" "$RUSTDESK_PATH/hbbr"
     
-    print_success "Binaries installed"
+    print_success "BetterDesk binaries v$VERSION installed"
 }
+
 
 install_console() {
     print_step "Installing Web Console..."
@@ -509,52 +638,65 @@ setup_services() {
     local server_ip
     server_ip=$(curl -s ifconfig.me 2>/dev/null || curl -s icanhazip.com 2>/dev/null || echo "127.0.0.1")
     
-    # HBBS service
+    print_info "Server IP: $server_ip"
+    print_info "API Port: $API_PORT"
+    
+    # HBBS service (Signal Server with HTTP API)
     cat > /etc/systemd/system/rustdesksignal.service << EOF
 [Unit]
-Description=BetterDesk Signal Server
+Description=BetterDesk Signal Server v$VERSION
+Documentation=https://github.com/UNITRONIX/Rustdesk-FreeConsole
 After=network.target
 
 [Service]
 Type=simple
+User=root
 WorkingDirectory=$RUSTDESK_PATH
-ExecStart=$RUSTDESK_PATH/hbbs -r $server_ip -k _ --api-port 21114
+ExecStart=$RUSTDESK_PATH/hbbs -r $server_ip -k _ --api-port $API_PORT
 Restart=always
 RestartSec=5
+LimitNOFILE=1000000
+Environment=RUST_BACKTRACE=1
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-    # HBBR service  
+    # HBBR service (Relay Server)
     cat > /etc/systemd/system/rustdeskrelay.service << EOF
 [Unit]
-Description=BetterDesk Relay Server
+Description=BetterDesk Relay Server v$VERSION
+Documentation=https://github.com/UNITRONIX/Rustdesk-FreeConsole
 After=network.target
 
 [Service]
 Type=simple
+User=root
 WorkingDirectory=$RUSTDESK_PATH
 ExecStart=$RUSTDESK_PATH/hbbr -k _
 Restart=always
 RestartSec=5
+LimitNOFILE=1000000
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-    # Console service
+    # Console service (Web Interface)
     cat > /etc/systemd/system/betterdesk.service << EOF
 [Unit]
 Description=BetterDesk Web Console
-After=network.target
+Documentation=https://github.com/UNITRONIX/Rustdesk-FreeConsole
+After=network.target rustdesksignal.service
 
 [Service]
 Type=simple
+User=root
 WorkingDirectory=$CONSOLE_PATH
 ExecStart=$CONSOLE_PATH/venv/bin/python app.py
 Environment=FLASK_ENV=production
 Environment=RUSTDESK_PATH=$RUSTDESK_PATH
+Environment=API_PORT=$API_PORT
 Restart=always
 RestartSec=5
 
@@ -564,7 +706,8 @@ EOF
 
     systemctl daemon-reload
     
-    print_success "Services configured"
+    print_success "Systemd services configured"
+    print_info "Services: rustdesksignal, rustdeskrelay, betterdesk"
 }
 
 run_migrations() {
@@ -667,19 +810,21 @@ do_install() {
     
     if [ "$INSTALL_STATUS" = "complete" ]; then
         print_warning "BetterDesk is already installed!"
-        if ! confirm "Do you want to reinstall?"; then
-            return
+        if [ "$AUTO_MODE" = false ]; then
+            if ! confirm "Do you want to reinstall?"; then
+                return
+            fi
         fi
-        do_backup
+        do_backup_silent
     fi
     
     echo ""
-    print_info "Starting BetterDesk Console installation..."
+    print_info "Starting BetterDesk Console v$VERSION installation..."
     echo ""
     
     install_dependencies
     detect_architecture
-    install_binaries
+    install_binaries || { print_error "Binary installation failed"; return 1; }
     install_console
     setup_services
     run_migrations
@@ -698,14 +843,17 @@ do_install() {
     fi
     
     echo -e "${CYAN}╔════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║              INSTALLATION INFO                       ║${NC}"
+    echo -e "${CYAN}║              INSTALLATION INFO                             ║${NC}"
     echo -e "${CYAN}╠════════════════════════════════════════════════════════════╣${NC}"
-    echo -e "${CYAN}║  Panel Web:     ${WHITE}http://$server_ip:5000${CYAN}                   ║${NC}"
-    echo -e "${CYAN}║  Server ID:     ${WHITE}$server_ip${CYAN}                              ║${NC}"
-    echo -e "${CYAN}║  Key:         ${WHITE}${public_key:0:20}...${CYAN}                    ║${NC}"
+    echo -e "${CYAN}║  Panel Web:     ${WHITE}http://$server_ip:5000${CYAN}                        ║${NC}"
+    echo -e "${CYAN}║  API Port:      ${WHITE}$API_PORT${CYAN}                                     ║${NC}"
+    echo -e "${CYAN}║  Server ID:     ${WHITE}$server_ip${CYAN}                                    ║${NC}"
+    echo -e "${CYAN}║  Key:           ${WHITE}${public_key:0:20}...${CYAN}                          ║${NC}"
     echo -e "${CYAN}╚════════════════════════════════════════════════════════════╝${NC}"
     
-    press_enter
+    if [ "$AUTO_MODE" = false ]; then
+        press_enter
+    fi
 }
 
 #===============================================================================
@@ -1353,6 +1501,13 @@ main() {
     auto_detect_paths
     echo ""
     sleep 1
+    
+    # Auto mode - run installation directly
+    if [ "$AUTO_MODE" = true ]; then
+        print_info "Running in AUTO mode..."
+        do_install
+        exit $?
+    fi
     
     while true; do
         show_menu
