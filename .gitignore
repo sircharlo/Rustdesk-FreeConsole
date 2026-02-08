@@ -121,3 +121,6 @@ config.local.*
 .coverage
 htmlcov/
 .pytest_cache/
+
+# Experimental/Dev-only (not ready for production)
+dev_modules/betterdesk-builder/
