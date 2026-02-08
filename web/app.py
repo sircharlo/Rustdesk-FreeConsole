@@ -1134,8 +1134,8 @@ def api_generator_info():
             'defaultVersion': '1.4.5',
             'recommendedMethod': 'source' if SOURCE_GENERATOR_AVAILABLE else 'config',
             'notes': {
-                'source': 'Kompilacja ze źródeł - pełna personalizacja, może potrwać 5-15 minut',
-                'config': 'Wstrzyknięcie konfiguracji - szybkie, ograniczona personalizacja'
+                'source': 'Source compilation - full customization, may take 5-15 minutes',
+                'config': 'Config injection - fast, limited customization'
             }
         })
     except Exception as e:
@@ -1523,13 +1523,13 @@ def api_compile_client():
                 'build_id': result.get('build_id', ''),
                 'download_url': download_url,
                 'filename': filename,
-                'message': result.get('message', 'Kompilacja zakończona pomyślnie')
+                'message': result.get('message', 'Compilation completed successfully')
             })
         else:
             return jsonify({
                 'success': False,
                 'build_id': result.get('build_id', ''),
-                'error': result.get('error', 'Nieznany błąd kompilacji')
+                'error': result.get('error', 'Unknown compilation error')
             }), 500
             
     except Exception as e:

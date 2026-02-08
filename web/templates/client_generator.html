@@ -909,7 +909,7 @@
                         <div class="platform-name">Linux</div>
                         <div class="platform-arch">x86_64</div>
                         <div class="platform-supported" style="font-size: 0.75rem; color: #00d68f; margin-top: 5px;">
-                            <i class="fas fa-check-circle"></i> Source Compilation
+                            <i class="fas fa-check-circle"></i> Supported
                         </div>
                     </div>
                     <div class="platform-card" data-platform="linux-arm64">
@@ -917,25 +917,47 @@
                         <div class="platform-name">Linux</div>
                         <div class="platform-arch">ARM64</div>
                         <div class="platform-supported" style="font-size: 0.75rem; color: #00d68f; margin-top: 5px;">
-                            <i class="fas fa-check-circle"></i> Source Compilation
+                            <i class="fas fa-check-circle"></i> Supported
                         </div>
                     </div>
-                    <div class="platform-card disabled" data-platform="windows-x64" style="opacity: 0.5; cursor: not-allowed;" title="Windows cross-compilation not supported. Use native Windows for building.">
+                    <div class="platform-card" data-platform="windows-x64">
                         <i class="fab fa-windows"></i>
                         <div class="platform-name">Windows</div>
                         <div class="platform-arch">64-bit (x64)</div>
-                        <div class="platform-unavailable" style="font-size: 0.75rem; color: #ff6b6b; margin-top: 5px;">
-                            <i class="fas fa-times-circle"></i> Not supported
+                        <div class="platform-unavailable" style="font-size: 0.75rem; color: #ffc107; margin-top: 5px;">
+                            <i class="fas fa-exclamation-triangle"></i> Experimental
                         </div>
                     </div>
-                    <div class="platform-card disabled" data-platform="macos-x64" style="opacity: 0.5; cursor: not-allowed;" title="macOS compilation requires Apple hardware.">
+                    <div class="platform-card" data-platform="windows-x86">
+                        <i class="fab fa-windows"></i>
+                        <div class="platform-name">Windows</div>
+                        <div class="platform-arch">32-bit (x86)</div>
+                        <div class="platform-unavailable" style="font-size: 0.75rem; color: #ffc107; margin-top: 5px;">
+                            <i class="fas fa-exclamation-triangle"></i> Experimental
+                        </div>
+                    </div>
+                    <div class="platform-card" data-platform="macos-x64">
                         <i class="fab fa-apple"></i>
                         <div class="platform-name">macOS</div>
-                        <div class="platform-arch">Intel / ARM</div>
+                        <div class="platform-arch">Intel (x64)</div>
                         <div class="platform-unavailable" style="font-size: 0.75rem; color: #ff6b6b; margin-top: 5px;">
                             <i class="fas fa-times-circle"></i> Not supported
                         </div>
                     </div>
+                    <div class="platform-card" data-platform="macos-arm64">
+                        <i class="fab fa-apple"></i>
+                        <div class="platform-name">macOS</div>
+                        <div class="platform-arch">Apple Silicon</div>
+                        <div class="platform-unavailable" style="font-size: 0.75rem; color: #ff6b6b; margin-top: 5px;">
+                            <i class="fas fa-times-circle"></i> Not supported
+                        </div>
+                    </div>
+                </div>
+                <div style="margin-top: 15px; padding: 10px; background: rgba(255,193,7,0.1); border: 1px solid rgba(255,193,7,0.3); border-radius: 8px; font-size: 0.85rem;">
+                    <i class="fas fa-info-circle" style="color: #ffc107;"></i>
+                    <strong>Note:</strong> Linux platforms are fully supported for source compilation.
+                    Windows requires vcpkg cross-compilation setup (experimental).
+                    macOS requires native Apple hardware.
                 </div>
             </div>
 
@@ -1564,23 +1586,26 @@
     function initPlatformSelection() {
         document.querySelectorAll('.platform-card').forEach(card => {
             card.addEventListener('click', function() {
-                // Check if platform is disabled in source mode
-                if (this.classList.contains('disabled')) {
-                    const buildMode = getSelectedBuildMode();
-                    if (buildMode === 'source') {
-                        alert('Ta platforma nie jest dostępna dla kompilacji ze źródeł.\nUżyj metody "Config Injection" lub wybierz Linux x64.');
+                const platform = this.dataset.platform;
+                
+                // Show warning for unsupported platforms but allow selection
+                if (platform.includes('macos')) {
+                    if (!confirm('macOS compilation requires Apple hardware and macOS SDK.\n\nThis platform is NOT supported for cross-compilation from Linux.\nAre you sure you want to select it anyway?')) {
+                        return;
+                    }
+                } else if (platform.includes('windows')) {
+                    if (!confirm('Windows cross-compilation from Linux requires complex vcpkg setup with Windows-targeted dependencies.\n\nThis may fail without proper configuration.\nAre you sure you want to continue?')) {
                         return;
                     }
                 }
                 
                 document.querySelectorAll('.platform-card').forEach(c => c.classList.remove('selected'));
                 this.classList.add('selected');
-                selectedPlatform = this.dataset.platform;
+                selectedPlatform = platform;
             });
         });
         
-        // Initial platform availability update
-        updatePlatformCards(getSelectedBuildMode());
+        // No need for updatePlatformCards - all platforms are selectable
     }
     
     function updatePlatformCards(mode) {
