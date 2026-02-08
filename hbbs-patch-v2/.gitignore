@@ -12,12 +12,18 @@ Cargo.lock
 *~
 .DS_Store
 
-# Build outputs
+# Build outputs (except pre-compiled binaries)
 *.o
 *.so
 *.a
-*.exe
 *.dll
+
+# Keep pre-compiled binaries!
+# These are NOT ignored:
+#   hbbs-linux-x86_64
+#   hbbr-linux-x86_64
+#   hbbs-windows-x86_64.exe
+#   hbbr-windows-x86_64.exe
 
 # Backup files
 *.backup

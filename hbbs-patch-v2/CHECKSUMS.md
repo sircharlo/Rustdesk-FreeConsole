@@ -1,4 +1,4 @@
-# BetterDesk Server v2.0.0 - Binary Checksums
+# BetterDesk Server v2.1.1 - Binary Checksums
 
 > **✅ RECOMMENDED PRODUCTION BINARIES**
 >
@@ -6,7 +6,7 @@
 
 ---
 
-## 🚀 Features in v2.0.0
+## 🚀 Features in v2.1.1
 
 - ✅ **HTTP API on port 21120** (non-conflicting)
 - ✅ **15s offline detection** (2x faster than v1)
@@ -21,9 +21,9 @@
 
 | Property | Value |
 |----------|-------|
-| **SHA256** | `2D99FE55378AC6CDED8A4D5BDA717367BBCF17B83B6AADA0D080C02C3BF1B2C1` |
-| **Size** | 9.4 MB |
-| **Date** | 2026-02-02 |
+| **SHA256** | `2B6C475A449ECBA3786D0DB46CBF4E038EDB74FC3497F9A45791ADDD5A28834C` |
+| **Size** | 9.6 MB |
+| **Date** | 2026-02-08 |
 | **Platform** | Linux x86_64 (Ubuntu 20.04+, Debian 11+, CentOS 8+) |
 | **Base** | RustDesk Server 1.1.14 |
 | **API Port** | 21120 (configurable with --api-port) |
@@ -48,9 +48,9 @@ sudo chmod +x /opt/rustdesk/hbbs-v8-api
 
 | Property | Value |
 |----------|-------|
-| **SHA256** | `C7197CF9FCBFB47BB4C9F6D4663DF29B27D2A9AB008FF7AE32A13C6150024528` |
-| **Size** | 2.9 MB |
-| **Date** | 2026-02-02 |
+| **SHA256** | `507DC4DFDF118DBE9450DA0D7CCE4A5989D9308616A1F1C3D3FFFFC3B4E01DFD` |
+| **Size** | 4.6 MB |
+| **Date** | 2026-02-08 |
 | **Platform** | Linux x86_64 |
 | **Base** | RustDesk Server 1.1.14 |
 
@@ -115,10 +115,10 @@ sudo chmod +x /opt/rustdesk/hbbr-v8-api
 ```bash
 # Verify SHA256 checksums
 sha256sum hbbs-linux-x86_64
-# Expected: 2d99fe55378ac6cded8a4d5bda717367bbcf17b83b6aada0d080c02c3bf1b2c1
+# Expected: 2b6c475a449ecba3786d0db46cbf4e038edb74fc3497f9a45791addd5a28834c
 
 sha256sum hbbr-linux-x86_64
-# Expected: c7197cf9fcbfb47bb4c9f6d4663df29b27d2a9ab008ff7ae32a13c6150024528
+# Expected: 507dc4dfdf118dbe9450da0d7cce4a5989d9308616a1f1c3d3ffffc3b4e01dfd
 ```
 
 ### Windows (PowerShell)
