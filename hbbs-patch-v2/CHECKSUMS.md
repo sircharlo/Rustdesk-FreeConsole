@@ -71,9 +71,9 @@ sudo chmod +x /opt/rustdesk/hbbr-v8-api
 
 | Property | Value |
 |----------|-------|
-| **SHA256** | `50BA3BCE44AC607917C2B6870B2859D2F5DB59769E79F6BFB3E757244A53A7F7` |
-| **Size** | 6.6 MB |
-| **Date** | 2026-02-04 |
+| **SHA256** | `682AA117AEEC8A6408DB4462BD31EB9DE943D5F70F5C27F3383F1DF56028A6E3` |
+| **Size** | 7.3 MB |
+| **Date** | 2026-02-08 |
 | **Platform** | Windows x86_64 (Windows 10+, Server 2019+) |
 | **Base** | RustDesk Server 1.1.14 |
 | **API Port** | 21114 (configurable with --api-port) |
@@ -94,9 +94,9 @@ sudo chmod +x /opt/rustdesk/hbbr-v8-api
 
 | Property | Value |
 |----------|-------|
-| **SHA256** | `78E7B0F61B7DF8FD780550B8AB9F81F802C3C63CD8171BD93194EC23CA51EB94` |
-| **Size** | 2.7 MB |
-| **Date** | 2026-02-04 |
+| **SHA256** | `B585D077D5512035132BBCE3CE6CBC9D034E2DAE0805A799B3196C7372D82BEA` |
+| **Size** | 2.75 MB |
+| **Date** | 2026-02-08 |
 | **Platform** | Windows x86_64 |
 | **Base** | RustDesk Server 1.1.14 |
 
@@ -125,10 +125,10 @@ sha256sum hbbr-linux-x86_64
 ```powershell
 # Verify SHA256 checksums
 (Get-FileHash hbbs-windows-x86_64.exe -Algorithm SHA256).Hash
-# Expected: 50BA3BCE44AC607917C2B6870B2859D2F5DB59769E79F6BFB3E757244A53A7F7
+# Expected: 682AA117AEEC8A6408DB4462BD31EB9DE943D5F70F5C27F3383F1DF56028A6E3
 
 (Get-FileHash hbbr-windows-x86_64.exe -Algorithm SHA256).Hash
-# Expected: 78E7B0F61B7DF8FD780550B8AB9F81F802C3C63CD8171BD93194EC23CA51EB94
+# Expected: B585D077D5512035132BBCE3CE6CBC9D034E2DAE0805A799B3196C7372D82BEA
 ```
 
 ---
