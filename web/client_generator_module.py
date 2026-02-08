@@ -25,13 +25,35 @@ class ClientGenerator:
     # RustDesk GitHub releases URL
     GITHUB_RELEASES = "https://api.github.com/repos/rustdesk/rustdesk/releases"
     
+    # Platform name normalization (UI names -> internal names)
+    PLATFORM_ALIASES = {
+        'windows-x64': 'windows-64',
+        'windows-x86': 'windows-32',
+        'linux-x64': 'linux',
+        'macos-x64': 'macos',
+    }
+    
     # Platform mappings - real filenames from GitHub releases
+    # Format: platform -> (primary pattern, fallback patterns)
     PLATFORM_FILES = {
-        'windows-64': 'rustdesk-{version}-x86_64.exe',  # e.g., rustdesk-1.3.0-x86_64.exe
-        'windows-32': 'rustdesk-{version}-x86-sciter.exe',  # e.g., rustdesk-1.3.0-x86-sciter.exe
-        'linux': 'rustdesk-{version}-x86_64.AppImage',  # e.g., rustdesk-1.3.0-x86_64.AppImage
-        'android': 'rustdesk-{version}-universal-signed.apk',  # e.g., rustdesk-1.3.0-universal-signed.apk
-        'macos': 'rustdesk-{version}-x86_64.dmg'  # e.g., rustdesk-1.3.0-x86_64.dmg or aarch64
+        'windows-64': 'rustdesk-{version}-x86_64.exe',
+        'windows-32': 'rustdesk-{version}-x86-sciter.exe',
+        'linux': 'rustdesk-{version}-x86_64.AppImage',
+        'linux-arm64': 'rustdesk-{version}-aarch64.AppImage',
+        'android': 'rustdesk-{version}-universal-signed.apk',
+        'macos': 'rustdesk-{version}-x86_64.dmg',
+        'macos-arm64': 'rustdesk-{version}-aarch64.dmg',
+    }
+    
+    # Alternative filename patterns for different versions
+    PLATFORM_ALTERNATIVES = {
+        'windows-64': ['rustdesk-{version}.exe', 'rustdesk-{version}-x86_64-windows.exe'],
+        'windows-32': ['rustdesk-{version}-x86.exe'],
+        'linux': ['rustdesk-{version}.AppImage', 'rustdesk-{version}-x86_64-linux.AppImage'],
+        'linux-arm64': ['rustdesk-{version}-arm64.AppImage'],
+        'android': ['rustdesk-{version}.apk', 'rustdesk-{version}-arm64-v8a.apk'],
+        'macos': ['rustdesk-{version}.dmg', 'rustdesk-{version}-x86_64-macos.dmg'],
+        'macos-arm64': ['rustdesk-{version}-arm64.dmg'],
     }
     
     def __init__(self, output_dir='/tmp/rustdesk_builds'):
@@ -39,8 +61,13 @@ class ClientGenerator:
         self.output_dir = output_dir
         os.makedirs(output_dir, exist_ok=True)
     
+    def normalize_platform(self, platform):
+        """Normalize platform name from UI to internal format"""
+        return self.PLATFORM_ALIASES.get(platform, platform)
+    
     def get_download_url(self, version, platform):
         """Get download URL for specific version and platform"""
+        platform = self.normalize_platform(platform)
         try:
             logger.info(f"Fetching releases from GitHub for version {version}, platform {platform}")
             # Get releases from GitHub API
@@ -75,29 +102,45 @@ class ClientGenerator:
                     available_assets = [asset.get('name', '') for asset in release.get('assets', [])]
                     logger.info(f"Available assets: {', '.join(available_assets[:5])}...")
                     
+                    # Build list of patterns to try (primary + alternatives)
+                    patterns_to_try = [expected_filename]
+                    
+                    # Add alternative patterns if available
+                    alt_patterns = self.PLATFORM_ALTERNATIVES.get(platform, [])
+                    for alt_pattern in alt_patterns:
+                        patterns_to_try.append(alt_pattern.format(version=clean_version))
+                    
+                    logger.info(f"Patterns to try: {patterns_to_try}")
+                    
                     # Search for matching asset
                     for asset in release.get('assets', []):
                         asset_name = asset.get('name', '')
                         
-                        # Exact match first
-                        if asset_name == expected_filename:
-                            logger.info(f"Found exact match: {asset_name}")
-                            download_url = asset.get('browser_download_url')
-                            logger.info(f"Download URL: {download_url}")
-                            return download_url
-                        
-                        # Partial match as fallback
-                        # Extract base pattern (without version) for matching
-                        base_parts = expected_filename.replace(clean_version, '*').split('*')
-                        if len(base_parts) >= 2:
-                            starts_with = base_parts[0]
-                            ends_with = base_parts[-1] if base_parts[-1] else ''
-                            
-                            if asset_name.startswith(starts_with) and asset_name.endswith(ends_with):
-                                logger.info(f"Found partial match: {asset_name}")
+                        # Try each pattern
+                        for pattern in patterns_to_try:
+                            # Exact match first
+                            if asset_name == pattern:
+                                logger.info(f"Found exact match: {asset_name}")
                                 download_url = asset.get('browser_download_url')
                                 logger.info(f"Download URL: {download_url}")
                                 return download_url
+                    
+                    # Fallback: partial match for any pattern
+                    for asset in release.get('assets', []):
+                        asset_name = asset.get('name', '')
+                        
+                        for pattern in patterns_to_try:
+                            # Partial match as fallback
+                            base_parts = pattern.replace(clean_version, '*').split('*')
+                            if len(base_parts) >= 2:
+                                starts_with = base_parts[0]
+                                ends_with = base_parts[-1] if base_parts[-1] else ''
+                                
+                                if asset_name.startswith(starts_with) and asset_name.endswith(ends_with):
+                                    logger.info(f"Found partial match: {asset_name}")
+                                    download_url = asset.get('browser_download_url')
+                                    logger.info(f"Download URL: {download_url}")
+                                    return download_url
             
             logger.error(f"No matching asset found for version {version}, platform {platform}")
             return None
@@ -143,53 +186,70 @@ class ClientGenerator:
             raise Exception(f"Failed to download client: {e}")
     
     def create_config_file(self, config_data):
-        """Create RustDesk configuration file"""
+        """Create RustDesk configuration file - using SNAKE_CASE format required by RustDesk"""
         config = {}
         
-        # Server configuration
+        # Server configuration - RustDesk uses snake_case!
         if config_data.get('server_host'):
-            config['relay-server'] = config_data['server_host']
-            config['rendezvous-server'] = config_data['server_host']
+            config['relay_server'] = config_data['server_host']
+            config['rendezvous_server'] = config_data['server_host']
         
         if config_data.get('server_key'):
             config['key'] = config_data['server_key']
         
         if config_data.get('server_api'):
-            config['api-server'] = config_data['server_api']
+            config['api_server'] = config_data['server_api']
         
-        # Connection settings
+        # Branding / Customization - snake_case
+        if config_data.get('app_name'):
+            config['app_name'] = config_data['app_name']
+        
+        if config_data.get('logo_base64'):
+            # Extract just the base64 data (remove data:image/xxx;base64, prefix)
+            logo_data = config_data['logo_base64']
+            if ',' in logo_data:
+                logo_data = logo_data.split(',', 1)[1]
+            config['logo'] = logo_data
+        elif config_data.get('logo_url'):
+            # For URL, we'd need to download and encode - for now just note it
+            config['logo_url'] = config_data['logo_url']
+        
+        if config_data.get('custom_text'):
+            config['custom_text'] = config_data['custom_text']
+        
+        # Connection settings - snake_case
         if config_data.get('connection_type'):
             conn_type = config_data['connection_type']
             if conn_type == 'incoming':
-                config['direct-server'] = False
+                config['direct_server'] = 'N'
             elif conn_type == 'outgoing':
-                config['enable-direct-server'] = True
+                config['enable_direct_server'] = 'Y'
         
-        # Security settings
+        # Security settings - snake_case
         if config_data.get('permanent_password'):
             config['password'] = config_data['permanent_password']
         
         if config_data.get('password_approve_mode'):
-            config['approve-mode'] = config_data['password_approve_mode']
+            config['approve_mode'] = config_data['password_approve_mode']
         
         if config_data.get('deny_lan_discovery'):
-            config['enable-lan-discovery'] = 'N'
+            config['enable_lan_discovery'] = 'N'
         
         if config_data.get('enable_direct_ip'):
-            config['direct-ip-access'] = 'Y'
+            config['direct_ip_access'] = 'Y'
         
         # Visual settings
         if config_data.get('theme'):
             config['theme'] = config_data['theme']
         
-        # Permissions
+        # Permissions - snake_case
         permissions = {}
         if config_data.get('perm_keyboard') == False:
             permissions['keyboard'] = False
         if config_data.get('perm_clipboard') == False:
             permissions['clipboard'] = False
         if config_data.get('perm_file_transfer') == False:
-            permissions['file-transfer'] = False
+            permissions['file_transfer'] = False
         if config_data.get('perm_audio') == False:
             permissions['audio'] = False
         
@@ -231,23 +291,42 @@ class ClientGenerator:
             # Determine output filename based on platform
             if platform.startswith('windows'):
                 output_filename = f"{client_name}.exe"
-            elif platform == 'linux':
+            elif platform.startswith('linux'):
                 output_filename = f"{client_name}.AppImage"
-            elif platform == 'android':
+            elif platform.startswith('android'):
                 output_filename = f"{client_name}.apk"
-            elif platform == 'macos':
+            elif platform.startswith('macos'):
                 output_filename = f"{client_name}.dmg"
             else:
                 output_filename = f"{client_name}.bin"
             
             output_path = os.path.join(self.output_dir, output_filename)
             
-            # For Windows executables, we can append configuration
+            # For Windows executables, embed configuration using RustDesk's method
             if platform.startswith('windows'):
                 shutil.copy2(base_client_path, output_path)
                 
-                # Create config file to bundle
-                config_file = os.path.join(work_dir, 'rustdesk.toml')
+                # RustDesk custom client config embedding
+                # The config is appended to the end of the exe with a special marker
+                # Format: CONFIG_JSON + EXE_SUFFIX (which RustDesk looks for)
+                
+                config_json = json.dumps(config)
+                config_bytes = config_json.encode('utf-8')
+                
+                # RustDesk looks for config embedded with specific markers
+                # Method 1: Append config with marker "<<<RUSTDESK_CONFIG>>>"
+                marker = b'<<<RUSTDESK_CONFIG>>>'
+                
+                with open(output_path, 'ab') as f:
+                    f.write(marker)
+                    f.write(config_bytes)
+                    f.write(marker)
+                
+                logger.info(f"Embedded config into {output_path}")
+                logger.info(f"Config: {config_json}")
+                
+                # Also create a companion rustdesk2.toml file for testing/backup
+                config_file = os.path.join(work_dir, 'rustdesk2.toml')
                 with open(config_file, 'w') as f:
                     # Write TOML format
                     for key, value in config.items():
@@ -264,11 +343,17 @@ class ClientGenerator:
                             else:
                                 f.write(f'{key} = {str(value).lower()}\n')
                 
-                # Note: For production, you would use a tool like ResourceHacker
-                # or similar to embed the config into the executable
-                # For now, we create a companion config file
-                config_output = output_path.replace('.exe', '.toml')
-                shutil.copy2(config_file, config_output)
+                # Create a ZIP with both files
+                import zipfile
+                zip_path = output_path.replace('.exe', '.zip')
+                with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+                    zf.write(output_path, os.path.basename(output_path))
+                    zf.write(config_file, 'rustdesk2.toml')
+                
+                # Remove the exe and rename zip
+                os.remove(output_path)
+                output_path = zip_path
+                output_filename = os.path.basename(zip_path)
                 
             else:
                 # For other platforms, just copy for now
@@ -300,6 +385,7 @@ class ClientGenerator:
         """Main method to generate a custom client"""
         
         platform = config_data.get('platform', 'windows-64')
+        platform = self.normalize_platform(platform)  # Normalize to internal format
         version = config_data.get('version', '1.4.5')
         
         try:

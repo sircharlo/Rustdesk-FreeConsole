@@ -29,6 +29,17 @@ except ImportError:
     def generate_custom_client(*args, **kwargs):
         return {'error': 'Client Generator module not available'}
 
+# Import source client generator (compiles from source)
+try:
+    from source_client_generator import generate_from_source, get_build_status
+    SOURCE_GENERATOR_AVAILABLE = True
+except ImportError:
+    SOURCE_GENERATOR_AVAILABLE = False
+    def generate_from_source(*args, **kwargs):
+        return {'success': False, 'error': 'Source Client Generator module not available'}
+    def get_build_status(*args, **kwargs):
+        return {'status': 'unavailable', 'message': 'Source Client Generator not available'}
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', os.urandom(32))
 app.config['WTF_CSRF_CHECK_DEFAULT'] = False  # Manual CSRF for API
@@ -176,7 +187,7 @@ def get_public_key():
         if os.path.exists(PUB_KEY_PATH):
             with open(PUB_KEY_PATH, 'r') as f:
                 key_content = f.read().strip()
-                return f"[id_ed25519.pub] {key_content}"
+                return key_content
         
         rustdesk_dir = os.path.dirname(PUB_KEY_PATH)
         if os.path.exists(rustdesk_dir):
@@ -185,11 +196,11 @@ def get_public_key():
                 pub_file_path = os.path.join(rustdesk_dir, pub_files[0])
                 with open(pub_file_path, 'r') as f:
                     key_content = f.read().strip()
-                    return f"[{pub_files[0]}] {key_content}"
+                    return key_content
         
-        return "❌ No public key file (.pub) found in RustDesk directory"
+        return ""
     except Exception as e:
-        return f"Error reading key: {str(e)}"
+        return ""
 
 
 # ============================================================================
@@ -1060,7 +1071,255 @@ def get_public_key_endpoint():
 
 
 # ============================================================================
-# CLIENT GENERATOR ROUTES
+# CLIENT GENERATOR ROUTES (v2 - improved)
+# ============================================================================
+
+import requests as http_requests  # Avoid conflict with Flask request
+
+
+@app.route('/api/generator/versions')
+@require_auth
+def api_generator_versions():
+    """Get available RustDesk versions from GitHub"""
+    try:
+        response = http_requests.get(
+            'https://api.github.com/repos/rustdesk/rustdesk/releases',
+            timeout=10,
+            headers={'Accept': 'application/vnd.github.v3+json'}
+        )
+        response.raise_for_status()
+        releases = response.json()
+        
+        versions = []
+        for release in releases[:15]:  # Last 15 releases
+            tag = release.get('tag_name', '')
+            if tag:
+                versions.append({
+                    'tag': tag.lstrip('v'),
+                    'name': release.get('name', tag),
+                    'published': release.get('published_at', ''),
+                    'prerelease': release.get('prerelease', False)
+                })
+        
+        return jsonify({
+            'success': True,
+            'versions': versions
+        })
+    except Exception as e:
+        # Fallback versions (updated)
+        return jsonify({
+            'success': True,
+            'versions': [
+                {'tag': '1.4.5', 'name': 'v1.4.5', 'prerelease': False},
+                {'tag': '1.4.4', 'name': 'v1.4.4', 'prerelease': False},
+                {'tag': '1.3.7', 'name': 'v1.3.7', 'prerelease': False},
+                {'tag': '1.3.6', 'name': 'v1.3.6', 'prerelease': False},
+                {'tag': '1.3.5', 'name': 'v1.3.5', 'prerelease': False},
+                {'tag': '1.3.2', 'name': 'v1.3.2', 'prerelease': False},
+            ]
+        })
+
+
+@app.route('/api/generator/info')
+@require_auth
+def api_generator_info():
+    """Get generator capabilities info"""
+    try:
+        return jsonify({
+            'success': True,
+            'sourceCompilationAvailable': SOURCE_GENERATOR_AVAILABLE,
+            'configInjectionAvailable': CLIENT_GENERATOR_AVAILABLE,
+            'supportedPlatformsSource': ['linux-x64', 'linux-arm64', 'windows-x64', 'windows-x86'] if SOURCE_GENERATOR_AVAILABLE else [],
+            'supportedPlatformsConfig': ['windows-x64', 'windows-x86', 'linux-x64', 'linux-arm64', 'macos-x64', 'macos-arm64', 'android'],
+            'defaultVersion': '1.4.5',
+            'recommendedMethod': 'source' if SOURCE_GENERATOR_AVAILABLE else 'config',
+            'notes': {
+                'source': 'Kompilacja ze źródeł - pełna personalizacja, może potrwać 5-15 minut',
+                'config': 'Wstrzyknięcie konfiguracji - szybkie, ograniczona personalizacja'
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/generator/build', methods=['POST'])
+@require_auth
+@csrf.exempt
+def api_generator_build():
+    """Generate a custom RustDesk client (JSON API)"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
+        
+        # Validate required fields
+        if not data.get('serverHost'):
+            return jsonify({'success': False, 'error': 'Server address is required'}), 400
+        if not data.get('serverKey'):
+            return jsonify({'success': False, 'error': 'Server public key is required'}), 400
+        
+        # Log the action
+        log_audit(g.user['username'], 'generate_client', 
+                 f"Building client for {data.get('platform', 'unknown')}", request.remote_addr)
+        
+        # Check if source compilation is requested
+        compile_from_source = data.get('compileFromSource', False)
+        
+        # Get original platform name from request
+        original_platform = data.get('platform', 'windows-x64')
+        
+        # Map platform names (only for config injection method)
+        platform_map = {
+            'windows-x64': 'windows-64',
+            'windows-x86': 'windows-32',
+            'linux-x64': 'linux',
+            'linux-arm64': 'linux-arm64',
+            'macos-x64': 'macos',
+            'macos-arm64': 'macos-arm64',
+            'android': 'android'
+        }
+        
+        # Use original platform for source compilation, mapped for config injection
+        if compile_from_source and SOURCE_GENERATOR_AVAILABLE:
+            platform_for_generator = original_platform  # source generator expects windows-x64, linux-x64 etc.
+        else:
+            platform_for_generator = platform_map.get(original_platform, 'windows-64')
+        
+        # Build config for generator module
+        config_data = {
+            'platform': platform_for_generator,
+            'version': data.get('version', '1.4.5'),
+            'config_name': data.get('clientName', 'Custom-RustDesk'),
+            
+            # Server config
+            'server_host': data.get('serverHost', ''),
+            'server_key': data.get('serverKey', ''),
+            'server_api': data.get('apiServer', ''),
+            'rendezvous_server': data.get('rendezvousServer', ''),
+            
+            # Branding / Customization
+            'app_name': data.get('appName', ''),
+            'logo_base64': data.get('logoBase64', ''),
+            'logo_url': data.get('logoUrl', ''),
+            'custom_text': data.get('customText', ''),
+            'icon_base64': data.get('iconBase64', ''),
+            
+            # Security
+            'password_approve_mode': data.get('approvalMode', 'both'),
+            'permanent_password': data.get('permanentPassword', ''),
+            'deny_lan_discovery': data.get('denyLanDiscovery', False),
+            'enable_direct_ip': data.get('enableDirectIP', False),
+            
+            # Display
+            'theme': data.get('theme', 'system'),
+            'view_mode': data.get('viewMode', 'adaptive'),
+            'remove_wallpaper': data.get('removeWallpaper', False),
+            'show_quality_monitor': data.get('showQualityMonitor', False),
+            
+            # Permissions
+            'perm_keyboard': data.get('permissions', {}).get('keyboard', True),
+            'perm_clipboard': data.get('permissions', {}).get('clipboard', True),
+            'perm_file_transfer': data.get('permissions', {}).get('fileTransfer', True),
+            'perm_audio': data.get('permissions', {}).get('audio', True),
+            'perm_tcp_tunnel': data.get('permissions', {}).get('tcpTunnel', False),
+            'perm_remote_restart': data.get('permissions', {}).get('restart', False),
+            'perm_recording': data.get('permissions', {}).get('recording', False),
+            'perm_block_input': data.get('permissions', {}).get('blockInput', False),
+            
+            # Advanced
+            'default_settings': data.get('defaultSettings', ''),
+            'override_settings': data.get('overrideSettings', ''),
+        }
+        
+        # Choose generator based on compile mode
+        app.logger.info(f"Build request: compile_from_source={compile_from_source}, SOURCE_GENERATOR_AVAILABLE={SOURCE_GENERATOR_AVAILABLE}")
+        if compile_from_source and SOURCE_GENERATOR_AVAILABLE:
+            # Use source compilation
+            app.logger.info(f"Using SOURCE compilation for {data.get('platform', 'unknown')}")
+            log_audit(g.user['username'], 'compile_client', 
+                     f"Starting source compilation for {data.get('platform', 'unknown')}", request.remote_addr)
+            result = generate_from_source(config_data)
+        else:
+            # Use legacy config-injection method
+            app.logger.info(f"Using CONFIG INJECTION for {data.get('platform', 'unknown')}")
+            result = generate_custom_client(config_data)
+        
+        if result.get('success'):
+            import os
+            filename = result.get('filename', 'client')
+            file_path = result.get('client_path', '')
+            file_size = 'N/A'
+            
+            if file_path and os.path.exists(file_path):
+                size_bytes = os.path.getsize(file_path)
+                if size_bytes > 1024 * 1024:
+                    file_size = f"{size_bytes / (1024 * 1024):.1f} MB"
+                else:
+                    file_size = f"{size_bytes / 1024:.1f} KB"
+            
+            # Generate build ID from filename
+            build_id = result.get('build_id', filename.replace('.', '_'))
+            
+            # Determine download URL based on generator type
+            if compile_from_source and SOURCE_GENERATOR_AVAILABLE:
+                download_url = f'/api/download-client/{filename}'
+            else:
+                download_url = f'/api/generator/download/{filename}'
+            
+            return jsonify({
+                'success': True,
+                'filename': filename,
+                'buildId': build_id,
+                'size': file_size,
+                'downloadUrl': download_url,
+                'compiledFromSource': compile_from_source and SOURCE_GENERATOR_AVAILABLE,
+                'message': result.get('message', 'Build completed successfully')
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('error', 'Generation failed')
+            }), 500
+            
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/generator/download/<filename>')
+@require_auth
+def api_generator_download(filename):
+    """Download a generated client"""
+    try:
+        from werkzeug.utils import secure_filename as sf
+        filename = sf(filename)
+        
+        file_path = os.path.join('/tmp/rustdesk_builds', filename)
+        
+        if not os.path.exists(file_path):
+            return jsonify({'success': False, 'error': 'File not found'}), 404
+        
+        log_audit(g.user['username'], 'download_client', 
+                 f'Downloaded {filename}', request.remote_addr)
+        
+        return send_file(
+            file_path,
+            as_attachment=True,
+            download_name=filename
+        )
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ============================================================================
+# CLIENT GENERATOR ROUTES (Legacy - kept for compatibility)
 # ============================================================================
 
 def allowed_file(filename):
@@ -1190,11 +1449,18 @@ def download_client(filename):
         # Sanitize filename
         filename = secure_filename(filename)
         
-        # Build file path
-        file_path = os.path.join('/tmp/rustdesk_builds', filename)
+        # Try source generator builds directory first
+        source_build_path = os.path.expanduser(f'~/rustdesk-build/builds/{filename}')
         
-        # Check if file exists
-        if not os.path.exists(file_path):
+        # Fallback to legacy client generator path
+        legacy_path = os.path.join('/tmp/rustdesk_builds', filename)
+        
+        # Check which file exists
+        if os.path.exists(source_build_path):
+            file_path = source_build_path
+        elif os.path.exists(legacy_path):
+            file_path = legacy_path
+        else:
             return jsonify({'success': False, 'error': 'File not found'}), 404
         
         # Log the download
@@ -1206,6 +1472,108 @@ def download_client(filename):
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/compile-client', methods=['POST'])
+@require_auth
+@csrf.exempt
+def api_compile_client():
+    """Compile a custom RustDesk client from source"""
+    try:
+        if not SOURCE_GENERATOR_AVAILABLE:
+            return jsonify({
+                'success': False,
+                'error': 'Source compilation not available on this server'
+            }), 503
+        
+        # Log the action
+        log_audit(g.user['username'], 'compile_client', 
+                 f'Starting source compilation', request.remote_addr)
+        
+        # Collect form data
+        config_data = {
+            'platform': request.form.get('platform', 'linux'),
+            'version': request.form.get('version', '1.4.5'),
+            
+            # General
+            'config_name': request.form.get('config_name', 'custom-rustdesk'),
+            'app_name': request.form.get('app_name', ''),
+            'custom_text': request.form.get('custom_text', ''),
+            
+            # Server
+            'server_host': request.form.get('server_host', ''),
+            'server_key': request.form.get('server_key', ''),
+            'server_api': request.form.get('server_api', ''),
+            
+            # Branding
+            'logo_base64': request.form.get('logo_base64', ''),
+            'icon_base64': request.form.get('icon_base64', ''),
+        }
+        
+        # Compile the client from source
+        result = generate_from_source(config_data)
+        
+        if result['success']:
+            # Create download URL
+            filename = result['filename']
+            download_url = f'/api/download-client/{filename}'
+            
+            return jsonify({
+                'success': True,
+                'build_id': result.get('build_id', ''),
+                'download_url': download_url,
+                'filename': filename,
+                'message': result.get('message', 'Kompilacja zakończona pomyślnie')
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'build_id': result.get('build_id', ''),
+                'error': result.get('error', 'Nieznany błąd kompilacji')
+            }), 500
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/build-status/<build_id>')
+@require_auth
+def api_build_status(build_id):
+    """Get status of a specific build"""
+    try:
+        if not SOURCE_GENERATOR_AVAILABLE:
+            return jsonify({
+                'status': 'unavailable',
+                'message': 'Source compilation not available'
+            })
+        
+        status = get_build_status(build_id)
+        return jsonify(status)
+        
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/server-info')
+@require_auth
+def api_server_info():
+    """Get server information for client generator"""
+    try:
+        info = {
+            'source_compilation_available': SOURCE_GENERATOR_AVAILABLE,
+            'client_generator_available': CLIENT_GENERATOR_AVAILABLE,
+            'supported_platforms': ['linux', 'linux-arm64', 'windows-64', 'windows-32'] if SOURCE_GENERATOR_AVAILABLE else [],
+            'default_version': '1.4.5'
+        }
+        return jsonify(info)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 # Cleanup expired sessions periodically

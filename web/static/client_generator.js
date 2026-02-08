@@ -79,14 +79,14 @@ function initializeFileInputs() {
     
     if (iconInput) {
         iconInput.addEventListener('change', function() {
-            const fileName = this.files.length > 0 ? this.files[0].name : 'Nie wybrano pliku';
+            const fileName = this.files.length > 0 ? this.files[0].name : 'No file selected';
             document.getElementById('iconFileName').textContent = fileName;
         });
     }
     
     if (logoInput) {
         logoInput.addEventListener('change', function() {
-            const fileName = this.files.length > 0 ? this.files[0].name : 'Nie wybrano pliku';
+            const fileName = this.files.length > 0 ? this.files[0].name : 'No file selected';
             document.getElementById('logoFileName').textContent = fileName;
         });
     }
