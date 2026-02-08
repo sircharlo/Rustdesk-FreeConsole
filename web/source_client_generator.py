@@ -2,15 +2,22 @@
 RustDesk Source Client Generator Module
 Generates custom RustDesk clients by modifying source code and compiling
 
-SUPPORTED PLATFORMS (Source Compilation):
+SUPPORTED PLATFORMS (Source Compilation from Linux server):
 - Linux x64: Full support (native compilation)
 - Linux ARM64: Cross-compilation with aarch64-linux-gnu
-- Windows x64: Cross-compilation with mingw-w64 (requires vcpkg dependencies)
+
+REQUIRES SPECIAL SETUP (not recommended for cross-compilation):
+- Windows x64: Cross-compilation requires vcpkg with Windows-targeted dependencies
+  (libvpx, libyuv, opus, aom, OpenSSL) - extremely complex setup
+  RECOMMENDATION: Use 'Config Injection' method or build on native Windows
 
 NOT SUPPORTED (use Config Injection instead):
 - macOS: Requires macOS SDK and Apple hardware
 - Android: Requires Android NDK and complex setup
 - Windows x86 (32-bit): Limited demand
+
+For Windows/macOS clients, use 'Config Injection' method which modifies
+pre-built official RustDesk binaries instead of compiling from source.
 """
 
 import os
@@ -50,8 +57,13 @@ PLATFORM_ALIASES = {
     'macos': 'macos-x64',
 }
 
-# Supported platforms for source compilation
-SUPPORTED_SOURCE_PLATFORMS = ['linux-x64', 'linux-arm64', 'windows-x64']
+# Supported platforms for source compilation (from Linux server)
+# Windows removed - cross-compilation requires vcpkg with Windows-targeted dependencies
+# For Windows clients, use 'Config Injection' method instead
+SUPPORTED_SOURCE_PLATFORMS = ['linux-x64', 'linux-arm64']
+
+# Platforms that require special setup (warning will be shown but allowed)
+EXPERIMENTAL_PLATFORMS = ['windows-x64']
 
 # Platform to Rust target mapping
 PLATFORM_TARGET_MAP = {
@@ -617,15 +629,27 @@ linker = "{linker}"
             
             # Check if platform is supported for source compilation
             if not is_platform_supported(platform_normalized):
-                supported_list = ', '.join(SUPPORTED_SOURCE_PLATFORMS)
-                # Also list aliases
-                alias_info = ', '.join([f"{k} -> {v}" for k, v in PLATFORM_ALIASES.items() if v in SUPPORTED_SOURCE_PLATFORMS])
-                raise Exception(
-                    f"Platform '{platform}' is not supported for source compilation. "
-                    f"Supported platforms: {supported_list}. "
-                    f"Aliases: {alias_info}. "
-                    f"For other platforms, use 'Config Injection' method."
-                )
+                # Provide specific error messages for different platforms
+                if 'windows' in platform_normalized.lower():
+                    raise Exception(
+                        f"Windows cross-compilation from Linux is not supported. "
+                        f"Building RustDesk for Windows requires vcpkg with Windows-targeted "
+                        f"dependencies (OpenSSL, libvpx, libyuv, opus, aom) which are complex to set up. "
+                        f"RECOMMENDED: Use 'Config Injection' method instead, which modifies "
+                        f"pre-built official RustDesk binaries without recompilation."
+                    )
+                elif 'macos' in platform_normalized.lower():
+                    raise Exception(
+                        f"macOS compilation requires Apple hardware and macOS SDK. "
+                        f"RECOMMENDED: Use 'Config Injection' method instead."
+                    )
+                else:
+                    supported_list = ', '.join(SUPPORTED_SOURCE_PLATFORMS)
+                    raise Exception(
+                        f"Platform '{platform}' is not supported for source compilation. "
+                        f"Supported platforms: {supported_list}. "
+                        f"For other platforms, use 'Config Injection' method."
+                    )
             
             # Get target for platform
             target = PLATFORM_TARGET_MAP.get(platform_normalized, PLATFORM_TARGET_MAP.get(platform))
