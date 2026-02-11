@@ -97,6 +97,53 @@ The BetterDesk binaries in `hbbs-patch-v2/` include:
 
 ---
 
+## Problem: Build Fails on Oracle Cloud VM (Read-only resolv.conf)
+
+### Symptom
+```
+/bin/sh: 1: cannot create /etc/resolv.conf: Read-only file system
+target betterdesk-console: failed to solve: process "/bin/sh -c echo \"nameserver 8.8.8.8\" >> /etc/resolv.conf...
+```
+
+### Cause
+Oracle Cloud VMs have `/etc/resolv.conf` managed by `oraclevcn` service and it's **read-only**. The Dockerfile tries to modify DNS settings which fails.
+
+### ✅ Solution
+
+**This is now fixed in the latest version.** The Dockerfile.console now checks if the file is writable before attempting to modify it:
+
+```dockerfile
+RUN if [ -w /etc/resolv.conf ] && ! grep -q "oraclevcn" /etc/resolv.conf 2>/dev/null; then \
+        echo "nameserver 8.8.8.8" >> /etc/resolv.conf; \
+        echo "nameserver 1.1.1.1" >> /etc/resolv.conf; \
+    fi && \
+    apt-get update && apt-get install -y ...
+```
+
+If you have an older version:
+```bash
+# Update to latest
+git pull origin main
+
+# Rebuild images
+docker compose build --no-cache
+docker compose up -d
+```
+
+**Alternative for Oracle Cloud (if DNS issues persist):**
+```bash
+# Configure Docker daemon to use Google DNS
+sudo mkdir -p /etc/docker
+sudo tee /etc/docker/daemon.json > /dev/null <<EOF
+{
+    "dns": ["8.8.8.8", "1.1.1.1"]
+}
+EOF
+sudo systemctl restart docker
+```
+
+---
+
 ## Problem: DNS Failure During Build (AlmaLinux/CentOS)
 
 ### Symptom

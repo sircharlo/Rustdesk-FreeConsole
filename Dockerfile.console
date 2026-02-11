@@ -6,8 +6,11 @@ WORKDIR /app
 
 # Install system dependencies with DNS fallback for systems with resolver issues
 # This fixes "Temporary failure resolving 'deb.debian.org'" on some systems (e.g., AlmaLinux)
-RUN echo "nameserver 8.8.8.8" >> /etc/resolv.conf && \
-    echo "nameserver 1.1.1.1" >> /etc/resolv.conf && \
+# Skip DNS modification on Oracle Cloud VMs (oraclevcn) and read-only resolv.conf
+RUN if [ -w /etc/resolv.conf ] && ! grep -q "oraclevcn" /etc/resolv.conf 2>/dev/null; then \
+        echo "nameserver 8.8.8.8" >> /etc/resolv.conf; \
+        echo "nameserver 1.1.1.1" >> /etc/resolv.conf; \
+    fi && \
     apt-get update && apt-get install -y \
     sqlite3 \
     curl \
