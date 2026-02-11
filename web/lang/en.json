@@ -61,9 +61,10 @@
         "confirm_password": "Confirm Password",
         "remember_me": "Remember me",
         "forgot_password": "Forgot password?",
-        "login_title": "Sign in to BetterDesk",
-        "login_subtitle": "Secure Remote Desktop Management",
+        "login_title": "Login - BetterDesk Console",
+        "login_subtitle": "RustDesk Management Dashboard",
         "login_button": "Sign In",
+        "sign_in": "Sign In",
         "logging_in": "Signing in...",
         "login_failed": "Login failed",
         "invalid_credentials": "Invalid username or password",
@@ -73,7 +74,9 @@
         "password_changed": "Password changed successfully",
         "password_mismatch": "Passwords do not match",
         "password_requirements": "Minimum 8 characters, must contain letters and numbers",
-        "password_too_weak": "Password is too weak"
+        "password_too_weak": "Password is too weak",
+        "enter_username": "Enter your username",
+        "enter_password": "Enter your password"
     },
     "sidebar": {
         "dashboard": "Dashboard",

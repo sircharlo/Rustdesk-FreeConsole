@@ -401,7 +401,7 @@
                 <div class="nav-content">
                     <div class="nav-brand">
                         <i class="fas fa-desktop"></i>
-                        <span>Device Management</span>
+                        <span data-i18n="dashboard.device_management">Device Management</span>
                     </div>
                     <div class="nav-stats">
                         <div class="stat-badge" id="totalDevices">
@@ -420,11 +420,11 @@
             <div class="container">
                 <!-- Header Section -->
                 <div class="header-section">
-                    <h1 class="page-title fade-in">Device Dashboard</h1>
+                    <h1 class="page-title fade-in" data-i18n="dashboard.title">Device Dashboard</h1>
                     <div class="action-buttons">
                         <button class="btn btn-secondary" onclick="refreshDevices()">
                             <i class="fas fa-sync-alt"></i>
-                            Refresh
+                            <span data-i18n="dashboard.refresh_devices">Refresh</span>
                         </button>
                     </div>
                 </div>
@@ -436,7 +436,7 @@
                             <i class="fas fa-server"></i>
                         </div>
                         <div class="stat-info">
-                            <div class="stat-label">Total Devices</div>
+                            <div class="stat-label" data-i18n="dashboard.total_devices">Total Devices</div>
                             <div class="stat-value" id="statTotal">0</div>
                         </div>
                     </div>
@@ -446,7 +446,7 @@
                             <i class="fas fa-circle-check"></i>
                         </div>
                         <div class="stat-info">
-                            <div class="stat-label">Active</div>
+                            <div class="stat-label" data-i18n="dashboard.active_devices">Active</div>
                             <div class="stat-value" id="statActive">0</div>
                         </div>
                     </div>
@@ -456,7 +456,7 @@
                             <i class="fas fa-circle-xmark"></i>
                         </div>
                         <div class="stat-info">
-                            <div class="stat-label">Inactive</div>
+                            <div class="stat-label" data-i18n="dashboard.inactive_devices">Inactive</div>
                             <div class="stat-value" id="statInactive">0</div>
                         </div>
                     </div>
@@ -466,7 +466,7 @@
                             <i class="fas fa-ban"></i>
                         </div>
                         <div class="stat-info">
-                            <div class="stat-label">Banned</div>
+                            <div class="stat-label" data-i18n="dashboard.banned_devices">Banned</div>
                             <div class="stat-value" id="statBanned">0</div>
                         </div>
                     </div>
@@ -476,7 +476,7 @@
                             <i class="fas fa-sticky-note"></i>
                         </div>
                         <div class="stat-info">
-                            <div class="stat-label">With Notes</div>
+                            <div class="stat-label" data-i18n="dashboard.with_notes">With Notes</div>
                             <div class="stat-value" id="statNotes">0</div>
                         </div>
                     </div>
@@ -485,10 +485,10 @@
                 <!-- Devices Table -->
                 <div class="table-container glass-effect fade-in" style="animation-delay: 0.2s;">
                     <div class="table-header">
-                        <h2><i class="fas fa-list"></i> Connected Devices</h2>
+                        <h2><i class="fas fa-list"></i> <span data-i18n="dashboard.connected_devices">Connected Devices</span></h2>
                         <div class="search-box">
                             <i class="fas fa-search"></i>
-                            <input type="text" id="searchInput" placeholder="Search devices..." onkeyup="filterDevices()">
+                            <input type="text" id="searchInput" data-i18n-placeholder="dashboard.search_devices" placeholder="Search devices..." onkeyup="filterDevices()">
                         </div>
                     </div>
                     
@@ -496,18 +496,18 @@
                         <table class="devices-table" id="devicesTable">
                             <thead>
                                 <tr>
-                                    <th>ID</th>
-                                    <th>Note</th>
-                                    <th>Status</th>
-                                    <th>Created</th>
-                                    <th>Actions</th>
+                                    <th data-i18n="devices.id">ID</th>
+                                    <th data-i18n="devices.note">Note</th>
+                                    <th data-i18n="common.status">Status</th>
+                                    <th data-i18n="devices.created">Created</th>
+                                    <th data-i18n="common.actions">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="devicesTableBody">
                                 <tr>
                                     <td colspan="5" class="loading">
                                         <div class="spinner"></div>
-                                        <span>Loading devices...</span>
+                                        <span data-i18n="dashboard.loading_devices">Loading devices...</span>
                                     </td>
                                 </tr>
                             </tbody>
@@ -520,29 +520,29 @@
         <!-- Public Key Section -->
         <div class="content-section" id="publickey">
             <div class="public-key-container">
-                <h1 class="page-title">Server Public Key</h1>
+                <h1 class="page-title" data-i18n="public_key.title">Server Public Key</h1>
                 
                 <div id="keyPasswordPrompt" class="password-prompt">
-                    <h3><i class="fas fa-lock"></i> Protected Content</h3>
-                    <p style="color: rgba(255, 255, 255, 0.7); margin-bottom: 20px;">
+                    <h3><i class="fas fa-lock"></i> <span data-i18n="public_key.protected_content">Protected Content</span></h3>
+                    <p style="color: rgba(255, 255, 255, 0.7); margin-bottom: 20px;" data-i18n="public_key.enter_password">
                         Enter your password to view the server public key
                     </p>
-                    <input type="password" id="keyPassword" placeholder="Enter your password" onkeypress="if(event.key==='Enter') verifyPasswordForKey()">
+                    <input type="password" id="keyPassword" data-i18n-placeholder="public_key.password_placeholder" placeholder="Enter your password" onkeypress="if(event.key==='Enter') verifyPasswordForKey()">
                     <button class="btn btn-primary" onclick="verifyPasswordForKey()">
-                        <i class="fas fa-unlock"></i> Unlock Key
+                        <i class="fas fa-unlock"></i> <span data-i18n="public_key.unlock_key">Unlock Key</span>
                     </button>
                 </div>
 
                 <div id="keyContent" style="display: none;">
                     <div class="key-display-box">
-                        <h3 style="margin-bottom: 15px;">RustDesk Public Key</h3>
+                        <h3 style="margin-bottom: 15px;" data-i18n="public_key.rustdesk_public_key">RustDesk Public Key</h3>
                         <code id="publicKeyDisplay"></code>
                     </div>
                     <button class="btn btn-primary btn-block" onclick="copyPublicKey()">
-                        <i class="fas fa-copy"></i> Copy to Clipboard
+                        <i class="fas fa-copy"></i> <span data-i18n="common.copy_to_clipboard">Copy to Clipboard</span>
                     </button>
                     <button class="btn btn-secondary btn-block" onclick="lockKey()" style="margin-top: 10px;">
-                        <i class="fas fa-lock"></i> Lock Key
+                        <i class="fas fa-lock"></i> <span data-i18n="public_key.lock_key">Lock Key</span>
                     </button>
                 </div>
             </div>
@@ -551,70 +551,70 @@
         <!-- Settings Section -->
         <div class="content-section" id="settings">
             <div class="settings-container">
-                <h1 class="page-title">Settings</h1>
+                <h1 class="page-title" data-i18n="settings.title">Settings</h1>
                 
                 <!-- Server Settings Card (Admin Only) -->
                 <div class="settings-card admin-only" id="serverSettingsCard">
-                    <h3><i class="fas fa-server"></i> Server Settings</h3>
+                    <h3><i class="fas fa-server"></i> <span data-i18n="settings.server_settings">Server Settings</span></h3>
                     <form id="serverSettingsForm" onsubmit="saveServerSettings(event)">
                         <div class="form-group">
-                            <label for="peerTimeoutSecs">Peer Offline Timeout (seconds)</label>
+                            <label for="peerTimeoutSecs" data-i18n="settings.peer_timeout">Peer Offline Timeout (seconds)</label>
                             <input type="number" id="peerTimeoutSecs" min="10" max="300" value="60">
-                            <small style="color: rgba(255, 255, 255, 0.6); font-size: 0.8rem;">
+                            <small style="color: rgba(255, 255, 255, 0.6); font-size: 0.8rem;" data-i18n="settings.peer_timeout_description">
                                 Time before a device is marked as offline (10-300 seconds)
                             </small>
                         </div>
                         <div class="form-group">
-                            <label for="heartbeatIntervalSecs">Status Check Interval (seconds)</label>
+                            <label for="heartbeatIntervalSecs" data-i18n="settings.heartbeat_interval">Status Check Interval (seconds)</label>
                             <input type="number" id="heartbeatIntervalSecs" min="1" max="30" value="5">
-                            <small style="color: rgba(255, 255, 255, 0.6); font-size: 0.8rem;">
+                            <small style="color: rgba(255, 255, 255, 0.6); font-size: 0.8rem;" data-i18n="settings.heartbeat_interval_description">
                                 How often to check device status (1-30 seconds)
                             </small>
                         </div>
                         <div class="form-group">
-                            <label for="warningThreshold">Warning Threshold (missed heartbeats)</label>
+                            <label for="warningThreshold" data-i18n="settings.warning_threshold">Warning Threshold (missed heartbeats)</label>
                             <input type="number" id="warningThreshold" min="1" max="10" value="2">
-                            <small style="color: rgba(255, 255, 255, 0.6); font-size: 0.8rem;">
+                            <small style="color: rgba(255, 255, 255, 0.6); font-size: 0.8rem;" data-i18n="settings.warning_threshold_description">
                                 Number of missed heartbeats before "Degraded" status
                             </small>
                         </div>
                         <div class="form-group">
-                            <label for="criticalThreshold">Critical Threshold (missed heartbeats)</label>
+                            <label for="criticalThreshold" data-i18n="settings.critical_threshold">Critical Threshold (missed heartbeats)</label>
                             <input type="number" id="criticalThreshold" min="2" max="20" value="4">
-                            <small style="color: rgba(255, 255, 255, 0.6); font-size: 0.8rem;">
+                            <small style="color: rgba(255, 255, 255, 0.6); font-size: 0.8rem;" data-i18n="settings.critical_threshold_description">
                                 Number of missed heartbeats before "Critical" status
                             </small>
                         </div>
                         <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-save"></i> Save Server Settings
+                            <i class="fas fa-save"></i> <span data-i18n="settings.save_server_settings">Save Server Settings</span>
                         </button>
                         <button type="button" class="btn btn-secondary" onclick="loadServerSettings()">
-                            <i class="fas fa-sync"></i> Reload
+                            <i class="fas fa-sync"></i> <span data-i18n="settings.reload_settings">Reload</span>
                         </button>
                     </form>
                 </div>
                 
                 <!-- Account Settings Card -->
                 <div class="settings-card">
-                    <h3><i class="fas fa-key"></i> Change Password</h3>
+                    <h3><i class="fas fa-key"></i> <span data-i18n="settings.account_settings">Change Password</span></h3>
                     <form id="passwordForm" onsubmit="changePassword(event)">
                         <div class="form-group">
-                            <label for="currentPassword">Current Password</label>
+                            <label for="currentPassword" data-i18n="auth.current_password">Current Password</label>
                             <input type="password" id="currentPassword" required>
                         </div>
                         <div class="form-group">
-                            <label for="newPassword">New Password</label>
+                            <label for="newPassword" data-i18n="auth.new_password">New Password</label>
                             <input type="password" id="newPassword" required minlength="8">
-                            <small style="color: rgba(255, 255, 255, 0.6); font-size: 0.8rem;">
+                            <small style="color: rgba(255, 255, 255, 0.6); font-size: 0.8rem;" data-i18n="auth.password_requirements">
                                 Minimum 8 characters, must contain letters and numbers
                             </small>
                         </div>
                         <div class="form-group">
-                            <label for="confirmPassword">Confirm New Password</label>
+                            <label for="confirmPassword" data-i18n="auth.confirm_password">Confirm New Password</label>
                             <input type="password" id="confirmPassword" required>
                         </div>
                         <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-save"></i> Update Password
+                            <i class="fas fa-save"></i> <span data-i18n="auth.change_password">Update Password</span>
                         </button>
                     </form>
                 </div>
@@ -661,12 +661,12 @@
         <!-- User Management Section (Admin Only) -->
         <div class="content-section admin-only" id="users" style="display: none;">
             <div class="container">
-                <h1 class="page-title">User Management</h1>
+                <h1 class="page-title" data-i18n="users.title">User Management</h1>
                 
                 <div class="header-section">
                     <h2></h2>
                     <button class="btn btn-primary" onclick="showAddUserModal()">
-                        <i class="fas fa-user-plus"></i> Add User
+                        <i class="fas fa-user-plus"></i> <span data-i18n="users.add_user">Add User</span>
                     </button>
                 </div>
 
@@ -674,18 +674,18 @@
                     <table class="users-table">
                         <thead>
                             <tr>
-                                <th>Username</th>
-                                <th>Role</th>
-                                <th>Last Login</th>
-                                <th>Status</th>
-                                <th>Actions</th>
+                                <th data-i18n="users.username">Username</th>
+                                <th data-i18n="users.role">Role</th>
+                                <th data-i18n="users.last_login">Last Login</th>
+                                <th data-i18n="users.status">Status</th>
+                                <th data-i18n="common.actions">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="usersTableBody">
                             <tr>
                                 <td colspan="5" class="loading">
                                     <div class="spinner"></div>
-                                    <span>Loading users...</span>
+                                    <span data-i18n="common.loading">Loading users...</span>
                                 </td>
                             </tr>
                         </tbody>
@@ -697,23 +697,18 @@
         <!-- About Section -->
         <div class="content-section" id="about">
             <div class="about-container">
-                <h1 class="page-title">About BetterDesk Console</h1>
+                <h1 class="page-title" data-i18n="about.title">About BetterDesk Console</h1>
                 
                 <div class="about-card">
-                    <h3><i class="fas fa-info-circle"></i> Project Information</h3>
+                    <h3><i class="fas fa-info-circle"></i> <span data-i18n="about.project_info">Project Information</span></h3>
                     <p>
-                        <strong>BetterDesk Console v1.5.0</strong> - Advanced management interface for RustDesk Server
-                    </p>
-                    <p>
-                        A powerful, secure web console for managing RustDesk remote desktop server. Features include
-                        device management, user authentication with role-based access control, ban enforcement with
-                        fail-closed security policy, and comprehensive audit logging.
+                        <strong data-i18n="about.version">BetterDesk Console v1.5.0</strong> - <span data-i18n="about.description">Advanced management interface for RustDesk Server</span>
                     </p>
                 </div>
 
                 <div class="about-card">
-                    <h3><i class="fab fa-github"></i> Source Code</h3>
-                    <p>
+                    <h3><i class="fab fa-github"></i> <span data-i18n="about.source_code">Source Code</span></h3>
+                    <p data-i18n="about.github_description">
                         This project is open source and available on GitHub:
                     </p>
                     <p>
@@ -721,14 +716,14 @@
                             <i class="fas fa-external-link-alt"></i> github.com/UNITRONIX/Rustdesk-FreeConsole
                         </a>
                     </p>
-                    <p style="margin-top: 15px; font-size: 0.9rem; color: rgba(255, 255, 255, 0.7);">
+                    <p style="margin-top: 15px; font-size: 0.9rem; color: rgba(255, 255, 255, 0.7);" data-i18n="about.contributions_welcome">
                         Issues, feature requests, and contributions are welcome!
                     </p>
                 </div>
 
                 <div class="about-card">
-                    <h3><i class="fas fa-code-branch"></i> Open Source Components</h3>
-                    <p>This project is built with the following open source software:</p>
+                    <h3><i class="fas fa-code-branch"></i> <span data-i18n="about.open_source_components">Open Source Components</span></h3>
+                    <p data-i18n="about.built_with">This project is built with the following open source software:</p>
                     <ul class="license-list">
                         <li>
                             <strong>RustDesk Server</strong> - AGPL-3.0 License<br>
@@ -799,34 +794,34 @@
     <div id="editModal" class="modal">
         <div class="modal-content glass-effect">
             <div class="modal-header">
-                <h2><i class="fas fa-edit"></i> Edit Device</h2>
+                <h2><i class="fas fa-edit"></i> <span data-i18n="devices.edit_note">Edit Device</span></h2>
                 <button class="modal-close" onclick="closeEditModal()">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label for="editDeviceId">Device ID</label>
+                    <label for="editDeviceId" data-i18n="devices.id">Device ID</label>
                     <input type="text" id="editDeviceId" readonly class="form-control">
                 </div>
                 <div class="form-group">
-                    <label for="editNewId">New Device ID (optional)</label>
-                    <input type="text" id="editNewId" class="form-control" placeholder="Leave empty to keep current ID">
-                    <small class="form-text text-muted">6-16 characters, letters/numbers/dash/underscore</small>
+                    <label for="editNewId" data-i18n="devices.new_id">New Device ID (optional)</label>
+                    <input type="text" id="editNewId" class="form-control" data-i18n-placeholder="devices.id_requirements" placeholder="Leave empty to keep current ID">
+                    <small class="form-text text-muted" data-i18n="devices.id_requirements">6-16 characters, letters/numbers/dash/underscore</small>
                 </div>
                 <div class="form-group" id="idHistoryGroup" style="display: none;">
-                    <label><i class="fas fa-history"></i> Previous IDs</label>
+                    <label><i class="fas fa-history"></i> <span data-i18n="devices.old_id">Previous IDs</span></label>
                     <div id="idHistoryList" class="id-history-list"></div>
                 </div>
                 <div class="form-group">
-                    <label for="editNote">Note</label>
-                    <textarea id="editNote" class="form-control" rows="3" placeholder="Enter device note..."></textarea>
+                    <label for="editNote" data-i18n="devices.note">Note</label>
+                    <textarea id="editNote" class="form-control" rows="3" data-i18n-placeholder="devices.note_placeholder" placeholder="Enter device note..."></textarea>
                 </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeEditModal()">
-                    <i class="fas fa-times"></i> Cancel
+                    <i class="fas fa-times"></i> <span data-i18n="common.cancel">Cancel</span>
                 </button>
                 <button class="btn btn-primary" onclick="saveDevice()">
-                    <i class="fas fa-save"></i> Save Changes
+                    <i class="fas fa-save"></i> <span data-i18n="common.save">Save Changes</span>
                 </button>
             </div>
         </div>
@@ -836,19 +831,19 @@
     <div id="deleteModal" class="modal">
         <div class="modal-content glass-effect">
             <div class="modal-header">
-                <h2><i class="fas fa-trash-alt"></i> Confirm Delete</h2>
+                <h2><i class="fas fa-trash-alt"></i> <span data-i18n="devices.confirm_delete">Confirm Delete</span></h2>
                 <button class="modal-close" onclick="closeDeleteModal()">&times;</button>
             </div>
             <div class="modal-body">
-                <p>Are you sure you want to delete device <strong id="deleteDeviceId"></strong>?</p>
-                <p class="warning-text">This action cannot be undone.</p>
+                <p><span data-i18n="devices.confirm_delete">Are you sure you want to delete device</span> <strong id="deleteDeviceId"></strong>?</p>
+                <p class="warning-text" data-i18n="common.warning">This action cannot be undone.</p>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeDeleteModal()">
-                    <i class="fas fa-times"></i> Cancel
+                    <i class="fas fa-times"></i> <span data-i18n="common.cancel">Cancel</span>
                 </button>
                 <button class="btn btn-danger" onclick="confirmDelete()">
-                    <i class="fas fa-trash-alt"></i> Delete
+                    <i class="fas fa-trash-alt"></i> <span data-i18n="common.delete">Delete</span>
                 </button>
             </div>
         </div>
@@ -858,7 +853,7 @@
     <div id="detailsModal" class="modal">
         <div class="modal-content glass-effect modal-large">
             <div class="modal-header">
-                <h2><i class="fas fa-info-circle"></i> Device Details</h2>
+                <h2><i class="fas fa-info-circle"></i> <span data-i18n="devices.view_details">Device Details</span></h2>
                 <button class="modal-close" onclick="closeDetailsModal()">&times;</button>
             </div>
             <div class="modal-body">
@@ -866,7 +861,7 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeDetailsModal()">
-                    <i class="fas fa-times"></i> Close
+                    <i class="fas fa-times"></i> <span data-i18n="common.close">Close</span>
                 </button>
             </div>
         </div>
@@ -876,36 +871,36 @@
     <div id="addUserModal" class="modal">
         <div class="modal-content glass-effect">
             <div class="modal-header">
-                <h2><i class="fas fa-user-plus"></i> Add New User</h2>
+                <h2><i class="fas fa-user-plus"></i> <span data-i18n="users.add_user">Add New User</span></h2>
                 <button class="modal-close" onclick="closeAddUserModal()">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label for="newUsername">Username</label>
+                    <label for="newUsername" data-i18n="auth.username">Username</label>
                     <input type="text" id="newUsername" class="form-control" required>
                 </div>
                 <div class="form-group">
-                    <label for="newUserPassword">Password</label>
+                    <label for="newUserPassword" data-i18n="auth.password">Password</label>
                     <input type="password" id="newUserPassword" class="form-control" required minlength="8">
-                    <small style="color: rgba(255, 255, 255, 0.6); font-size: 0.8rem;">
+                    <small style="color: rgba(255, 255, 255, 0.6); font-size: 0.8rem;" data-i18n="auth.password_requirements">
                         Minimum 8 characters, must contain letters and numbers
                     </small>
                 </div>
                 <div class="form-group">
-                    <label for="newUserRole">Role</label>
+                    <label for="newUserRole" data-i18n="users.role">Role</label>
                     <select id="newUserRole" class="form-control">
-                        <option value="viewer">Viewer (Read-only)</option>
-                        <option value="operator">Operator (Can ban/unban, edit devices)</option>
-                        <option value="admin">Admin (Full access)</option>
+                        <option value="viewer" data-i18n="users.role_viewer">Viewer (Read-only)</option>
+                        <option value="operator" data-i18n="users.role_operator">Operator (Can ban/unban, edit devices)</option>
+                        <option value="admin" data-i18n="users.role_admin">Admin (Full access)</option>
                     </select>
                 </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeAddUserModal()">
-                    <i class="fas fa-times"></i> Cancel
+                    <i class="fas fa-times"></i> <span data-i18n="common.cancel">Cancel</span>
                 </button>
                 <button class="btn btn-primary" onclick="createUser()">
-                    <i class="fas fa-user-plus"></i> Create User
+                    <i class="fas fa-user-plus"></i> <span data-i18n="users.user_created">Create User</span>
                 </button>
             </div>
         </div>

@@ -61,9 +61,10 @@
         "confirm_password": "Potwierdź hasło",
         "remember_me": "Zapamiętaj mnie",
         "forgot_password": "Zapomniałeś hasła?",
-        "login_title": "Zaloguj się do BetterDesk",
-        "login_subtitle": "Bezpieczne zarządzanie zdalnym pulpitem",
+        "login_title": "Logowanie - BetterDesk Console",
+        "login_subtitle": "Panel zarządzania RustDesk",
         "login_button": "Zaloguj się",
+        "sign_in": "Zaloguj się",
         "logging_in": "Logowanie...",
         "login_failed": "Logowanie nieudane",
         "invalid_credentials": "Nieprawidłowa nazwa użytkownika lub hasło",
@@ -73,7 +74,9 @@
         "password_changed": "Hasło zostało zmienione",
         "password_mismatch": "Hasła nie są zgodne",
         "password_requirements": "Minimum 8 znaków, musi zawierać litery i cyfry",
-        "password_too_weak": "Hasło jest zbyt słabe"
+        "password_too_weak": "Hasło jest zbyt słabe",
+        "enter_username": "Wprowadź nazwę użytkownika",
+        "enter_password": "Wprowadź hasło"
     },
     "sidebar": {
         "dashboard": "Panel główny",

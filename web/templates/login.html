@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>Login - BetterDesk Console</title>
+    <title data-i18n="auth.login_title">Login - BetterDesk Console</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=app_version) }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/i18n.css', v=app_version) }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -226,8 +226,8 @@
         <div class="login-card">
             <div class="login-logo">
                 <i class="fas fa-desktop"></i>
-                <h1>BetterDesk Console</h1>
-                <p data-i18n="auth.subtitle">RustDesk Management Dashboard</p>
+                <h1 data-i18n="common.app_name">BetterDesk Console</h1>
+                <p data-i18n="auth.login_subtitle">RustDesk Management Dashboard</p>
             </div>
 
             <div class="error-message" id="errorMessage">

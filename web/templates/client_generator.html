@@ -807,34 +807,34 @@
         <div class="sidebar-menu">
             <a class="sidebar-item" href="/">
                 <i class="fas fa-th-large"></i>
-                <span>Dashboard</span>
+                <span data-i18n="sidebar.dashboard">Dashboard</span>
             </a>
             <a class="sidebar-item active" href="/client-generator">
                 <i class="fas fa-box-open"></i>
-                <span>Client Generator</span>
+                <span data-i18n="sidebar.client_generator">Client Generator</span>
             </a>
             <a class="sidebar-item" href="/?section=publickey">
                 <i class="fas fa-key"></i>
-                <span>Public Key</span>
+                <span data-i18n="sidebar.public_key">Public Key</span>
             </a>
             <a class="sidebar-item" href="/?section=settings">
                 <i class="fas fa-cog"></i>
-                <span>Settings</span>
+                <span data-i18n="sidebar.settings">Settings</span>
             </a>
             <a class="sidebar-item admin-only" href="/?section=users" style="display: none;">
                 <i class="fas fa-users-cog"></i>
-                <span>User Management</span>
+                <span data-i18n="sidebar.users">User Management</span>
             </a>
             <a class="sidebar-item" href="/?section=about">
                 <i class="fas fa-info-circle"></i>
-                <span>About</span>
+                <span data-i18n="sidebar.about">About</span>
             </a>
         </div>
 
         <div class="sidebar-footer">
             <button class="logout-btn" onclick="logout()">
                 <i class="fas fa-sign-out-alt"></i>
-                <span>Logout</span>
+                <span data-i18n="sidebar.logout">Logout</span>
             </button>
         </div>
     </div>
@@ -845,9 +845,9 @@
         <div class="page-header">
             <h1>
                 <i class="fas fa-box-open"></i>
-                Client Generator
+                <span data-i18n="client_generator.title">Client Generator</span>
             </h1>
-            <p>Create custom RustDesk clients with your server configuration pre-configured</p>
+            <p data-i18n="client_generator.description">Create custom RustDesk clients with your server configuration pre-configured</p>
         </div>
 
         <!-- Configuration Form -->
@@ -2001,6 +2001,11 @@
             setStep(i, '');
         }
     }
+    </script>
+    <script src="{{ url_for('static', filename='js/i18n.js', v=app_version) }}"></script>
+    <script>
+        // Initialize i18n
+        i18n.init({ defaultLang: 'en' });
     </script>
 </body>
 </html>
