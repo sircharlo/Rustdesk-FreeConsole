@@ -96,7 +96,7 @@ limiter = Limiter(
 # Initialize internationalization (i18n) system
 try:
     import i18n
-    i18n.init_app(app)
+    i18n.init_app(app, csrf)  # Pass csrf for CSRF exemption on upload/delete endpoints
     I18N_AVAILABLE = True
 except ImportError:
     I18N_AVAILABLE = False
