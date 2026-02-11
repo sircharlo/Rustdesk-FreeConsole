@@ -8,6 +8,7 @@
     <meta http-equiv="Expires" content="0">
     <title>BetterDesk Console v1.5</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=app_version) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/i18n.css', v=app_version) }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         /* Sidebar Styles */
@@ -358,34 +359,35 @@
         <div class="sidebar-menu">
             <a class="sidebar-item active" data-section="dashboard">
                 <i class="fas fa-th-large"></i>
-                <span>Dashboard</span>
+                <span data-i18n="sidebar.dashboard">Dashboard</span>
             </a>
             <a class="sidebar-item" href="/client-generator">
                 <i class="fas fa-wrench"></i>
-                <span>Client Generator</span>
+                <span data-i18n="sidebar.client_generator">Client Generator</span>
             </a>
             <a class="sidebar-item" data-section="publickey">
                 <i class="fas fa-key"></i>
-                <span>Public Key</span>
+                <span data-i18n="sidebar.public_key">Public Key</span>
             </a>
             <a class="sidebar-item" data-section="settings">
                 <i class="fas fa-cog"></i>
-                <span>Settings</span>
+                <span data-i18n="sidebar.settings">Settings</span>
             </a>
             <a class="sidebar-item admin-only" data-section="users" style="display: none;">
                 <i class="fas fa-users-cog"></i>
-                <span>User Management</span>
+                <span data-i18n="sidebar.users">User Management</span>
             </a>
             <a class="sidebar-item" data-section="about">
                 <i class="fas fa-info-circle"></i>
-                <span>About</span>
+                <span data-i18n="sidebar.about">About</span>
             </a>
         </div>
         
         <div class="sidebar-footer">
+            <div id="languageSelector"></div>
             <button class="logout-btn" onclick="logout()">
                 <i class="fas fa-sign-out-alt"></i>
-                <span>Logout</span>
+                <span data-i18n="sidebar.logout">Logout</span>
             </button>
         </div>
     </div>
@@ -615,6 +617,43 @@
                             <i class="fas fa-save"></i> Update Password
                         </button>
                     </form>
+                </div>
+
+                <!-- Language Settings Card -->
+                <div class="settings-card">
+                    <h3><i class="fas fa-globe"></i> <span data-i18n="settings.language">Language Settings</span></h3>
+                    
+                    <!-- Current Language Selection -->
+                    <div class="form-group">
+                        <label data-i18n="settings.select_language">Select Language</label>
+                        <select id="languageSelect" class="form-control" onchange="changeLanguage(this.value)">
+                            <!-- Options populated by JavaScript -->
+                        </select>
+                        <small style="color: rgba(255, 255, 255, 0.6); font-size: 0.8rem;" data-i18n="settings.language_saved">
+                            Your language preference is saved automatically
+                        </small>
+                    </div>
+                    
+                    <!-- Upload Custom Language Pack -->
+                    <div class="form-group" style="margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.1);">
+                        <label><i class="fas fa-upload"></i> <span data-i18n="settings.upload_language">Upload Custom Language Pack</span></label>
+                        <div style="margin-top: 10px;">
+                            <input type="file" id="languageFileInput" accept=".json" style="display: none;" onchange="uploadLanguagePack(this)">
+                            <button type="button" class="btn btn-secondary" onclick="document.getElementById('languageFileInput').click()">
+                                <i class="fas fa-file-upload"></i> <span data-i18n="settings.choose_file">Choose JSON File</span>
+                            </button>
+                            <span id="selectedFileName" style="margin-left: 10px; color: rgba(255,255,255,0.6);"></span>
+                        </div>
+                        <small style="color: rgba(255, 255, 255, 0.6); font-size: 0.8rem; display: block; margin-top: 8px;" data-i18n="settings.upload_hint">
+                            Upload a JSON language file. See documentation for format.
+                        </small>
+                    </div>
+
+                    <!-- Installed Languages List -->
+                    <div class="form-group" style="margin-top: 20px;">
+                        <label><i class="fas fa-list"></i> <span data-i18n="settings.installed_languages">Installed Languages</span></label>
+                        <div id="installedLanguagesList" style="margin-top: 10px;"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -878,6 +917,171 @@
         <span id="toastMessage"></span>
     </div>
 
+    <script src="{{ url_for('static', filename='js/i18n.js', v=app_version) }}"></script>
     <script src="{{ url_for('static', filename='script.js', v=app_version) }}"></script>
+    <script>
+        // Initialize i18n after DOM is ready
+        document.addEventListener('DOMContentLoaded', function() {
+            i18n.init({
+                defaultLang: 'en',
+                onLanguageChange: function(lang) {
+                    console.log('Language changed to:', lang);
+                    // Update language selector in settings
+                    updateLanguageSettingsUI();
+                }
+            }).then(function() {
+                // Create language selector in sidebar
+                i18n.createLanguageSelector('languageSelector');
+                // Initialize language settings UI
+                updateLanguageSettingsUI();
+            });
+        });
+
+        // Language Settings Functions
+        function updateLanguageSettingsUI() {
+            const select = document.getElementById('languageSelect');
+            const listContainer = document.getElementById('installedLanguagesList');
+            
+            if (!select || !listContainer) return;
+            
+            // Fetch available languages
+            fetch('/api/i18n/languages')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success && data.languages) {
+                        // Update select dropdown
+                        select.innerHTML = '';
+                        for (const [code, info] of Object.entries(data.languages)) {
+                            const option = document.createElement('option');
+                            option.value = code;
+                            option.textContent = `${info.flag} ${info.native} (${info.name})`;
+                            if (code === data.current) {
+                                option.selected = true;
+                            }
+                            select.appendChild(option);
+                        }
+                        
+                        // Update installed languages list
+                        listContainer.innerHTML = '';
+                        for (const [code, info] of Object.entries(data.languages)) {
+                            const item = document.createElement('div');
+                            item.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px; margin-bottom: 8px;';
+                            
+                            const labelSpan = document.createElement('span');
+                            labelSpan.innerHTML = `${info.flag} <strong>${info.native}</strong> (${info.name}) <code style="background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; margin-left: 8px;">${code}</code>`;
+                            
+                            item.appendChild(labelSpan);
+                            
+                            // Add delete button for non-core languages
+                            if (code !== 'en' && code !== 'pl') {
+                                const deleteBtn = document.createElement('button');
+                                deleteBtn.className = 'btn btn-danger btn-sm';
+                                deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+                                deleteBtn.title = 'Delete language pack';
+                                deleteBtn.onclick = () => deleteLanguagePack(code, info.native);
+                                item.appendChild(deleteBtn);
+                            } else {
+                                const badge = document.createElement('span');
+                                badge.style.cssText = 'font-size: 0.75rem; color: rgba(255,255,255,0.5);';
+                                badge.textContent = 'Core';
+                                item.appendChild(badge);
+                            }
+                            
+                            listContainer.appendChild(item);
+                        }
+                    }
+                })
+                .catch(err => console.error('Failed to load languages:', err));
+        }
+
+        function changeLanguage(langCode) {
+            if (!langCode) return;
+            
+            i18n.setLanguage(langCode).then(success => {
+                if (success) {
+                    showToast(`Language changed to ${langCode.toUpperCase()}`);
+                    updateLanguageSettingsUI();
+                } else {
+                    showToast('Failed to change language', 'error');
+                }
+            });
+        }
+
+        function uploadLanguagePack(input) {
+            const file = input.files[0];
+            if (!file) return;
+            
+            document.getElementById('selectedFileName').textContent = file.name;
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            fetch('/api/i18n/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message);
+                    
+                    // Show validation results if any
+                    if (data.validation && data.validation.missing && data.validation.missing.length > 0) {
+                        console.warn('Missing translations:', data.validation.missing);
+                        setTimeout(() => {
+                            showToast(`Note: ${data.validation.missing.length} translations missing`, 'warning');
+                        }, 2000);
+                    }
+                    
+                    // Reload available languages
+                    i18n.loadAvailableLanguages().then(() => {
+                        updateLanguageSettingsUI();
+                    });
+                    
+                    // Clear file input
+                    input.value = '';
+                    document.getElementById('selectedFileName').textContent = '';
+                } else {
+                    showToast(data.error || 'Upload failed', 'error');
+                }
+            })
+            .catch(err => {
+                console.error('Upload error:', err);
+                showToast('Failed to upload language pack', 'error');
+            });
+        }
+
+        function deleteLanguagePack(langCode, langName) {
+            if (!confirm(`Are you sure you want to delete the "${langName}" language pack?`)) {
+                return;
+            }
+            
+            fetch(`/api/i18n/delete/${langCode}`, {
+                method: 'DELETE'
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message);
+                    
+                    // If current language was deleted, switch to English
+                    if (i18n.currentLang === langCode) {
+                        i18n.setLanguage('en');
+                    }
+                    
+                    // Refresh language list
+                    i18n.loadAvailableLanguages().then(() => {
+                        updateLanguageSettingsUI();
+                    });
+                } else {
+                    showToast(data.error || 'Delete failed', 'error');
+                }
+            })
+            .catch(err => {
+                console.error('Delete error:', err);
+                showToast('Failed to delete language pack', 'error');
+            });
+        }
+    </script>
 </body>
 </html>

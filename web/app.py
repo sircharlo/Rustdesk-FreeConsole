@@ -93,6 +93,15 @@ limiter = Limiter(
     storage_uri="memory://"
 )
 
+# Initialize internationalization (i18n) system
+try:
+    import i18n
+    i18n.init_app(app)
+    I18N_AVAILABLE = True
+except ImportError:
+    I18N_AVAILABLE = False
+    print("Warning: i18n module not available. Using default language.")
+
 # Configuration
 DB_PATH = '/opt/rustdesk/db_v2.sqlite3'
 PUB_KEY_PATH = '/opt/rustdesk/id_ed25519.pub'

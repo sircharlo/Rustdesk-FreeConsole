@@ -224,6 +224,14 @@ sudo apt-get install -y build-essential libsqlite3-dev pkg-config libssl-dev git
 22. [x] **Zmiana ID urządzenia** - moduł id_change.rs, endpoint POST /api/peers/:id/change-id
 23. [x] **Dokumentacja ID Change** - docs/ID_CHANGE_FEATURE.md
 
+### ✅ Ukończone (2026-02-11)
+24. [x] **System i18n** - wielojęzyczność panelu web przez JSON
+25. [x] **Moduł Flask i18n** - web/i18n.py z API endpoints
+26. [x] **JavaScript i18n** - web/static/js/i18n.js client-side
+27. [x] **Tłumaczenia EN/PL** - web/lang/en.json, web/lang/pl.json
+28. [x] **Selector języka** - w sidebarze panelu
+29. [x] **Dokumentacja i18n** - docs/CONTRIBUTING_TRANSLATIONS.md
+
 ### 🔜 Do Zrobienia (priorytety)
 1. [ ] Kompilacja binarek v3.0.0 z nowymi plikami źródłowymi
 2. [ ] WebSocket real-time push dla statusu
@@ -299,7 +307,38 @@ Pełna dokumentacja: [ID_CHANGE_FEATURE.md](../docs/ID_CHANGE_FEATURE.md)
 
 ---
 
-## �🔨 Skrypty Budowania
+## 🌍 System i18n (Wielojęzyczność)
+
+### Pliki Systemu
+
+| Plik | Opis |
+|------|------|
+| `web/i18n.py` | Moduł Flask z API endpoints |
+| `web/static/js/i18n.js` | Klient JavaScript |
+| `web/static/css/i18n.css` | Style dla selektora języka |
+| `web/lang/*.json` | Pliki tłumaczeń |
+
+### API Endpoints
+
+| Endpoint | Metoda | Opis |
+|----------|--------|------|
+| `/api/i18n/languages` | GET | Lista dostępnych języków |
+| `/api/i18n/translations/{code}` | GET | Pobierz tłumaczenia |
+| `/api/i18n/set/{code}` | POST | Ustaw preferencję języka |
+
+### Dodawanie nowego języka
+
+1. Skopiuj `web/lang/en.json` do `web/lang/{kod}.json`
+2. Przetłumacz wszystkie wartości
+3. Zaktualizuj sekcję `meta` z informacjami o języku
+
+### Dokumentacja
+
+Pełna dokumentacja: [CONTRIBUTING_TRANSLATIONS.md](../docs/CONTRIBUTING_TRANSLATIONS.md)
+
+---
+
+## 🔨 Skrypty Budowania
 
 ### Interaktywne skrypty kompilacji
 

@@ -28,6 +28,7 @@
   - [Linux](#-linux-betterdesk-sh)
   - [Windows](#-windows-betterdeskps1)
   - [Docker](#-docker-betterdesk-dockersh)
+- [Internationalization](#-internationalization-i18n)
 - [Troubleshooting](#-troubleshooting)
 - [Configuration](#-configuration)
 - [API Documentation](#-api-documentation)
@@ -194,6 +195,35 @@ See [Client Generator Documentation](docs/CLIENT_GENERATOR.md) for planned featu
 - **Graceful Degradation**: Web console works even if API is unavailable
 - **No External Dependencies**: All assets served locally (offline-ready)
 - **Audit Trail**: Timestamps for all device modifications
+
+### 🌍 Internationalization (i18n)
+
+BetterDesk Console supports multiple languages through a JSON-based translation system.
+
+**Features:**
+- **Auto-Detection**: Automatically detects browser language preference
+- **Manual Selection**: Change language via Settings → Language Settings
+- **Persistent**: Language preference saved in cookies (1 year)
+- **Community Translations**: Easy to add new languages via JSON files
+- **Custom Upload**: Upload your own language packs directly from the web panel
+
+**Built-in Languages:**
+- 🇬🇧 English (default)
+- 🇵🇱 Polish (Polski)
+
+**Adding a Custom Language:**
+1. Go to **Settings** → **Language Settings**
+2. Click **Choose JSON File** and select your translation file
+3. The language will be available immediately after upload
+4. Refresh the page to apply translations
+
+**Creating a Language Pack:**
+1. Copy `web/lang/en.json` to `web/lang/[code].json`
+2. Translate all string values
+3. Update the `_meta` section with language info
+4. Upload via the web panel or place in the `lang/` folder
+
+See [Contributing Translations](docs/CONTRIBUTING_TRANSLATIONS.md) for detailed instructions.
 
 ---
 

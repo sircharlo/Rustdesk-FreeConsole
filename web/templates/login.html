@@ -8,6 +8,8 @@
     <meta http-equiv="Expires" content="0">
     <title>Login - BetterDesk Console</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=app_version) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/i18n.css', v=app_version) }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         /* Login page specific styles - Dark Theme */
         .login-container {
@@ -225,7 +227,7 @@
             <div class="login-logo">
                 <i class="fas fa-desktop"></i>
                 <h1>BetterDesk Console</h1>
-                <p>RustDesk Management Dashboard</p>
+                <p data-i18n="auth.subtitle">RustDesk Management Dashboard</p>
             </div>
 
             <div class="error-message" id="errorMessage">
@@ -235,11 +237,12 @@
 
             <form id="loginForm" onsubmit="return false;">
                 <div class="form-group">
-                    <label for="username">Username</label>
+                    <label for="username" data-i18n="auth.username">Username</label>
                     <input 
                         type="text" 
                         id="username" 
                         name="username" 
+                        data-i18n-placeholder="auth.enter_username"
                         placeholder="Enter your username" 
                         required
                         autocomplete="username"
@@ -248,11 +251,12 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="password">Password</label>
+                    <label for="password" data-i18n="auth.password">Password</label>
                     <input 
                         type="password" 
                         id="password" 
                         name="password" 
+                        data-i18n-placeholder="auth.enter_password"
                         placeholder="Enter your password" 
                         required
                         autocomplete="current-password"
@@ -262,7 +266,7 @@
                 <button type="submit" class="btn-login" id="loginBtn">
                     <span class="spinner"></span>
                     <span id="loginBtnText">
-                        <i class="fas fa-sign-in-alt"></i> Sign In
+                        <i class="fas fa-sign-in-alt"></i> <span data-i18n="auth.sign_in">Sign In</span>
                     </span>
                 </button>
             </form>
@@ -376,6 +380,11 @@
         // Clear error on input
         document.getElementById('username').addEventListener('input', hideError);
         document.getElementById('password').addEventListener('input', hideError);
+    </script>
+    <script src="{{ url_for('static', filename='js/i18n.js', v=app_version) }}"></script>
+    <script>
+        // Initialize i18n
+        i18n.init({ defaultLang: 'en' });
     </script>
 </body>
 </html>
