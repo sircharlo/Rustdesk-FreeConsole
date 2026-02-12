@@ -715,12 +715,23 @@ run_migrations() {
     
     if [ -d "$SCRIPT_DIR/migrations" ]; then
         cd "$SCRIPT_DIR/migrations"
+        
+        # Export auto mode flag for migration scripts
+        if [ "$AUTO_MODE" = true ]; then
+            export BETTERDESK_AUTO=1
+        fi
+        
         for migration in v*.py; do
             if [ -f "$migration" ]; then
                 print_info "Migration: $migration"
-                python3 "$migration" "$DB_PATH" 2>/dev/null || true
+                # Pass database path as argument
+                python3 "$migration" "$DB_PATH" 2>&1 || {
+                    print_warning "Migration $migration returned non-zero exit code (may already be applied)"
+                }
             fi
         done
+        
+        unset BETTERDESK_AUTO
     fi
     
     print_success "Migrations completed"
@@ -821,6 +832,11 @@ do_install() {
     echo ""
     print_info "Starting BetterDesk Console v$VERSION installation..."
     echo ""
+    
+    # Stop services if running (prevents "Text file busy" error)
+    print_step "Stopping existing services (if any)..."
+    systemctl stop rustdesksignal rustdeskrelay betterdesk 2>/dev/null || true
+    sleep 1
     
     install_dependencies
     detect_architecture

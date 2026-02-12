@@ -8,10 +8,13 @@ Adds columns to peer table for device banning functionality:
 - banned_at: Timestamp when device was banned
 - banned_by: Administrator who banned the device
 - ban_reason: Reason for banning the device
+
+Supports automatic mode via BETTERDESK_AUTO=1 environment variable.
 """
 
 import sqlite3
 import sys
+import os
 from datetime import datetime
 
 # Database configuration
@@ -23,6 +26,10 @@ RED = '\033[91m'
 YELLOW = '\033[93m'
 BLUE = '\033[94m'
 RESET = '\033[0m'
+
+def is_auto_mode():
+    """Check if running in automatic (non-interactive) mode."""
+    return os.environ.get('BETTERDESK_AUTO', '').strip() in ('1', 'true', 'yes')
 
 def print_header():
     """Print migration header."""
@@ -76,8 +83,17 @@ def main():
     print(f"Database: {DB_PATH}")
     print()
     
+    # Check for auto mode
+    auto_mode = is_auto_mode()
+    
     # Confirmation prompt
-    response = input("Continue? [y/N]: ").strip().lower()
+    if auto_mode:
+        print("ℹ Running in automatic mode (BETTERDESK_AUTO=1)")
+        response = 'y'
+    else:
+        print("Press 'y' and Enter to continue, or any other key to cancel.")
+        response = input("Continue? [y/N]: ").strip().lower()
+    
     if response != 'y':
         print("Migration cancelled.")
         sys.exit(0)

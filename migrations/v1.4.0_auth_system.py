@@ -2,6 +2,8 @@
 """
 Database Migration Script v1.4.0 - Authentication System
 Adds user management, sessions, and audit logging to BetterDesk Console
+
+Supports automatic mode via BETTERDESK_AUTO=1 environment variable.
 """
 
 import sqlite3
@@ -19,16 +21,27 @@ DEFAULT_ADMIN_USERNAME = 'admin'
 DEFAULT_ADMIN_PASSWORD = secrets.token_urlsafe(12)  # Random password
 
 
+def is_auto_mode():
+    """Check if running in automatic (non-interactive) mode."""
+    return os.environ.get('BETTERDESK_AUTO', '').strip() in ('1', 'true', 'yes')
+
+
 def backup_database():
     """Create backup of database before migration"""
     backup_path = DB_PATH + BACKUP_SUFFIX
+    auto_mode = is_auto_mode()
     
     if os.path.exists(backup_path):
         print(f"⚠️  Backup already exists: {backup_path}")
-        response = input("Overwrite? [y/N]: ").strip().lower()
-        if response != 'y':
-            print("❌ Migration cancelled")
-            sys.exit(1)
+        if auto_mode:
+            print("ℹ Auto mode: Using existing backup, continuing migration...")
+            return backup_path
+        else:
+            print("Press 'y' and Enter to overwrite, or any other key to cancel.")
+            response = input("Overwrite? [y/N]: ").strip().lower()
+            if response != 'y':
+                print("❌ Migration cancelled")
+                sys.exit(1)
     
     print(f"📦 Creating backup: {backup_path}")
     

@@ -3,6 +3,8 @@
 Database Migration Script v1.4.1 - Last Online Tracking
 Adds last_online column to peer table for tracking device connectivity
 Required for hbbs-v8-api to properly record online/offline transitions
+
+Supports automatic mode via BETTERDESK_AUTO=1 environment variable.
 """
 
 import sqlite3
@@ -12,6 +14,11 @@ from datetime import datetime
 
 DB_PATH = '/opt/rustdesk/db_v2.sqlite3'
 BACKUP_SUFFIX = '.backup-pre-v1.4.1'
+
+
+def is_auto_mode():
+    """Check if running in automatic (non-interactive) mode."""
+    return os.environ.get('BETTERDESK_AUTO', '').strip() in ('1', 'true', 'yes')
 
 
 def backup_database():
@@ -133,12 +140,20 @@ def main():
         backup_path = backup_database()
         
         # Confirm migration
+        auto_mode = is_auto_mode()
         print()
         print("⚠️  This migration will:")
         print("   - Add last_online column to peer table")
         print("   - Set last_online timestamp for currently active peers")
         print()
-        response = input("Continue with migration? [y/N]: ").strip().lower()
+        
+        if auto_mode:
+            print("ℹ Running in automatic mode (BETTERDESK_AUTO=1)")
+            response = 'y'
+        else:
+            print("Press 'y' and Enter to continue, or any other key to cancel.")
+            response = input("Continue with migration? [y/N]: ").strip().lower()
+        
         if response != 'y':
             print("❌ Migration cancelled")
             sys.exit(1)

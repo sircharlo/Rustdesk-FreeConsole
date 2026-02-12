@@ -2,13 +2,20 @@
 """
 Database Migration Script for BetterDesk Console v1.0.1
 Adds soft delete and enhanced tracking columns
+
+Supports automatic mode via BETTERDESK_AUTO=1 environment variable.
 """
 
 import sqlite3
 import sys
+import os
 from datetime import datetime
 
 DB_PATH = '/opt/rustdesk/db_v2.sqlite3'
+
+def is_auto_mode():
+    """Check if running in automatic (non-interactive) mode."""
+    return os.environ.get('BETTERDESK_AUTO', '').strip() in ('1', 'true', 'yes')
 
 def migrate_database():
     """Add new columns for enhanced functionality"""
@@ -114,10 +121,19 @@ if __name__ == '__main__':
         rollback_migration()
         sys.exit(0)
     
+    # Check for auto mode
+    auto_mode = is_auto_mode()
+    
     print("\n⚠ This script will modify the RustDesk database")
     print(f"Database: {DB_PATH}")
     
-    response = input("\nContinue? [y/N]: ")
+    if auto_mode:
+        print("ℹ Running in automatic mode (BETTERDESK_AUTO=1)")
+        response = 'y'
+    else:
+        print("\nPress 'y' and Enter to continue, or any other key to cancel.")
+        response = input("Continue? [y/N]: ")
+    
     if response.lower() != 'y':
         print("Migration cancelled")
         sys.exit(0)

@@ -10,6 +10,8 @@ This migration adds:
 
 Run this script if devices show as "offline" even when they are online.
 
+Supports automatic mode via BETTERDESK_AUTO=1 environment variable.
+
 Usage:
     python3 v1.5.0_fix_online_status.py [database_path]
     
@@ -28,6 +30,11 @@ DEFAULT_PATHS = [
     "/var/lib/rustdesk/db_v2.sqlite3",
     os.path.expanduser("~/.rustdesk/db_v2.sqlite3"),
 ]
+
+
+def is_auto_mode():
+    """Check if running in automatic (non-interactive) mode."""
+    return os.environ.get('BETTERDESK_AUTO', '').strip() in ('1', 'true', 'yes')
 
 
 def get_database_path():
@@ -61,10 +68,16 @@ def backup_database(db_path):
         return backup_path
     except Exception as e:
         print(f"⚠ Could not create backup: {e}")
-        response = input("Continue without backup? [y/N] ").strip().lower()
-        if response != 'y':
-            sys.exit(1)
-        return None
+        auto_mode = is_auto_mode()
+        if auto_mode:
+            print("ℹ Auto mode: Continuing without backup...")
+            return None
+        else:
+            print("Press 'y' and Enter to continue without backup, or any other key to cancel.")
+            response = input("Continue without backup? [y/N] ").strip().lower()
+            if response != 'y':
+                sys.exit(1)
+            return None
 
 
 def get_existing_columns(cursor, table_name):
