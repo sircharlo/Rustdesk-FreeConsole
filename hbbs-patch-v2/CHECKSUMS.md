@@ -1,4 +1,4 @@
-# BetterDesk Server v2.1.1 - Binary Checksums
+# BetterDesk Server v2.1.2 - Binary Checksums
 
 > **✅ RECOMMENDED PRODUCTION BINARIES**
 >
@@ -6,7 +6,7 @@
 
 ---
 
-## 🚀 Features in v2.1.1
+## 🚀 Features in v2.1.2
 
 - ✅ **HTTP API on port 21120** (non-conflicting)
 - ✅ **15s offline detection** (2x faster than v1)
@@ -48,9 +48,9 @@ sudo chmod +x /opt/rustdesk/hbbs-v8-api
 
 | Property | Value |
 |----------|-------|
-| **SHA256** | `507DC4DFDF118DBE9450DA0D7CCE4A5989D9308616A1F1C3D3FFFFC3B4E01DFD` |
+| **SHA256** | `8E7492CB1695B3D812CA13ABAC9A31E4DEA95B50497128D8E128DA39FDAC243D` |
 | **Size** | 4.6 MB |
-| **Date** | 2026-02-08 |
+| **Date** | 2026-02-13 |
 | **Platform** | Linux x86_64 |
 | **Base** | RustDesk Server 1.1.14 |
 
@@ -71,9 +71,9 @@ sudo chmod +x /opt/rustdesk/hbbr-v8-api
 
 | Property | Value |
 |----------|-------|
-| **SHA256** | `682AA117AEEC8A6408DB4462BD31EB9DE943D5F70F5C27F3383F1DF56028A6E3` |
-| **Size** | 7.3 MB |
-| **Date** | 2026-02-08 |
+| **SHA256** | `F74F65B909460BED6D363A6DF907BF0D9DB3224F82A1D5B61BD636DC362125AD` |
+| **Size** | 7.4 MB |
+| **Date** | 2026-02-13 |
 | **Platform** | Windows x86_64 (Windows 10+, Server 2019+) |
 | **Base** | RustDesk Server 1.1.14 |
 | **API Port** | 21114 (configurable with --api-port) |
@@ -94,9 +94,9 @@ sudo chmod +x /opt/rustdesk/hbbr-v8-api
 
 | Property | Value |
 |----------|-------|
-| **SHA256** | `B585D077D5512035132BBCE3CE6CBC9D034E2DAE0805A799B3196C7372D82BEA` |
-| **Size** | 2.75 MB |
-| **Date** | 2026-02-08 |
+| **SHA256** | `1C3CE3F7900D30A0DD3E48B0998E566F09338C71F0C27422D7E0057049A16F3F` |
+| **Size** | 4.3 MB |
+| **Date** | 2026-02-13 |
 | **Platform** | Windows x86_64 |
 | **Base** | RustDesk Server 1.1.14 |
 
@@ -118,17 +118,17 @@ sha256sum hbbs-linux-x86_64
 # Expected: 2b6c475a449ecba3786d0db46cbf4e038edb74fc3497f9a45791addd5a28834c
 
 sha256sum hbbr-linux-x86_64
-# Expected: 507dc4dfdf118dbe9450da0d7cce4a5989d9308616a1f1c3d3ffffc3b4e01dfd
+# Expected: 8e7492cb1695b3d812ca13abac9a31e4dea95b50497128d8e128da39fdac243d
 ```
 
 ### Windows (PowerShell)
 ```powershell
 # Verify SHA256 checksums
 (Get-FileHash hbbs-windows-x86_64.exe -Algorithm SHA256).Hash
-# Expected: 682AA117AEEC8A6408DB4462BD31EB9DE943D5F70F5C27F3383F1DF56028A6E3
+# Expected: F74F65B909460BED6D363A6DF907BF0D9DB3224F82A1D5B61BD636DC362125AD
 
 (Get-FileHash hbbr-windows-x86_64.exe -Algorithm SHA256).Hash
-# Expected: B585D077D5512035132BBCE3CE6CBC9D034E2DAE0805A799B3196C7372D82BEA
+# Expected: 1C3CE3F7900D30A0DD3E48B0998E566F09338C71F0C27422D7E0057049A16F3F
 ```
 
 ---

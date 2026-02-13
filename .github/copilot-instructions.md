@@ -5,43 +5,45 @@
 
 ---
 
-## 📊 Stan Projektu (aktualizacja: 2026-02-11)
+## 📊 Stan Projektu (aktualizacja: 2026-02-13)
 
-### Wersja Skryptów ALL-IN-ONE (v2.1.1)
+### Wersja Skryptów ALL-IN-ONE (v2.1.2)
 
 | Plik | Wersja | Platforma | Status |
 |------|--------|-----------|--------|
-| `betterdesk.sh` | v2.1.1 | Linux | ✅ ALL-IN-ONE + SHA256 verification + Auto mode |
-| `betterdesk.ps1` | v2.1.1 | Windows | ✅ ALL-IN-ONE + SHA256 verification + Auto mode |
+| `betterdesk.sh` | v2.1.2 | Linux | ✅ ALL-IN-ONE + SHA256 verification + Auto mode + Ban fix |
+| `betterdesk.ps1` | v2.1.2 | Windows | ✅ ALL-IN-ONE + SHA256 verification + Auto mode + Ban fix |
 | `betterdesk-docker.sh` | v2.0.0 | Docker | ✅ Interaktywny ALL-IN-ONE |
 
 ### Binarki Serwera
 
 | Platforma | Plik | Wersja | Status | Data |
 |-----------|------|--------|--------|------|
-| Linux x86_64 | `hbbs-patch-v2/hbbs-linux-x86_64` | v2.1.1 | ✅ Przetestowana | 2026-02-08 |
-| Linux x86_64 | `hbbs-patch-v2/hbbr-linux-x86_64` | v2.1.1 | ✅ Przetestowana | 2026-02-08 |
-| Windows x86_64 | `hbbs-patch-v2/hbbs-windows-x86_64.exe` | v2.1.1 | ✅ Przetestowana | 2026-02-08 |
-| Windows x86_64 | `hbbs-patch-v2/hbbr-windows-x86_64.exe` | v2.1.1 | ✅ Przetestowana | 2026-02-08 |
+| Linux x86_64 | `hbbs-patch-v2/hbbs-linux-x86_64` | v2.1.2 | ✅ Przetestowana | 2026-02-13 |
+| Linux x86_64 | `hbbs-patch-v2/hbbr-linux-x86_64` | v2.1.2 | ✅ Przetestowana | 2026-02-13 |
+| Windows x86_64 | `hbbs-patch-v2/hbbs-windows-x86_64.exe` | v2.1.2 | ✅ Przetestowana | 2026-02-13 |
+| Windows x86_64 | `hbbs-patch-v2/hbbr-windows-x86_64.exe` | v2.1.2 | ✅ Przetestowana | 2026-02-13 |
 
 ### Sumy Kontrolne SHA256
 
 ```
 Linux:
   hbbs: 2B6C475A449ECBA3786D0DB46CBF4E038EDB74FC3497F9A45791ADDD5A28834C
-  hbbr: 507DC4DFDF118DBE9450DA0D7CCE4A5989D9308616A1F1C3D3FFFFC3B4E01DFD
+  hbbr: 8E7492CB1695B3D812CA13ABAC9A31E4DEA95B50497128D8E128DA39FDAC243D
 
 Windows:
-  hbbs: 682AA117AEEC8A6408DB4462BD31EB9DE943D5F70F5C27F3383F1DF56028A6E3
-  hbbr: B585D077D5512035132BBCE3CE6CBC9D034E2DAE0805A799B3196C7372D82BEA
+  hbbs: F74F65B909460BED6D363A6DF907BF0D9DB3224F82A1D5B61BD636DC362125AD
+  hbbr: 1C3CE3F7900D30A0DD3E48B0998E566F09338C71F0C27422D7E0057049A16F3F
 ```
 
 ---
 
-## 🚀 Skrypty ALL-IN-ONE (v2.1.1)
+## 🚀 Skrypty ALL-IN-ONE (v2.1.2)
 
-### Nowe funkcje w v2.1.1
+### Nowe funkcje w v2.1.2
 
+- ✅ **Poprawka systemu banowania** - ban dotyczy tylko konkretnego urządzenia, nie wszystkich z tego samego IP
+- ✅ **Poprawka migracji w trybie auto** - migracje bazy danych działają bez interakcji
 - ✅ **Weryfikacja SHA256** - automatyczna weryfikacja sum kontrolnych binarek
 - ✅ **Tryb automatyczny** - instalacja bez interakcji użytkownika (`--auto` / `-Auto`)
 - ✅ **Konfigurowalne porty API** - zmienne środowiskowe `API_PORT`
