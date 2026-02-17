@@ -7,12 +7,12 @@
 
 ## 📊 Stan Projektu (aktualizacja: 2026-02-17)
 
-### Wersja Skryptów ALL-IN-ONE (v2.2.0)
+### Wersja Skryptów ALL-IN-ONE (v2.2.1)
 
 | Plik | Wersja | Platforma | Status |
 |------|--------|-----------|--------|
-| `betterdesk.sh` | v2.2.0 | Linux | ✅ ALL-IN-ONE + Node.js/Flask choice + Auto mode |
-| `betterdesk.ps1` | v2.2.0 | Windows | ✅ ALL-IN-ONE + Node.js/Flask choice + Auto mode |
+| `betterdesk.sh` | v2.2.1 | Linux | ✅ ALL-IN-ONE + Node.js/Flask choice + Auto mode |
+| `betterdesk.ps1` | v2.2.1 | Windows | ✅ ALL-IN-ONE + Node.js/Flask choice + Auto mode |
 | `betterdesk-docker.sh` | v2.0.0 | Docker | ✅ Interaktywny ALL-IN-ONE |
 
 ### Konsole Webowe
@@ -46,6 +46,14 @@ Windows:
 ---
 
 ## 🚀 Skrypty ALL-IN-ONE (v2.2.0)
+
+### Nowe funkcje w v2.2.1
+
+- ✅ **Poprawka konfiguracji Node.js** - zmienne środowiskowe w .env są teraz poprawnie ustawione (RUSTDESK_DIR, KEYS_PATH, DATA_DIR)
+- ✅ **Poprawka hasła admina** - hasło jest teraz poprawnie przekazywane do konsoli Node.js przy instalacji
+- ✅ **Poprawka usług systemd** - usługa Node.js teraz ładuje plik .env z EnvironmentFile
+- ✅ **Poprawka aktualizacji** - do_update teraz aktualizuje usługi systemd i tworzy admina
+- ✅ **Poprawka QR code** - ścieżki do kluczy są teraz poprawnie konfigurowane
 
 ### Nowe funkcje w v2.2.0
 

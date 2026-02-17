@@ -31,7 +31,7 @@
 set -e
 
 # Version
-VERSION="2.2.0"
+VERSION="2.2.1"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Auto mode flag
@@ -902,18 +902,41 @@ install_nodejs_console() {
     # Create data directory for databases
     mkdir -p "$CONSOLE_PATH/data"
     
-    # Create .env file if not exists
-    if [ ! -f "$CONSOLE_PATH/.env" ]; then
-        cat > "$CONSOLE_PATH/.env" << EOF
+    # Generate admin password for Node.js console
+    local nodejs_admin_password
+    nodejs_admin_password=$(openssl rand -base64 12 | tr -d '/+=' | head -c 16)
+    
+    # Create .env file (always update to ensure correct paths)
+    cat > "$CONSOLE_PATH/.env" << EOF
 # BetterDesk Node.js Console Configuration
 PORT=5000
-RUSTDESK_PATH=$RUSTDESK_PATH
-API_PORT=$API_PORT
 NODE_ENV=production
+
+# RustDesk paths (critical for key/QR code generation)
+RUSTDESK_DIR=$RUSTDESK_PATH
+KEYS_PATH=$RUSTDESK_PATH
+DB_PATH=$RUSTDESK_PATH/db_v2.sqlite3
+PUB_KEY_PATH=$RUSTDESK_PATH/id_ed25519.pub
+API_KEY_PATH=$RUSTDESK_PATH/.api_key
+
+# Auth database location
+DATA_DIR=$CONSOLE_PATH/data
+
+# HBBS API
+HBBS_API_URL=http://localhost:$API_PORT/api
+
+# Default admin credentials (used only on first startup)
+DEFAULT_ADMIN_USERNAME=admin
+DEFAULT_ADMIN_PASSWORD=$nodejs_admin_password
+
+# Session
 SESSION_SECRET=$(openssl rand -hex 32)
 EOF
-        print_info "Created .env configuration file"
-    fi
+    print_info "Created .env configuration file"
+    
+    # Save Node.js admin credentials for display
+    echo "admin:$nodejs_admin_password" > "$CONSOLE_PATH/data/.admin_credentials"
+    chmod 600 "$CONSOLE_PATH/data/.admin_credentials"
     
     # Set permissions
     chown -R root:root "$CONSOLE_PATH"
@@ -1174,10 +1197,14 @@ After=network.target rustdesksignal.service
 Type=simple
 User=root
 WorkingDirectory=$CONSOLE_PATH
+EnvironmentFile=-$CONSOLE_PATH/.env
 ExecStart=/usr/bin/node server.js
 Environment=NODE_ENV=production
-Environment=RUSTDESK_PATH=$RUSTDESK_PATH
-Environment=API_PORT=$API_PORT
+Environment=RUSTDESK_DIR=$RUSTDESK_PATH
+Environment=KEYS_PATH=$RUSTDESK_PATH
+Environment=DATA_DIR=$CONSOLE_PATH/data
+Environment=DB_PATH=$RUSTDESK_PATH/db_v2.sqlite3
+Environment=HBBS_API_URL=http://localhost:$API_PORT/api
 Environment=PORT=5000
 Restart=always
 RestartSec=5
@@ -1246,11 +1273,52 @@ run_migrations() {
 create_admin_user() {
     print_step "Creating admin user..."
     
-    local admin_password
-    admin_password=$(openssl rand -base64 12 | tr -d '/+=' | head -c 16)
+    # Detect console type
+    local current_console_type=""
+    if [ -f "$CONSOLE_PATH/server.js" ]; then
+        current_console_type="nodejs"
+    elif [ -f "$CONSOLE_PATH/app.py" ]; then
+        current_console_type="flask"
+    else
+        print_warning "No console detected, skipping admin creation"
+        return
+    fi
     
-    # Create admin via Python
-    python3 << EOF
+    if [ "$current_console_type" = "nodejs" ]; then
+        # Node.js console - admin is created automatically on startup
+        # Read the password saved during install_nodejs_console
+        local creds_file="$CONSOLE_PATH/data/.admin_credentials"
+        
+        if [ -f "$creds_file" ]; then
+            local admin_password
+            admin_password=$(cat "$creds_file" | cut -d':' -f2)
+            
+            echo ""
+            echo -e "${GREEN}╔════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${GREEN}║            PANEL LOGIN CREDENTIALS                    ║${NC}"
+            echo -e "${GREEN}╠════════════════════════════════════════════════════════╣${NC}"
+            echo -e "${GREEN}║  Login:    ${WHITE}admin${GREEN}                                     ║${NC}"
+            echo -e "${GREEN}║  Password: ${WHITE}${admin_password}${GREEN}                         ║${NC}"
+            echo -e "${GREEN}╚════════════════════════════════════════════════════════╝${NC}"
+            echo ""
+            
+            # Also save to main RustDesk path for consistency
+            echo "admin:$admin_password" > "$RUSTDESK_PATH/.admin_credentials"
+            chmod 600 "$RUSTDESK_PATH/.admin_credentials"
+            
+            print_info "Credentials saved in: $RUSTDESK_PATH/.admin_credentials"
+        else
+            print_warning "No Node.js admin credentials found"
+            print_info "Default credentials: admin / admin"
+            print_info "Please change password after first login!"
+        fi
+    else
+        # Flask console - create admin in db_v2.sqlite3
+        local admin_password
+        admin_password=$(openssl rand -base64 12 | tr -d '/+=' | head -c 16)
+        
+        # Create admin via Python
+        python3 << EOF
 import sqlite3
 import bcrypt
 from datetime import datetime
@@ -1285,20 +1353,21 @@ else:
 conn.close()
 EOF
 
-    echo ""
-    echo -e "${GREEN}╔════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║            PANEL LOGIN CREDENTIALS                    ║${NC}"
-    echo -e "${GREEN}╠════════════════════════════════════════════════════════╣${NC}"
-    echo -e "${GREEN}║  Login:    ${WHITE}admin${GREEN}                                     ║${NC}"
-    echo -e "${GREEN}║  Password:    ${WHITE}${admin_password}${GREEN}                         ║${NC}"
-    echo -e "${GREEN}╚════════════════════════════════════════════════════════╝${NC}"
-    echo ""
-    
-    # Save credentials
-    echo "admin:$admin_password" > "$RUSTDESK_PATH/.admin_credentials"
-    chmod 600 "$RUSTDESK_PATH/.admin_credentials"
-    
-    print_info "Credentials saved in: $RUSTDESK_PATH/.admin_credentials"
+        echo ""
+        echo -e "${GREEN}╔════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${GREEN}║            PANEL LOGIN CREDENTIALS                    ║${NC}"
+        echo -e "${GREEN}╠════════════════════════════════════════════════════════╣${NC}"
+        echo -e "${GREEN}║  Login:    ${WHITE}admin${GREEN}                                     ║${NC}"
+        echo -e "${GREEN}║  Password: ${WHITE}${admin_password}${GREEN}                         ║${NC}"
+        echo -e "${GREEN}╚════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+        
+        # Save credentials
+        echo "admin:$admin_password" > "$RUSTDESK_PATH/.admin_credentials"
+        chmod 600 "$RUSTDESK_PATH/.admin_credentials"
+        
+        print_info "Credentials saved in: $RUSTDESK_PATH/.admin_credentials"
+    fi
 }
 
 start_services() {
@@ -1392,6 +1461,12 @@ do_update() {
     install_binaries
     install_console
     run_migrations
+    
+    # Update systemd services with latest configuration
+    setup_services
+    
+    # Ensure admin user exists (especially for Node.js console migration)
+    create_admin_user
     
     # Start services with verification
     start_services_with_verification

@@ -13,8 +13,9 @@ const isProduction = NODE_ENV === 'production';
 const isDocker = fs.existsSync('/.dockerenv') || process.env.DOCKER === 'true';
 
 // Base paths
+// Support multiple env var names for compatibility with different install scripts
 const DATA_DIR = process.env.DATA_DIR || (isDocker ? '/app/data' : path.join(__dirname, '..', 'data'));
-const KEYS_PATH = process.env.KEYS_PATH || process.env.RUSTDESK_DIR || (isDocker ? '/opt/rustdesk' : path.join(__dirname, '..', '..'));
+const KEYS_PATH = process.env.KEYS_PATH || process.env.RUSTDESK_DIR || process.env.RUSTDESK_PATH || (isDocker ? '/opt/rustdesk' : '/opt/rustdesk');
 const RUSTDESK_DIR = KEYS_PATH;
 
 // Database path

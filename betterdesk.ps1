@@ -57,7 +57,7 @@ param(
 # Configuration
 #===============================================================================
 
-$script:VERSION = "2.2.0"
+$script:VERSION = "2.2.1"
 $script:ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 # Auto mode flags
@@ -626,21 +626,43 @@ function Install-NodeJsConsole {
             New-Item -ItemType Directory -Path $dataDir -Force | Out-Null
         }
         
-        # Create .env file if not exists
+        # Generate admin password for Node.js console
+        $nodejsAdminPassword = Generate-RandomPassword
+        
+        # Create .env file (always update to ensure correct paths)
         $envFile = Join-Path $script:CONSOLE_PATH ".env"
-        if (-not (Test-Path $envFile)) {
-            $sessionSecret = -join ((65..90) + (97..122) + (48..57) | Get-Random -Count 32 | ForEach-Object {[char]$_})
-            $envContent = @"
+        $sessionSecret = -join ((65..90) + (97..122) + (48..57) | Get-Random -Count 64 | ForEach-Object {[char]$_})
+        $envContent = @"
 # BetterDesk Node.js Console Configuration
 PORT=5000
-RUSTDESK_PATH=$script:RUSTDESK_PATH
-API_PORT=$script:API_PORT
 NODE_ENV=production
+
+# RustDesk paths (critical for key/QR code generation)
+RUSTDESK_DIR=$script:RUSTDESK_PATH
+KEYS_PATH=$script:RUSTDESK_PATH
+DB_PATH=$script:RUSTDESK_PATH\db_v2.sqlite3
+PUB_KEY_PATH=$script:RUSTDESK_PATH\id_ed25519.pub
+API_KEY_PATH=$script:RUSTDESK_PATH\.api_key
+
+# Auth database location
+DATA_DIR=$dataDir
+
+# HBBS API
+HBBS_API_URL=http://localhost:$script:API_PORT/api
+
+# Default admin credentials (used only on first startup)
+DEFAULT_ADMIN_USERNAME=admin
+DEFAULT_ADMIN_PASSWORD=$nodejsAdminPassword
+
+# Session
 SESSION_SECRET=$sessionSecret
 "@
-            Set-Content -Path $envFile -Value $envContent
-            Print-Info "Created .env configuration file"
-        }
+        Set-Content -Path $envFile -Value $envContent
+        Print-Info "Created .env configuration file"
+        
+        # Save Node.js admin credentials for display
+        $credsFile = Join-Path $dataDir ".admin_credentials"
+        "admin:$nodejsAdminPassword" | Out-File -FilePath $credsFile -Encoding UTF8
         
         $script:CONSOLE_TYPE = "nodejs"
         Print-Success "Node.js Web Console installed"
@@ -1151,9 +1173,53 @@ print("Database migrations completed")
 function Create-AdminUser {
     Print-Step "Creating admin user..."
     
-    $adminPassword = Generate-RandomPassword
+    # Detect console type
+    $currentConsoleType = ""
+    if (Test-Path (Join-Path $script:CONSOLE_PATH "server.js")) {
+        $currentConsoleType = "nodejs"
+    } elseif (Test-Path (Join-Path $script:CONSOLE_PATH "app.py")) {
+        $currentConsoleType = "flask"
+    } else {
+        Print-Warning "No console detected, skipping admin creation"
+        return $null
+    }
     
-    $pythonScript = @"
+    if ($currentConsoleType -eq "nodejs") {
+        # Node.js console - admin is created automatically on startup
+        # Read the password saved during Install-NodeJsConsole
+        $dataDir = Join-Path $script:CONSOLE_PATH "data"
+        $credsFile = Join-Path $dataDir ".admin_credentials"
+        
+        if (Test-Path $credsFile) {
+            $creds = Get-Content $credsFile -Raw
+            $adminPassword = ($creds -split ':')[1].Trim()
+            
+            Write-Host ""
+            Write-Host "============================================================" -ForegroundColor Green
+            Write-Host "             PANEL LOGIN CREDENTIALS                        " -ForegroundColor Green
+            Write-Host "============================================================" -ForegroundColor Green
+            Write-Host "  Login:    " -NoNewline; Write-Host "admin" -ForegroundColor White
+            Write-Host "  Password: " -NoNewline; Write-Host $adminPassword -ForegroundColor White
+            Write-Host "============================================================" -ForegroundColor Green
+            Write-Host ""
+            
+            # Also save to main RustDesk path for consistency
+            $mainCredsFile = Join-Path $script:RUSTDESK_PATH ".admin_credentials"
+            "admin:$adminPassword" | Out-File -FilePath $mainCredsFile -Encoding UTF8
+            
+            Print-Info "Credentials saved in: $mainCredsFile"
+            return $adminPassword
+        } else {
+            Print-Warning "No Node.js admin credentials found"
+            Print-Info "Default credentials: admin / admin"
+            Print-Info "Please change password after first login!"
+            return "admin"
+        }
+    } else {
+        # Flask console - create admin in db_v2.sqlite3
+        $adminPassword = Generate-RandomPassword
+        
+        $pythonScript = @"
 import sqlite3
 import bcrypt
 from datetime import datetime
@@ -1177,25 +1243,26 @@ else:
 
 conn.close()
 "@
-    
-    $pythonScript | python
-    
-    Write-Host ""
-    Write-Host "============================================================" -ForegroundColor Green
-    Write-Host "             PANEL LOGIN CREDENTIALS                        " -ForegroundColor Green
-    Write-Host "============================================================" -ForegroundColor Green
-    Write-Host "  Login:    " -NoNewline; Write-Host "admin" -ForegroundColor White
-    Write-Host "  Password: " -NoNewline; Write-Host $adminPassword -ForegroundColor White
-    Write-Host "============================================================" -ForegroundColor Green
-    Write-Host ""
-    
-    # Save credentials
-    $credentialsFile = Join-Path $script:RUSTDESK_PATH ".admin_credentials"
-    "admin:$adminPassword" | Out-File -FilePath $credentialsFile -Encoding UTF8
-    
-    Print-Info "Credentials saved in: $credentialsFile"
-    
-    return $adminPassword
+        
+        $pythonScript | python
+        
+        Write-Host ""
+        Write-Host "============================================================" -ForegroundColor Green
+        Write-Host "             PANEL LOGIN CREDENTIALS                        " -ForegroundColor Green
+        Write-Host "============================================================" -ForegroundColor Green
+        Write-Host "  Login:    " -NoNewline; Write-Host "admin" -ForegroundColor White
+        Write-Host "  Password: " -NoNewline; Write-Host $adminPassword -ForegroundColor White
+        Write-Host "============================================================" -ForegroundColor Green
+        Write-Host ""
+        
+        # Save credentials
+        $credentialsFile = Join-Path $script:RUSTDESK_PATH ".admin_credentials"
+        "admin:$adminPassword" | Out-File -FilePath $credentialsFile -Encoding UTF8
+        
+        Print-Info "Credentials saved in: $credentialsFile"
+        
+        return $adminPassword
+    }
 }
 
 function Start-Services {
@@ -1457,6 +1524,12 @@ function Do-Update {
     if (-not (Install-Binaries)) { Print-Error "Binary update failed"; return }
     if (-not (Install-Console)) { Print-Error "Console update failed"; return }
     Run-Migrations
+    
+    # Update scheduled tasks/services with latest configuration
+    Setup-ScheduledTasks
+    
+    # Ensure admin user exists (especially for Node.js console migration)
+    Create-AdminUser | Out-Null
     
     Start-Services
     
