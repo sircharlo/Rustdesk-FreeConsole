@@ -1,0 +1,105 @@
+<%- include('layouts/main', {
+    title: _('nav.generator'),
+    pageStyles: ['pages'],
+    pageScripts: ['generator'],
+    currentPage: 'generator',
+    breadcrumb: [{ label: _('nav.generator') }],
+    body: `
+        <div class="page-header">
+            <h1 class="page-title">${_('generator.title')}</h1>
+            <p class="page-subtitle">${_('generator.subtitle')}</p>
+        </div>
+        
+        <div class="generator-container">
+            <div class="generator-form card">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <span class="material-icons">settings</span>
+                        ${_('generator.config_options')}
+                    </h2>
+                </div>
+                <div class="card-body">
+                    <form id="generator-form">
+                        <div class="generator-row">
+                            <div class="form-group">
+                                <label class="form-label" for="server-address">${_('generator.server_address')}</label>
+                                <input type="text" id="server-address" class="form-input" placeholder="rustdesk.example.com" required>
+                                <p class="form-hint">${_('generator.server_address_hint')}</p>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label" for="custom-port">${_('generator.custom_port')}</label>
+                                <input type="number" id="custom-port" class="form-input" placeholder="21116" min="1" max="65535">
+                                <p class="form-hint">${_('generator.port_hint')}</p>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label" for="relay-server">${_('generator.relay_server')}</label>
+                            <input type="text" id="relay-server" class="form-input" placeholder="${_('generator.relay_placeholder')}">
+                            <p class="form-hint">${_('generator.relay_hint')}</p>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="checkbox" id="include-key" checked>
+                                ${_('generator.include_key')}
+                            </label>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">
+                            <span class="material-icons">build</span>
+                            ${_('generator.generate')}
+                        </button>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Output Section (hidden initially) -->
+            <div class="generator-output hidden" id="generator-output">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <span class="material-icons">code</span>
+                            ${_('generator.output')}
+                        </h2>
+                        <button class="btn btn-secondary btn-sm" id="copy-config-btn">
+                            <span class="material-icons">content_copy</span>
+                            ${_('actions.copy')}
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="generator-config">
+                            <pre id="config-output"></pre>
+                        </div>
+                        
+                        <h3 class="mt-lg mb-md">${_('generator.usage_title')}</h3>
+                        <div class="server-info-grid">
+                            <div class="server-info-item">
+                                <span class="server-info-label">
+                                    <span class="material-icons">computer</span>
+                                    ID Server
+                                </span>
+                                <span class="server-info-value" id="output-server">-</span>
+                            </div>
+                            <div class="server-info-item">
+                                <span class="server-info-label">
+                                    <span class="material-icons">swap_horiz</span>
+                                    Relay Server
+                                </span>
+                                <span class="server-info-value" id="output-relay">-</span>
+                            </div>
+                            <div class="server-info-item">
+                                <span class="server-info-label">
+                                    <span class="material-icons">vpn_key</span>
+                                    Key
+                                </span>
+                                <span class="server-info-value mono" id="output-key">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `
+}) %>

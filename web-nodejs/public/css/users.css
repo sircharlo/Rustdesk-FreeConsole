@@ -1,0 +1,280 @@
+/**
+ * BetterDesk Console - Users Page Styles
+ */
+
+.users-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-lg);
+    gap: var(--space-md);
+}
+
+.users-header .page-title h1 {
+    margin: 0 0 var(--space-xs) 0;
+}
+
+.users-header .subtitle {
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+/* Security Tips Card */
+.security-tips-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: var(--space-lg);
+    margin-bottom: var(--space-lg);
+}
+
+.security-tips-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-md);
+}
+
+.security-tips-header .material-icons {
+    color: var(--accent-green);
+    font-size: 24px;
+}
+
+.security-tips-header h3 {
+    margin: 0;
+    font-size: var(--font-size-lg);
+}
+
+.security-tips-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: var(--space-sm);
+}
+
+.security-tips-list li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    color: var(--text-secondary);
+}
+
+.security-tips-list li .material-icons {
+    color: var(--accent-green);
+    font-size: 18px;
+}
+
+/* Users Table */
+.users-table-container {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.users-table {
+    width: 100%;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.user-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--accent-blue-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.user-avatar .material-icons {
+    color: var(--accent-blue);
+    font-size: 20px;
+}
+
+.user-username {
+    font-weight: var(--font-weight-medium);
+}
+
+/* Role Badge */
+.role-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 12px;
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+}
+
+.role-badge.admin {
+    background: var(--accent-purple-muted);
+    color: var(--accent-purple);
+}
+
+.role-badge.viewer {
+    background: var(--accent-blue-muted);
+    color: var(--accent-blue);
+}
+
+/* User Actions */
+.user-actions {
+    display: flex;
+    gap: var(--space-xs);
+}
+
+/* Empty State */
+.users-empty {
+    text-align: center;
+    padding: var(--space-3xl);
+}
+
+.users-empty-icon {
+    font-size: 64px;
+    color: var(--text-tertiary);
+    margin-bottom: var(--space-md);
+}
+
+.users-empty-title {
+    margin: 0 0 var(--space-sm) 0;
+    color: var(--text-primary);
+}
+
+.users-empty-text {
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+/* User Form */
+.user-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+}
+
+.user-form .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+}
+
+.user-form label {
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+}
+
+.user-form .form-hint {
+    font-size: var(--font-size-sm);
+    color: var(--text-tertiary);
+}
+
+.user-form .form-input.readonly {
+    background: var(--bg-tertiary);
+    cursor: not-allowed;
+}
+
+/* Password Input */
+.password-input-wrapper {
+    position: relative;
+    display: flex;
+}
+
+.password-input-wrapper .form-input {
+    flex: 1;
+    padding-right: 44px;
+}
+
+.password-input-wrapper .toggle-password {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    color: var(--text-tertiary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+}
+
+.password-input-wrapper .toggle-password:hover {
+    background: var(--bg-hover);
+    color: var(--text-secondary);
+}
+
+/* Password Strength */
+.password-strength {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    min-height: 20px;
+}
+
+.strength-bar {
+    flex: 1;
+    height: 4px;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+}
+
+.strength-fill {
+    height: 100%;
+    border-radius: var(--radius-full);
+    transition: width 0.3s ease, background 0.3s ease;
+}
+
+.strength-fill.weak {
+    background: var(--accent-red);
+}
+
+.strength-fill.medium {
+    background: var(--accent-orange, #ff9800);
+}
+
+.strength-fill.strong {
+    background: var(--accent-green);
+}
+
+.strength-label {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+}
+
+.strength-label.weak {
+    color: var(--accent-red);
+}
+
+.strength-label.medium {
+    color: var(--accent-orange, #ff9800);
+}
+
+.strength-label.strong {
+    color: var(--accent-green);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .users-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .security-tips-list {
+        grid-template-columns: 1fr;
+    }
+    
+    .user-actions {
+        flex-wrap: wrap;
+    }
+}

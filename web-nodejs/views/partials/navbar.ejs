@@ -1,0 +1,65 @@
+<!-- Top Navigation Bar -->
+<header class="navbar">
+    <div class="navbar-left">
+        <!-- Mobile menu button -->
+        <button class="navbar-btn mobile-menu-btn" id="mobile-menu-btn" style="display: none;">
+            <span class="material-icons">menu</span>
+        </button>
+        
+        <!-- Breadcrumb -->
+        <nav class="navbar-breadcrumb">
+            <a href="/"><%= _('nav.dashboard') %></a>
+            <% if (typeof breadcrumb !== 'undefined' && breadcrumb.length) { %>
+                <% breadcrumb.forEach((item, index) => { %>
+                    <span class="separator">/</span>
+                    <% if (index === breadcrumb.length - 1) { %>
+                        <span class="current"><%= item.label %></span>
+                    <% } else { %>
+                        <a href="<%= item.href %>"><%= item.label %></a>
+                    <% } %>
+                <% }); %>
+            <% } %>
+        </nav>
+    </div>
+    
+    <div class="navbar-right">
+        <!-- Refresh button -->
+        <button class="navbar-btn" id="refresh-btn" title="<%= _('actions.refresh') %>">
+            <span class="material-icons">refresh</span>
+        </button>
+        
+        <!-- Language selector -->
+        <div class="lang-selector">
+            <button class="navbar-btn" id="lang-btn" title="<%= _('settings.language') %>">
+                <span class="material-icons">language</span>
+            </button>
+            <div class="lang-dropdown" id="lang-dropdown">
+                <div class="lang-option <%= lang === 'en' ? 'active' : '' %>" data-lang="en">
+                    <span>🇬🇧</span>
+                    <span>English</span>
+                </div>
+                <div class="lang-option <%= lang === 'pl' ? 'active' : '' %>" data-lang="pl">
+                    <span>🇵🇱</span>
+                    <span>Polski</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- User dropdown -->
+        <div class="lang-selector">
+            <button class="navbar-btn" id="user-btn" title="<%= user ? user.username : 'User' %>">
+                <span class="material-icons">account_circle</span>
+            </button>
+            <div class="lang-dropdown" id="user-dropdown">
+                <div class="lang-option" id="change-password-btn">
+                    <span class="material-icons" style="font-size: 18px;">lock</span>
+                    <span><%= _('auth.change_password') %></span>
+                </div>
+                <div class="lang-option" id="logout-btn" style="color: var(--accent-red);">
+                    <span class="material-icons" style="font-size: 18px;">logout</span>
+                    <span><%= _('auth.logout') %></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</header>

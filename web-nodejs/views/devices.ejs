@@ -1,0 +1,155 @@
+<%- include('layouts/main', {
+    title: _('nav.devices'),
+    pageStyles: ['devices'],
+    pageScripts: ['devices'],
+    currentPage: 'devices',
+    breadcrumb: [{ label: _('nav.devices') }],
+    body: `
+        <div class="devices-layout">
+            <!-- Folders Sidebar -->
+            <aside class="folders-sidebar" id="folders-sidebar">
+                <div class="folders-header">
+                    <button class="btn-icon sidebar-toggle" id="sidebar-toggle" title="${_('folders.toggle_sidebar')}">
+                        <span class="material-icons">chevron_left</span>
+                    </button>
+                    <h3 class="sidebar-title">${_('folders.title')}</h3>
+                    <button class="btn-icon" id="add-folder-btn" title="${_('folders.create')}">
+                        <span class="material-icons">create_new_folder</span>
+                    </button>
+                </div>
+                
+                <div class="folders-list" id="folders-list">
+                    <!-- All Devices (special folder) -->
+                    <div class="folder-item active" data-folder="all" draggable="false">
+                        <span class="material-icons folder-icon">devices</span>
+                        <span class="folder-name">${_('folders.all_devices')}</span>
+                        <span class="folder-count" id="folder-count-all">0</span>
+                    </div>
+                    
+                    <!-- Unassigned folder -->
+                    <div class="folder-item" data-folder="unassigned" draggable="false">
+                        <span class="material-icons folder-icon">folder_off</span>
+                        <span class="folder-name">${_('folders.unassigned')}</span>
+                        <span class="folder-count" id="folder-count-unassigned">0</span>
+                    </div>
+                    
+                    <div class="folders-divider"></div>
+                    
+                    <!-- Custom folders will be loaded here -->
+                    <div id="custom-folders"></div>
+                </div>
+                
+                <div class="folders-hint">
+                    <span class="material-icons">info</span>
+                    <span class="hint-text">${_('folders.drag_hint')}</span>
+                </div>
+            </aside>
+            
+            <!-- Main Content -->
+            <main class="devices-main">
+                <!-- Devices Header -->
+                <div class="devices-header">
+                    <div class="devices-title">
+                        <h1>${_('devices.title')}</h1>
+                        <span class="devices-count" id="devices-count">0</span>
+                    </div>
+                    <div class="devices-actions">
+                        <button class="btn btn-secondary" id="sync-btn">
+                            <span class="material-icons">sync</span>
+                            ${_('devices.sync_status')}
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Filters -->
+                <div class="devices-filters">
+                    <div class="devices-search search-wrapper">
+                        <span class="material-icons">search</span>
+                        <input 
+                            type="text" 
+                            class="form-input" 
+                            id="search-input" 
+                            placeholder="${_('devices.search_placeholder')}"
+                        >
+                    </div>
+                    
+                    <div class="devices-filter-group">
+                        <button class="filter-btn active" data-filter="all">${_('devices.filter_all')}</button>
+                        <button class="filter-btn" data-filter="online">${_('devices.filter_online')}</button>
+                        <button class="filter-btn" data-filter="offline">${_('devices.filter_offline')}</button>
+                        <button class="filter-btn" data-filter="banned">${_('devices.filter_banned')}</button>
+                    </div>
+                </div>
+                
+                <!-- Devices Table -->
+                <div class="devices-table-container">
+                    <div class="table-wrapper">
+                        <table class="devices-table table" id="devices-table">
+                            <thead>
+                                <tr>
+                                    <th class="drag-handle-cell"></th>
+                                    <th class="sortable" data-sort="id">${_('devices.id')}</th>
+                                    <th class="sortable" data-sort="hostname">${_('devices.hostname')}</th>
+                                    <th class="sortable" data-sort="platform">${_('devices.platform')}</th>
+                                    <th class="sortable" data-sort="last_online">${_('devices.last_seen')}</th>
+                                    <th>${_('devices.status')}</th>
+                                    <th>${_('devices.actions')}</th>
+                                </tr>
+                            </thead>
+                            <tbody id="devices-tbody">
+                                <!-- Devices will be loaded via JS -->
+                                <tr class="loading-row">
+                                    <td colspan=\"7\" style=\"text-align: center; padding: 40px;\">
+                                        <span class="skeleton skeleton-text" style="width: 200px;"></span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Pagination -->
+                    <div class="devices-pagination" id="pagination">
+                        <div class="pagination-info">
+                            <span id="pagination-info">${_('devices.showing')} 0-0 ${_('devices.of')} 0</span>
+                        </div>
+                        <div class="pagination-controls" id="pagination-controls">
+                            <!-- Pagination buttons will be generated via JS -->
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Empty state (hidden by default) -->
+                <div class="devices-empty hidden" id="devices-empty">
+                    <span class="material-icons devices-empty-icon">devices_other</span>
+                    <h3 class="devices-empty-title">${_('devices.empty_title')}</h3>
+                    <p class="devices-empty-text">${_('devices.empty_text')}</p>
+                </div>
+            </main>
+        </div>
+        
+        <!-- Folder Form Template -->
+        <template id="folder-form-template">
+            <form id="folder-form" class="folder-form">
+                <div class="form-group">
+                    <label for="folder-name">${_('folders.name')}</label>
+                    <input type="text" id="folder-name" name="name" class="form-input" 
+                        maxlength="50" required placeholder="${_('folders.name_placeholder')}">
+                </div>
+                <div class="form-group">
+                    <label>${_('folders.color')}</label>
+                    <div class="color-picker" id="folder-color-picker">
+                        <button type="button" class="color-option active" data-color="#6366f1" style="background:#6366f1"></button>
+                        <button type="button" class="color-option" data-color="#22c55e" style="background:#22c55e"></button>
+                        <button type="button" class="color-option" data-color="#f59e0b" style="background:#f59e0b"></button>
+                        <button type="button" class="color-option" data-color="#ef4444" style="background:#ef4444"></button>
+                        <button type="button" class="color-option" data-color="#8b5cf6" style="background:#8b5cf6"></button>
+                        <button type="button" class="color-option" data-color="#06b6d4" style="background:#06b6d4"></button>
+                        <button type="button" class="color-option" data-color="#ec4899" style="background:#ec4899"></button>
+                        <button type="button" class="color-option" data-color="#64748b" style="background:#64748b"></button>
+                    </div>
+                    <input type="hidden" id="folder-color" name="color" value="#6366f1">
+                </div>
+            </form>
+        </template>
+    `
+}) %>

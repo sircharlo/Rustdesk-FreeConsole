@@ -1,0 +1,124 @@
+<%- include('layouts/main', {
+    title: _('nav.settings'),
+    pageStyles: ['pages'],
+    pageScripts: ['settings'],
+    currentPage: 'settings',
+    breadcrumb: [{ label: _('nav.settings') }],
+    body: `
+        <div class="page-header">
+            <h1 class="page-title">${_('settings.title')}</h1>
+            <p class="page-subtitle">${_('settings.subtitle')}</p>
+        </div>
+        
+        <div class="settings-sections">
+            <!-- Password Change Section -->
+            <div class="settings-section">
+                <div class="settings-section-header">
+                    <h2 class="settings-section-title">
+                        <span class="material-icons">lock</span>
+                        ${_('settings.change_password')}
+                    </h2>
+                    <p class="settings-section-desc">${_('settings.password_desc')}</p>
+                </div>
+                <div class="settings-section-body">
+                    <form class="settings-form" id="password-form">
+                        <div class="form-group">
+                            <label class="form-label" for="current-password">${_('settings.current_password')}</label>
+                            <input type="password" id="current-password" class="form-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="new-password">${_('settings.new_password')}</label>
+                            <input type="password" id="new-password" class="form-input" required minlength="8">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="confirm-password">${_('settings.confirm_password')}</label>
+                            <input type="password" id="confirm-password" class="form-input" required>
+                        </div>
+                        
+                        <div class="password-requirements">
+                            <strong>${_('settings.password_requirements')}:</strong>
+                            <ul>
+                                <li id="req-length">${_('settings.req_length')}</li>
+                                <li id="req-uppercase">${_('settings.req_uppercase')}</li>
+                                <li id="req-lowercase">${_('settings.req_lowercase')}</li>
+                                <li id="req-number">${_('settings.req_number')}</li>
+                            </ul>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">
+                            <span class="material-icons">save</span>
+                            ${_('settings.save_password')}
+                        </button>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Server Information Section -->
+            <div class="settings-section">
+                <div class="settings-section-header">
+                    <h2 class="settings-section-title">
+                        <span class="material-icons">info</span>
+                        ${_('settings.server_info')}
+                    </h2>
+                </div>
+                <div class="settings-section-body">
+                    <div class="server-info-grid">
+                        <div class="server-info-item">
+                            <span class="server-info-label">
+                                <span class="material-icons">tag</span>
+                                ${_('settings.version')}
+                            </span>
+                            <span class="server-info-value">v2.0.0</span>
+                        </div>
+                        <div class="server-info-item">
+                            <span class="server-info-label">
+                                <span class="material-icons">storage</span>
+                                ${_('settings.database')}
+                            </span>
+                            <span class="server-info-value" id="db-path">-</span>
+                        </div>
+                        <div class="server-info-item">
+                            <span class="server-info-label">
+                                <span class="material-icons">schedule</span>
+                                ${_('settings.uptime')}
+                            </span>
+                            <span class="server-info-value" id="uptime">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Audit Log Section -->
+            <div class="settings-section">
+                <div class="settings-section-header">
+                    <h2 class="settings-section-title">
+                        <span class="material-icons">history</span>
+                        ${_('settings.audit_log')}
+                    </h2>
+                    <p class="settings-section-desc">${_('settings.audit_desc')}</p>
+                </div>
+                <div class="settings-section-body">
+                    <div class="audit-log-container">
+                        <table class="audit-log-table">
+                            <thead>
+                                <tr>
+                                    <th>${_('audit.time')}</th>
+                                    <th>${_('audit.user')}</th>
+                                    <th>${_('audit.action')}</th>
+                                    <th>${_('audit.details')}</th>
+                                </tr>
+                            </thead>
+                            <tbody id="audit-log-body">
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted">
+                                        ${_('common.loading')}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `
+}) %>

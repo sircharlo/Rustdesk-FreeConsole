@@ -5,15 +5,22 @@
 
 ---
 
-## 📊 Stan Projektu (aktualizacja: 2026-02-13)
+## 📊 Stan Projektu (aktualizacja: 2026-02-17)
 
-### Wersja Skryptów ALL-IN-ONE (v2.1.2)
+### Wersja Skryptów ALL-IN-ONE (v2.2.0)
 
 | Plik | Wersja | Platforma | Status |
 |------|--------|-----------|--------|
-| `betterdesk.sh` | v2.1.2 | Linux | ✅ ALL-IN-ONE + SHA256 verification + Auto mode + Ban fix |
-| `betterdesk.ps1` | v2.1.2 | Windows | ✅ ALL-IN-ONE + SHA256 verification + Auto mode + Ban fix |
+| `betterdesk.sh` | v2.2.0 | Linux | ✅ ALL-IN-ONE + Node.js/Flask choice + Auto mode |
+| `betterdesk.ps1` | v2.2.0 | Windows | ✅ ALL-IN-ONE + Node.js/Flask choice + Auto mode |
 | `betterdesk-docker.sh` | v2.0.0 | Docker | ✅ Interaktywny ALL-IN-ONE |
+
+### Konsole Webowe
+
+| Typ | Folder | Status | Opis |
+|-----|--------|--------|------|
+| **Node.js (zalecana)** | `web-nodejs/` | ✅ Aktywna | Express.js, EJS, better-sqlite3 |
+| **Flask (legacy)** | `web/` | ✅ Aktywna | Python, Jinja2, sqlite3 |
 
 ### Binarki Serwera
 
@@ -38,7 +45,15 @@ Windows:
 
 ---
 
-## 🚀 Skrypty ALL-IN-ONE (v2.1.2)
+## 🚀 Skrypty ALL-IN-ONE (v2.2.0)
+
+### Nowe funkcje w v2.2.0
+
+- ✅ **Wybór konsoli Node.js/Flask** - interaktywny wybór podczas instalacji
+- ✅ **Flagi --nodejs/--flask (Linux)** - wybór konsoli z linii poleceń
+- ✅ **Parametry -NodeJs/-Flask (Windows)** - wybór konsoli w PowerShell
+- ✅ **Migracja między konsolami** - automatyczna migracja z Flask do Node.js
+- ✅ **Automatyczna instalacja Node.js** - przez apt/dnf/yum/pacman/winget/chocolatey
 
 ### Nowe funkcje w v2.1.2
 
@@ -51,7 +66,7 @@ Windows:
 
 ### Funkcje wspólne dla wszystkich skryptów
 
-1. 🚀 **Nowa instalacja** - pełna instalacja od zera
+1. 🚀 **Nowa instalacja** - pełna instalacja od zera (Node.js lub Flask)
 2. ⬆️ **Aktualizacja** - aktualizacja istniejącej instalacji
 3. 🔧 **Naprawa** - automatyczna naprawa problemów
 4. ✅ **Walidacja** - sprawdzenie poprawności instalacji
@@ -67,8 +82,11 @@ Windows:
 # Linux - tryb interaktywny
 sudo ./betterdesk.sh
 
-# Linux - tryb automatyczny (bez interakcji)
-sudo ./betterdesk.sh --auto
+# Linux - tryb automatyczny z Node.js (zalecane)
+sudo ./betterdesk.sh --auto --nodejs
+
+# Linux - tryb automatyczny z Flask (legacy)
+sudo ./betterdesk.sh --auto --flask
 
 # Linux - pomiń weryfikację SHA256
 sudo ./betterdesk.sh --skip-verify
@@ -76,8 +94,11 @@ sudo ./betterdesk.sh --skip-verify
 # Windows (PowerShell jako Administrator) - tryb interaktywny
 .\betterdesk.ps1
 
-# Windows - tryb automatyczny
-.\betterdesk.ps1 -Auto
+# Windows - tryb automatyczny z Node.js (zalecane)
+.\betterdesk.ps1 -Auto -NodeJs
+
+# Windows - tryb automatyczny z Flask (legacy)
+.\betterdesk.ps1 -Auto -Flask
 
 # Windows - pomiń weryfikację SHA256
 .\betterdesk.ps1 -SkipVerify
@@ -402,6 +423,8 @@ Pełna dokumentacja budowania: [BUILD_GUIDE.md](../docs/BUILD_GUIDE.md)
 3. Używaj `hbb_common::log::info!()` zamiast `println!()`
 4. Testuj na SSH (Linux) i lokalnie (Windows)
 5. W plikach projektu używaj angielskiego, dokumentacja także ma być po angielsku, upewnij się za każdym razem że twoje zmiany są zgodne z aktualnym stylem i konwencjami projektu, nie wprowadzaj nowych konwencji bez uzasadnienia oraz są napisane w sposób spójny z resztą kodu, unikaj mieszania stylów kodowania, jeśli masz wątpliwości co do stylu, sprawdź istniejący kod i dostosuj się do niego, pamiętaj że spójność jest kluczowa dla utrzymania czytelności i jakości kodu. Wykorzystuj tylko język angielski w komunikacji, dokumentacji i komentarzach, nawet jeśli pracujesz nad polskojęzyczną funkcją, zachowaj angielski dla wszystkich aspektów kodu i dokumentacji, to ułatwi współpracę z innymi deweloperami i utrzyma spójność projektu.
+6. Tworząc nowe moduły i zakładki pamiętaj o zachowaniu spójności z istniejącym stylem kodowania, strukturą projektu i konwencjami nazewnictwa, sprawdź istniejące moduły i zakładki, aby upewnić się że twoje zmiany są zgodne z aktualnym stylem, unikaj wprowadzania nowych konwencji bez uzasadnienia, jeśli masz wątpliwości co do stylu, dostosuj się do istniejącego kodu, pamiętaj że spójność jest kluczowa dla utrzymania czytelności i jakości kodu.
+7. Przy dodawaniu nowych elementów do panelu web czy innych części projektu upewnij się że są one zgodne z systemem i18n, dodaj odpowiednie klucze do plików tłumaczeń i przetestuj działanie w obu językach, pamiętaj że wszystkie teksty powinny być tłumaczalne i nie powinno się używać hardcoded stringów w kodzie, to ułatwi utrzymanie wielojęzyczności projektu i zapewni spójność w komunikacji z użytkownikami (nie stosuj tych praktyk w przypadku elementów które nie będą bezpośrednio dostępne w interfejsie i które są zwyczajnymi funkcjami w kodzie).
 
 ### Przy problemach Docker:
 1. Sprawdź czy obrazy są budowane lokalne (`docker compose build`)

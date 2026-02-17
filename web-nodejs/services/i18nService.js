@@ -1,0 +1,261 @@
+/**
+ * BetterDesk Console - i18n Service
+ * Translation manager with JSON-based language files
+ */
+
+const fs = require('fs');
+const path = require('path');
+const config = require('../config/config');
+
+// Supported languages metadata
+const LANGUAGE_META = {
+    'en': { name: 'English', native: 'English', flag: '🇬🇧', rtl: false },
+    'pl': { name: 'Polish', native: 'Polski', flag: '🇵🇱', rtl: false },
+    'de': { name: 'German', native: 'Deutsch', flag: '🇩🇪', rtl: false },
+    'fr': { name: 'French', native: 'Français', flag: '🇫🇷', rtl: false },
+    'es': { name: 'Spanish', native: 'Español', flag: '🇪🇸', rtl: false },
+    'ru': { name: 'Russian', native: 'Русский', flag: '🇷🇺', rtl: false },
+    'zh': { name: 'Chinese', native: '中文', flag: '🇨🇳', rtl: false },
+    'ja': { name: 'Japanese', native: '日本語', flag: '🇯🇵', rtl: false },
+    'ar': { name: 'Arabic', native: 'العربية', flag: '🇸🇦', rtl: true },
+    'he': { name: 'Hebrew', native: 'עברית', flag: '🇮🇱', rtl: true }
+};
+
+class TranslationManager {
+    constructor() {
+        this.translations = {};
+        this.availableLanguages = {};
+        this.defaultLang = config.defaultLanguage || 'en';
+    }
+    
+    /**
+     * Initialize - load all language files
+     */
+    init() {
+        this.loadAll();
+        console.log(`i18n: Loaded ${Object.keys(this.availableLanguages).length} languages`);
+    }
+    
+    /**
+     * Load all language files from lang directory
+     */
+    loadAll() {
+        const langDir = config.langDir;
+        
+        if (!fs.existsSync(langDir)) {
+            console.warn(`Language directory not found: ${langDir}`);
+            return;
+        }
+        
+        const files = fs.readdirSync(langDir).filter(f => f.endsWith('.json'));
+        
+        for (const file of files) {
+            const code = path.basename(file, '.json');
+            this.loadLanguage(code);
+        }
+    }
+    
+    /**
+     * Load a single language file
+     */
+    loadLanguage(code) {
+        const filePath = path.join(config.langDir, `${code}.json`);
+        
+        try {
+            if (!fs.existsSync(filePath)) {
+                return false;
+            }
+            
+            const content = fs.readFileSync(filePath, 'utf8');
+            const data = JSON.parse(content);
+            
+            this.translations[code] = data;
+            
+            // Get metadata from file or fallback
+            const meta = data._meta || LANGUAGE_META[code] || {
+                name: code.toUpperCase(),
+                native: code.toUpperCase(),
+                flag: '🌐',
+                rtl: false
+            };
+            
+            this.availableLanguages[code] = {
+                code,
+                name: meta.name,
+                native: meta.native,
+                flag: meta.flag,
+                rtl: meta.rtl || false
+            };
+            
+            return true;
+        } catch (err) {
+            console.warn(`Failed to load language ${code}:`, err.message);
+            return false;
+        }
+    }
+    
+    /**
+     * Get a translation value by dot-separated key
+     */
+    translate(lang, key, vars = {}) {
+        // Try requested language
+        let value = this._getNestedValue(this.translations[lang], key);
+        
+        // Fallback to default language
+        if (value === undefined && lang !== this.defaultLang) {
+            value = this._getNestedValue(this.translations[this.defaultLang], key);
+        }
+        
+        // Fallback to key itself
+        if (value === undefined) {
+            return key;
+        }
+        
+        // Interpolate variables {varName}
+        if (typeof value === 'string' && Object.keys(vars).length > 0) {
+            for (const [varName, varValue] of Object.entries(vars)) {
+                value = value.replace(new RegExp(`\\{${varName}\\}`, 'g'), varValue);
+            }
+        }
+        
+        return value;
+    }
+    
+    /**
+     * Get nested value from object using dot notation
+     */
+    _getNestedValue(obj, key) {
+        if (!obj || !key) return undefined;
+        
+        const parts = key.split('.');
+        let current = obj;
+        
+        for (const part of parts) {
+            if (current === null || current === undefined) return undefined;
+            current = current[part];
+        }
+        
+        return current;
+    }
+    
+    /**
+     * Get all available languages
+     */
+    getAvailable() {
+        return this.availableLanguages;
+    }
+    
+    /**
+     * Get all translations for a language
+     */
+    getTranslations(code) {
+        return this.translations[code] || null;
+    }
+    
+    /**
+     * Check if language exists
+     */
+    hasLanguage(code) {
+        return code in this.translations;
+    }
+    
+    /**
+     * Get language metadata
+     */
+    getLanguageMeta(code) {
+        return this.availableLanguages[code] || null;
+    }
+    
+    /**
+     * Validate language file (compare keys with default language)
+     */
+    validateLanguage(code) {
+        if (!this.translations[code]) {
+            return { valid: false, error: 'Language not found' };
+        }
+        
+        if (code === this.defaultLang) {
+            return { valid: true, missing: [], extra: [] };
+        }
+        
+        const defaultKeys = this._getAllKeys(this.translations[this.defaultLang]);
+        const langKeys = this._getAllKeys(this.translations[code]);
+        
+        const missing = defaultKeys.filter(k => !langKeys.includes(k));
+        const extra = langKeys.filter(k => !defaultKeys.includes(k) && !k.startsWith('_'));
+        
+        return {
+            valid: missing.length === 0,
+            missing,
+            extra,
+            coverage: ((defaultKeys.length - missing.length) / defaultKeys.length * 100).toFixed(1)
+        };
+    }
+    
+    /**
+     * Get all keys from an object (flattened)
+     */
+    _getAllKeys(obj, prefix = '') {
+        const keys = [];
+        
+        for (const [key, value] of Object.entries(obj || {})) {
+            const fullKey = prefix ? `${prefix}.${key}` : key;
+            
+            if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+                keys.push(...this._getAllKeys(value, fullKey));
+            } else {
+                keys.push(fullKey);
+            }
+        }
+        
+        return keys;
+    }
+    
+    /**
+     * Add or update a language
+     */
+    saveLanguage(code, translations) {
+        const filePath = path.join(config.langDir, `${code}.json`);
+        
+        try {
+            fs.writeFileSync(filePath, JSON.stringify(translations, null, 2), 'utf8');
+            this.loadLanguage(code);
+            return { success: true };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    }
+    
+    /**
+     * Delete a language file
+     */
+    deleteLanguage(code) {
+        // Don't allow deleting default or core languages
+        if (code === 'en' || code === 'pl') {
+            return { success: false, error: 'Cannot delete core language' };
+        }
+        
+        const filePath = path.join(config.langDir, `${code}.json`);
+        
+        try {
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+            }
+            
+            delete this.translations[code];
+            delete this.availableLanguages[code];
+            
+            return { success: true };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    }
+}
+
+// Singleton instance
+const manager = new TranslationManager();
+
+module.exports = {
+    manager,
+    LANGUAGE_META
+};

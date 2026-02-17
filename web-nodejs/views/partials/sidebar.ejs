@@ -1,0 +1,76 @@
+<!-- Sidebar Navigation -->
+<aside class="sidebar" id="sidebar">
+    <!-- Sidebar Header -->
+    <div class="sidebar-header">
+        <a href="/" class="sidebar-logo">
+            <span class="material-icons">dns</span>
+            <span class="sidebar-logo-text">BetterDesk</span>
+        </a>
+        <button class="sidebar-toggle" id="sidebar-toggle" title="<%= _('nav.toggle_sidebar') %>">
+            <span class="material-icons">menu</span>
+        </button>
+    </div>
+    
+    <!-- Navigation -->
+    <nav class="sidebar-nav">
+        <!-- Main Section -->
+        <div class="sidebar-section">
+            <div class="sidebar-section-title"><%= _('nav.main') %></div>
+            
+            <a href="/" class="sidebar-link <%= currentPage === 'dashboard' ? 'active' : '' %>">
+                <span class="material-icons">dashboard</span>
+                <span class="sidebar-link-text"><%= _('nav.dashboard') %></span>
+            </a>
+            
+            <a href="/devices" class="sidebar-link <%= currentPage === 'devices' ? 'active' : '' %>">
+                <span class="material-icons">devices</span>
+                <span class="sidebar-link-text"><%= _('nav.devices') %></span>
+            </a>
+        </div>
+        
+        <!-- Tools Section -->
+        <div class="sidebar-section">
+            <div class="sidebar-section-title"><%= _('nav.tools') %></div>
+            
+            <a href="/keys" class="sidebar-link <%= currentPage === 'keys' ? 'active' : '' %>">
+                <span class="material-icons">vpn_key</span>
+                <span class="sidebar-link-text"><%= _('nav.keys') %></span>
+            </a>
+            
+            <a href="/generator" class="sidebar-link <%= currentPage === 'generator' ? 'active' : '' %>">
+                <span class="material-icons">build</span>
+                <span class="sidebar-link-text"><%= _('nav.generator') %></span>
+            </a>
+        </div>
+        
+        <!-- System Section -->
+        <div class="sidebar-section">
+            <div class="sidebar-section-title"><%= _('nav.system') %></div>
+            
+            <% if (user && user.role === 'admin') { %>
+            <a href="/users" class="sidebar-link <%= currentPage === 'users' ? 'active' : '' %>">
+                <span class="material-icons">group</span>
+                <span class="sidebar-link-text"><%= _('nav.users') %></span>
+            </a>
+            <% } %>
+            
+            <a href="/settings" class="sidebar-link <%= currentPage === 'settings' ? 'active' : '' %>">
+                <span class="material-icons">settings</span>
+                <span class="sidebar-link-text"><%= _('nav.settings') %></span>
+            </a>
+        </div>
+    </nav>
+    
+    <!-- Sidebar Footer - User -->
+    <div class="sidebar-footer">
+        <div class="sidebar-user" id="user-menu-trigger">
+            <div class="sidebar-user-avatar">
+                <%= user && user.username ? user.username.charAt(0).toUpperCase() : 'A' %>
+            </div>
+            <div class="sidebar-user-info">
+                <div class="sidebar-user-name"><%= user ? user.username : 'Admin' %></div>
+                <div class="sidebar-user-role"><%= user ? user.role : 'administrator' %></div>
+            </div>
+        </div>
+    </div>
+</aside>

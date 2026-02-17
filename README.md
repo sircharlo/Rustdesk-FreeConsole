@@ -4,8 +4,9 @@
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![RustDesk](https://img.shields.io/badge/RustDesk-1.1.14-green.svg)
+![Node.js](https://img.shields.io/badge/Node.js-18+-339933.svg)
 ![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)
-![Version](https://img.shields.io/badge/version-2.0.0-brightgreen.svg)
+![Version](https://img.shields.io/badge/version-2.2.0-brightgreen.svg)
 ![Security](https://img.shields.io/badge/API-X--API--Key--Auth-green.svg)
 ![Access](https://img.shields.io/badge/LAN-Accessible-blue.svg)
 
@@ -42,21 +43,37 @@
 
 ## 🚀 Quick Start
 
-**BetterDesk 2.0** introduces new interactive ALL-IN-ONE scripts for managing installation.
+**BetterDesk 2.2** introduces Node.js web console (recommended) alongside the original Flask console.
 
 ### Linux
 ```bash
 git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
 cd Rustdesk-FreeConsole
 chmod +x betterdesk.sh
+
+# Interactive mode (choose console type)
 sudo ./betterdesk.sh
+
+# Automatic with Node.js console (recommended)
+sudo ./betterdesk.sh --auto --nodejs
+
+# Automatic with Flask console (legacy)
+sudo ./betterdesk.sh --auto --flask
 ```
 
 ### Windows (PowerShell as Administrator)
 ```powershell
 git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
 cd Rustdesk-FreeConsole
+
+# Interactive mode (choose console type)
 .\betterdesk.ps1
+
+# Automatic with Node.js console (recommended)
+.\betterdesk.ps1 -Auto -NodeJs
+
+# Automatic with Flask console (legacy)
+.\betterdesk.ps1 -Auto -Flask
 ```
 
 ### Docker
@@ -68,7 +85,7 @@ chmod +x betterdesk-docker.sh
 ```
 
 **All scripts offer an interactive menu with options:**
-1. 🚀 Fresh Installation
+1. 🚀 Fresh Installation (Node.js or Flask console)
 2. ⬆️ Update  
 3. 🔧 Repair Installation
 4. ✅ Validate Installation
@@ -290,13 +307,16 @@ See [Contributing Translations](docs/CONTRIBUTING_TRANSLATIONS.md) for detailed 
 └────────┬───────┘   └─────────────────┘
          │
          ▼
-┌─────────────────────────────┐
-│   Web Management Console    │
-│   (Flask on Port 5000)      │
-│   • Dashboard               │
-│   • Device Management       │
-│   • Statistics              │
-└─────────────────────────────┘
+┌─────────────────────────────────────────┐
+│       Web Management Console            │
+│              (Port 5000)                │
+├─────────────────┬───────────────────────┤
+│  Node.js        │  Flask (Legacy)       │
+│  (Recommended)  │  (Python)             │
+│  Express.js     │  Jinja2 templates     │
+│  EJS templates  │                       │
+│  better-sqlite3 │                       │
+└─────────────────┴───────────────────────┘
 ```
 
 ### Key Components
@@ -304,22 +324,33 @@ See [Contributing Translations](docs/CONTRIBUTING_TRANSLATIONS.md) for detailed 
 1. **Enhanced HBBS**: Modified RustDesk signal server with HTTP API
 2. **HTTP API**: Axum-based REST API for device queries
 3. **PeerMap**: Thread-safe in-memory peer storage (Arc<RwLock>)
-4. **Web Console**: Flask application with modern UI
+4. **Web Console**: Node.js (recommended) or Flask application with modern UI
 5. **SQLite Database**: Original RustDesk database (unchanged)
+
+### Web Console Options
+
+| Feature | Node.js (Recommended) | Flask (Legacy) |
+|---------|----------------------|----------------|
+| **Performance** | Faster, non-blocking | Good |
+| **Memory** | Lower | Higher |
+| **Dependencies** | npm packages | Python venv |
+| **Database** | better-sqlite3 | sqlite3 |
+| **Templates** | EJS | Jinja2 |
+| **Startup Time** | ~1 second | ~3 seconds |
 
 ---
 
 ## 🚀 Installation
 
-### 📌 Interactive ALL-IN-ONE Scripts (v2.0 - Recommended)
+### 📌 Interactive ALL-IN-ONE Scripts (v2.2.0 - Recommended)
 
 | Platform | Script | Features |
 |----------|--------|----------|
-| **Linux** | `betterdesk.sh` | ✅ Interactive menu, install, update, backup, diagnostics, build |
-| **Windows** | `betterdesk.ps1` | ✅ Interactive menu, install, update, backup, diagnostics, build |
+| **Linux** | `betterdesk.sh` | ✅ Interactive menu, Node.js/Flask choice, install, update, backup, diagnostics |
+| **Windows** | `betterdesk.ps1` | ✅ Interactive menu, Node.js/Flask choice, install, update, backup, diagnostics |
 | **Docker** | `betterdesk-docker.sh` | ✅ Interactive menu, build images, manage containers |
 
-> **💡 New in v2.0**: One script for all operations! Install, update, repair, backup, and diagnose from an interactive menu.
+> **💡 New in v2.2.0**: Choose between Node.js (recommended) and Flask web console during installation!
 
 ### 🐧 Linux (`betterdesk.sh`)
 
@@ -327,7 +358,12 @@ See [Contributing Translations](docs/CONTRIBUTING_TRANSLATIONS.md) for detailed 
 git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
 cd Rustdesk-FreeConsole
 chmod +x betterdesk.sh
+
+# Interactive mode
 sudo ./betterdesk.sh
+
+# Automatic mode with Node.js (recommended)
+sudo ./betterdesk.sh --auto --nodejs
 ```
 
 ### 🪟 Windows (`betterdesk.ps1`)
@@ -335,7 +371,12 @@ sudo ./betterdesk.sh
 ```powershell
 git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
 cd Rustdesk-FreeConsole
-.\betterdesk.ps1  # Run as Administrator
+
+# Interactive mode (Run as Administrator)
+.\betterdesk.ps1
+
+# Automatic mode with Node.js (recommended)
+.\betterdesk.ps1 -Auto -NodeJs
 ```
 
 ### 🐳 Docker (`betterdesk-docker.sh`)
@@ -349,26 +390,31 @@ chmod +x betterdesk-docker.sh
 
 ---
 
-### 📜 Legacy Scripts (for advanced users)
+### � Docker Installation (Alternative)
 
-| Platform | Script | Features |
-|----------|--------|----------|
-| **Linux** | `scripts/legacy/install-improved.sh` | Automatic installation without menu |
-| **Windows** | `scripts/legacy/install-improved.ps1` | Automatic installation without menu |
-| **Docker** | `docker compose build && docker compose up -d` | Manual Docker commands |
+For containerized deployments using Docker Compose:
 
-> **⚠️ Note**: Legacy scripts are still supported but we recommend using the new ALL-IN-ONE scripts.
+```bash
+git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
+cd Rustdesk-FreeConsole
+
+# Build and start (REQUIRED - images are not on Docker Hub)
+docker compose build
+docker compose up -d
+```
+
+**Full Docker guide**: [DOCKER_TROUBLESHOOTING.md](docs/DOCKER_TROUBLESHOOTING.md)
 
 ### Prerequisites
 
-- **Linux**: Ubuntu 20.04+, Debian 11+, CentOS 8+
+- **Linux**: Ubuntu 20.04+, Debian 11+, CentOS 8+, Arch Linux
 - **Windows**: Windows 10+, Windows Server 2016+
 - **RustDesk**: Fresh RustDesk installation OR existing working HBBS (script auto-detects)
-- **Linux Dependencies**: python3, pip3, curl, systemd
-- **Windows Dependencies**: Python 3.8+, PowerShell 5.1+
+- **Node.js Console**: Node.js 18+ (auto-installed by script)
+- **Flask Console**: Python 3.8+ (auto-installed by script)
 - **No Compilation Required**: Uses precompiled binaries
 
-> **💡 Fresh Installation Support**: The script now automatically detects if you have RustDesk installed and can perform fresh installations or updates accordingly. No need for separate installation procedures!
+> **💡 Fresh Installation Support**: The script automatically detects if you have RustDesk installed and can perform fresh installations or updates accordingly. No need for separate installation procedures!
 
 ### 🐳 Docker Installation (Alternative)
 
@@ -383,129 +429,73 @@ docker compose build
 docker compose up -d
 ```
 
-> **Note**: Helper scripts like `docker-quickstart.sh` and `install-docker.sh` are provided for convenience but may not include all features. For production, use `docker compose` directly.
+**Full Docker guide**: [docs/DOCKER_TROUBLESHOOTING.md](docs/DOCKER_TROUBLESHOOTING.md)
 
-**Full Docker guide**: [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOOTING.md)
+### What the installation scripts do
 
-### 🐧 Linux Installation (Primary Method)
-
-```bash
-git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
-cd Rustdesk-FreeConsole
-chmod +x install-improved.sh
-sudo ./install-improved.sh
-```
-
-**What the script does:**
 - ✅ Detects existing RustDesk installation
 - ✅ Creates automatic backup
 - ✅ Installs BetterDesk enhanced binaries
-- ✅ Runs database migration (adds all required columns)
+- ✅ Installs web console (Node.js or Flask)
+- ✅ Runs database migrations
 - ✅ Creates authentication tables and admin user
-- ✅ Configures systemd services
+- ✅ Configures system services (systemd/Windows services)
 - ✅ Preserves encryption keys
-
-**Troubleshooting options:**
-```bash
-sudo ./install-improved.sh --diagnose  # Check for issues
-sudo ./install-improved.sh --fix       # Fix offline status problem
-```
 
 ### 🔄 Updating Existing Installation
 
 ```bash
+# Linux
 cd Rustdesk-FreeConsole
 git pull origin main
-sudo ./install-improved.sh  # Auto-detects and updates
-```
+sudo ./betterdesk.sh  # Select option 2: Update
 
-The script automatically backs up your installation, migrates the database, and preserves all encryption keys.
+# Windows (PowerShell as Administrator)
+cd Rustdesk-FreeConsole
+git pull origin main
+.\betterdesk.ps1  # Select option 2: Update
+```
 
 ### Quick Database Fix (if devices show as offline)
 
-> **Note**: The primary installers (`install-improved.sh` / `install-improved.ps1`) now run database migrations automatically. Use these manual steps only if you installed via other methods.
-
-If devices appear offline even though they're connected:
+> **Note**: The `betterdesk.sh` / `betterdesk.ps1` scripts run database migrations automatically. Use manual steps only if needed.
 
 ```bash
-# Option 1: Use the installer's fix mode (Recommended)
-sudo ./install-improved.sh --fix
+# Linux - Use repair option
+sudo ./betterdesk.sh  # Select option 3: Repair
 
-# Option 2: Run migration script manually
+# Or run migration manually
 python3 migrations/v1.5.0_fix_online_status.py
-
-# Restart services
-sudo systemctl restart hbbs betterdesk
+sudo systemctl restart rustdesksignal betterdesk
 ```
-
-### 🪟 Windows Installation (Primary Method)
 
 ```powershell
-git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
-cd Rustdesk-FreeConsole
-.\install-improved.ps1  # Run as Administrator
+# Windows - Use repair option
+.\betterdesk.ps1  # Select option 3: Repair
 ```
 
-**What the script does:**
-- ✅ Detects existing RustDesk installation
-- ✅ Creates automatic backup
-- ✅ Installs BetterDesk enhanced binaries (.exe)
-- ✅ Runs database migration (adds all required columns)
-- ✅ Creates authentication tables and admin user
-- ✅ Installs Web Console to `C:\BetterDeskConsole`
+### ⚠️ Platform-Specific Binaries
 
-**Troubleshooting options:**
-```powershell
-.\install-improved.ps1 -Diagnose  # Check for issues
-.\install-improved.ps1 -Fix       # Fix offline status problem
-```
+The installers automatically select correct binaries for your platform:
 
-> **Note**: Windows does not use systemd services. You need to start HBBS/HBBR manually or create scheduled tasks.
+| Platform | Binaries | API Port |
+|----------|----------|----------|
+| **Linux x86_64** | `hbbs-patch-v2/hbbs-linux-x86_64`, `hbbr-linux-x86_64` | 21120 |
+| **Windows x86_64** | `hbbs-patch-v2/hbbs-windows-x86_64.exe`, `hbbr-windows-x86_64.exe` | 21114 |
 
-### ⚠️ Important: Platform-Specific Binaries
-
-The installers automatically use the correct binaries for your platform:
-
-**Linux x86_64 (v2.0.0 - Recommended):**
-- Uses `hbbs-patch-v2/hbbs-linux-x86_64` (pre-compiled)
-- Uses `hbbs-patch-v2/hbbr-linux-x86_64` (pre-compiled)
-- Features: 15s offline detection, connection pooling, auto-retry, API port 21114
-
-**Windows x86_64 (v2.0.0 - Recommended):**
-- Uses `hbbs-patch-v2/hbbs-windows-x86_64.exe` (pre-compiled)
-- Uses `hbbs-patch-v2/hbbr-windows-x86_64.exe` (pre-compiled)
-- Features: Same as Linux binaries
-
-**Do not mix binaries between platforms!** Each installer is designed to work only on its respective operating system.
+> **Note**: Do not mix binaries between platforms!
 
 ### 🔑 Key Protection (IMPORTANT!)
-
-**v1.5.0+ includes comprehensive encryption key protection:**
 
 ⚠️ **Your RustDesk encryption keys are CRITICAL!**
 - Losing keys = ALL clients disconnected
 - Changing keys = "Key mismatch" errors on all devices
 - Keys must be backed up before any installation
 
-**BetterDesk v1.5.0+ automatically:**
+**BetterDesk automatically:**
 - ✅ Detects existing encryption keys
-- ✅ Scans for ANY `.pub` file (not just `id_ed25519.pub`)
-- ✅ Offers multiple backup options (automatic, manual, existing)
-- ✅ Warns before any key changes
+- ✅ Creates automatic backups before any changes
 - ✅ Never regenerates keys without explicit confirmation
-
-**During installation, you'll see:**
-```
-🔑 EXISTING ENCRYPTION KEYS DETECTED 🔑
-Found: id_ed25519.pub
-
-Options:
-  1) Keep existing keys (RECOMMENDED)
-  2) Regenerate keys (⚠️ BREAKS client connections)
-  3) Show key information
-```
-
-**Always choose Option 1 unless you know what you're doing!**
 
 **If you experience "Key mismatch" errors:**
 ```bash
@@ -516,26 +506,6 @@ sudo systemctl restart rustdesksignal
 ```
 
 📖 **Full guide**: [docs/KEY_TROUBLESHOOTING.md](docs/KEY_TROUBLESHOOTING.md)
-
-### 🔒 Manual Installation on SSH Server (Security Update)
-
-If you compiled new binaries with security fixes on your SSH server:
-
-```bash
-# Upload the manual installation script
-scp hbbs-patch/MANUAL_INSTALL.sh your-user@your-server:~/
-
-# SSH to server and run
-ssh your-user@your-server
-sudo bash ~/MANUAL_INSTALL.sh
-```
-
-**The script will:**
-1. Stop HBBS/HBBR services
-2. Backup old binaries (timestamped)
-3. Install new binaries from `~/build/hbbs-patch/rustdesk-server/target/release/`
-4. Restart services
-5. Verify API is responding on port 21120
 
 ---
 
@@ -741,29 +711,30 @@ sudo systemctl restart rustdesksignal
 
 #### 4. Installer Cannot Find Installation
 
-**Symptoms:** `install-improved.sh` reports "Installation directory not found"
+**Symptoms:** Script reports "Installation directory not found"
 
 **Cause:** Non-standard installation path.
 
 **Solution:**
 ```bash
 # Find your installation
+find / -name "server.js" 2>/dev/null
 find / -name "app.py" 2>/dev/null
 find / -name "db_v2.sqlite3" 2>/dev/null
 
-# Run the database fix script
-sudo ./dev_modules/check_and_fix_database.sh /path/to/db_v2.sqlite3
+# Use Settings menu to configure paths
+sudo ./betterdesk.sh  # Select option S: Settings
 ```
 
 ### 📞 Getting Help
 
 **Before asking for help:**
 1. Check the troubleshooting guides above
-2. Run the installation script again (it auto-detects and can fix issues): `sudo ./install-improved.sh`
-3. Collect diagnostics:
+2. Run the diagnostics: `sudo ./betterdesk.sh` → Select option 8: Diagnostics
+3. Collect logs:
    ```bash
    sudo journalctl -u rustdesksignal -n 50 > ~/rustdesk_logs.txt
-   ls -lah /opt/rustdesk/*.pub >> ~/rustdesk_logs.txt
+   sudo journalctl -u betterdesk -n 50 >> ~/rustdesk_logs.txt
    ```
 
 **Where to get help:**
@@ -804,7 +775,12 @@ The web console binds to `0.0.0.0:5000` for LAN access and includes:
 - Role-based access control
 - Audit logging
 
-To change, edit `/opt/BetterDeskConsole/app.py`:
+**Node.js Console**: Edit `.env` file:
+```bash
+PORT=5000
+```
+
+**Flask Console**: Edit `app.py`:
 ```python
 app.run(host='0.0.0.0', port=5000)
 ```
@@ -934,33 +910,33 @@ Access at: `http://localhost:5001`
 BetterDeskConsole/
 ├── README.md                    # This file
 ├── LICENSE                      # MIT License
-├── install.sh                   # Automatic installer
+├── VERSION                      # Current version number
+├── betterdesk.sh                # Linux ALL-IN-ONE installer (v2.2.0)
+├── betterdesk.ps1               # Windows ALL-IN-ONE installer (v2.2.0)
+├── betterdesk-docker.sh         # Docker installer
+├── docker-compose.yml           # Docker orchestration
 ├── screenshots/                 # UI screenshots
-│   ├── dashboard.png
-│   ├── devices-list.png
-│   ├── device-details.png
-│   ├── public_key_page.png
-│   ├── settings_page.png
-│   ├── user_mgmt.png
-│   └── about.png
-├── web/                         # Web console
+├── web/                         # Flask web console (legacy)
 │   ├── app.py                   # Flask application
-│   ├── app_demo.py              # Demo with mock data
 │   ├── requirements.txt         # Python dependencies
-│   ├── betterdesk.service       # Systemd service file
-│   ├── templates/
-│   │   └── index.html           # Main HTML template
-│   └── static/
-│       ├── style.css            # Glassmorphism CSS
-│       ├── script.js            # Frontend JavaScript
-│       └── material-icons.woff2 # Material Icons font
-└── hbbs-patch/                  # HBBS modifications
-    ├── README.md                # Patch documentation
-    └── src/
-        ├── http_api.rs          # HTTP API server (NEW)
-        ├── main.rs              # Modified entry point
-        ├── peer.rs              # Modified PeerMap
-        └── rendezvous_server.rs # Modified server logic
+│   └── ...
+├── web-nodejs/                  # Node.js web console (recommended)
+│   ├── server.js                # Express application
+│   ├── package.json             # npm dependencies
+│   ├── views/                   # EJS templates
+│   ├── public/                  # Static assets (CSS, JS)
+│   ├── routes/                  # API routes
+│   └── ...
+├── hbbs-patch-v2/               # HBBS modifications (v2.x)
+│   ├── hbbs-linux-x86_64        # Pre-compiled Linux binary
+│   ├── hbbr-linux-x86_64        # Pre-compiled Linux binary
+│   ├── hbbs-windows-x86_64.exe  # Pre-compiled Windows binary
+│   ├── hbbr-windows-x86_64.exe  # Pre-compiled Windows binary
+│   └── src/                     # Source code modifications
+├── migrations/                  # Database migration scripts
+├── docs/                        # Documentation
+├── dev_modules/                 # Development tools
+└── scripts/legacy/              # Legacy scripts (deprecated)
 ```
 
 ### Building from Source
@@ -1006,8 +982,23 @@ sudo systemctl status betterdesk.service
 - **[Rust](https://www.rust-lang.org/)**: Systems programming language
 - **[Axum](https://github.com/tokio-rs/axum)**: Web framework for Rust
 - **[Tokio](https://tokio.rs/)**: Async runtime for Rust
-- **[Flask](https://flask.palletsprojects.com/)**: Python web framework
 - **[SQLite](https://www.sqlite.org/)**: Database (RustDesk original)
+
+### Web Console (Node.js - Recommended)
+
+- **[Node.js](https://nodejs.org/)**: JavaScript runtime (v18+)
+- **[Express.js](https://expressjs.com/)**: Fast, minimalist web framework
+- **[EJS](https://ejs.co/)**: Embedded JavaScript templating
+- **[better-sqlite3](https://github.com/WiseLibs/better-sqlite3)**: Fast SQLite3 driver
+- **[bcrypt](https://www.npmjs.com/package/bcrypt)**: Password hashing
+- **[Helmet](https://helmetjs.github.io/)**: Security headers
+- **[express-rate-limit](https://www.npmjs.com/package/express-rate-limit)**: Rate limiting
+
+### Web Console (Flask - Legacy)
+
+- **[Flask](https://flask.palletsprojects.com/)**: Python web framework
+- **[Jinja2](https://jinja.palletsprojects.com/)**: Template engine
+- **[bcrypt](https://pypi.org/project/bcrypt/)**: Password hashing
 
 ### Frontend
 
@@ -1018,8 +1009,10 @@ sudo systemctl status betterdesk.service
 
 ### DevOps
 
-- **Systemd**: Service management
-- **Bash**: Installation scripting
+- **Systemd**: Service management (Linux)
+- **NSSM/Scheduled Tasks**: Service management (Windows)
+- **Docker**: Containerization
+- **Bash/PowerShell**: Installation scripting
 - **Git**: Version control
 
 ---

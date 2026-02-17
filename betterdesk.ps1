@@ -1,13 +1,13 @@
 #Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-    BetterDesk Console Manager v2.1.1 - All-in-One Interactive Tool for Windows
+    BetterDesk Console Manager v2.2.0 - All-in-One Interactive Tool for Windows
 
 .DESCRIPTION
     Features:
-      - Fresh installation
+      - Fresh installation (Flask or Node.js console)
       - Update existing installation
-      - Repair/fix issues
+      - Repair/fix issues (enhanced with graceful shutdown)
       - Validate installation
       - Backup & restore
       - Reset admin password
@@ -15,6 +15,11 @@
       - Full diagnostics
       - SHA256 binary verification
       - Auto mode (non-interactive)
+      - Enhanced service management with health verification
+      - Port conflict detection
+      - Fixed ban system (device-specific, not IP-based)
+      - Node.js web console support (recommended)
+      - Migration from Flask to Node.js
 
 .PARAMETER Auto
     Run installation in automatic mode (non-interactive)
@@ -22,13 +27,19 @@
 .PARAMETER SkipVerify
     Skip SHA256 verification of binaries
 
+.PARAMETER NodeJs
+    Install Node.js web console (recommended)
+
+.PARAMETER Flask
+    Install Flask (Python) web console (legacy)
+
 .EXAMPLE
     .\betterdesk.ps1
     Interactive mode
 
 .EXAMPLE
-    .\betterdesk.ps1 -Auto
-    Automatic installation without prompts
+    .\betterdesk.ps1 -Auto -NodeJs
+    Automatic installation with Node.js console
 
 .EXAMPLE
     .\betterdesk.ps1 -SkipVerify
@@ -37,19 +48,26 @@
 
 param(
     [switch]$Auto,
-    [switch]$SkipVerify
+    [switch]$SkipVerify,
+    [switch]$NodeJs,
+    [switch]$Flask
 )
 
 #===============================================================================
 # Configuration
 #===============================================================================
 
-$script:VERSION = "2.1.1"
+$script:VERSION = "2.2.0"
 $script:ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 # Auto mode flags
 $script:AUTO_MODE = $Auto
 $script:SKIP_VERIFY = $SkipVerify
+
+# Console type preference
+$script:PREFERRED_CONSOLE_TYPE = ""
+if ($NodeJs) { $script:PREFERRED_CONSOLE_TYPE = "nodejs" }
+if ($Flask) { $script:PREFERRED_CONSOLE_TYPE = "flask" }
 
 # Binary checksums (SHA256) - v2.1.2
 $script:HBBS_WINDOWS_X86_64_SHA256 = "F74F65B909460BED6D363A6DF907BF0D9DB3224F82A1D5B61BD636DC362125AD"
@@ -91,6 +109,7 @@ $script:HBBR_RUNNING = $false
 $script:CONSOLE_RUNNING = $false
 $script:BINARIES_OK = $false
 $script:DATABASE_OK = $false
+$script:CONSOLE_TYPE = "none"  # none, flask, nodejs
 
 # Logging
 $script:LOG_FILE = "$env:TEMP\betterdesk_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
@@ -211,6 +230,7 @@ function Detect-Installation {
     $script:CONSOLE_RUNNING = $false
     $script:BINARIES_OK = $false
     $script:DATABASE_OK = $false
+    $script:CONSOLE_TYPE = "none"
     
     # Check paths
     if (Test-Path $script:RUSTDESK_PATH) {
@@ -224,8 +244,15 @@ function Detect-Installation {
         $script:DATABASE_OK = $true
     }
     
-    if ((Test-Path $script:CONSOLE_PATH) -and (Test-Path "$script:CONSOLE_PATH\app.py")) {
-        if ($script:BINARIES_OK) {
+    # Detect console type
+    if (Test-Path $script:CONSOLE_PATH) {
+        if ((Test-Path "$script:CONSOLE_PATH\server.js") -or (Test-Path "$script:CONSOLE_PATH\package.json")) {
+            $script:CONSOLE_TYPE = "nodejs"
+        } elseif (Test-Path "$script:CONSOLE_PATH\app.py") {
+            $script:CONSOLE_TYPE = "flask"
+        }
+        
+        if ($script:CONSOLE_TYPE -ne "none" -and $script:BINARIES_OK) {
             $script:INSTALL_STATUS = "complete"
         }
     }
@@ -276,12 +303,24 @@ function Auto-DetectPaths {
         Print-Info "No installation detected. Default path: $script:RUSTDESK_PATH"
     }
     
-    # Auto-detect Console path
+    # Auto-detect Console path and type
     $consoleFound = $false
+    $script:CONSOLE_TYPE = "none"
+    
     foreach ($path in $script:COMMON_CONSOLE_PATHS) {
+        # Check for Node.js console first (server.js or package.json)
+        if ((Test-Path $path) -and ((Test-Path "$path\server.js") -or (Test-Path "$path\package.json"))) {
+            $script:CONSOLE_PATH = $path
+            $script:CONSOLE_TYPE = "nodejs"
+            Print-Success "Detected Node.js Console: $script:CONSOLE_PATH"
+            $consoleFound = $true
+            break
+        }
+        # Check for Flask/Python console (app.py)
         if ((Test-Path $path) -and (Test-Path "$path\app.py")) {
             $script:CONSOLE_PATH = $path
-            Print-Success "Detected Console installation: $script:CONSOLE_PATH"
+            $script:CONSOLE_TYPE = "flask"
+            Print-Success "Detected Flask Console: $script:CONSOLE_PATH"
             $consoleFound = $true
             break
         }
@@ -334,7 +373,12 @@ function Print-Status {
     }
     
     if (Test-Path $script:CONSOLE_PATH) {
-        Write-Host "  Web Console:  " -NoNewline; Write-Host "[OK]" -ForegroundColor Green
+        $consoleTypeLabel = switch ($script:CONSOLE_TYPE) {
+            "nodejs" { " (Node.js)" }
+            "flask" { " (Flask)" }
+            default { "" }
+        }
+        Write-Host "  Web Console:  " -NoNewline; Write-Host "[OK]$consoleTypeLabel" -ForegroundColor Green
     } else {
         Write-Host "  Web Console:  " -NoNewline; Write-Host "[X] Not found" -ForegroundColor Red
     }
@@ -478,6 +522,279 @@ function Install-Dependencies {
     return $true
 }
 
+#===============================================================================
+# Node.js Installation Functions
+#===============================================================================
+
+function Install-NodeJs {
+    Print-Step "Checking Node.js installation..."
+    
+    # Check if Node.js is already installed and version is sufficient
+    $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
+    if ($nodeCmd) {
+        $nodeVersion = (node --version) -replace 'v', '' -split '\.' | Select-Object -First 1
+        if ([int]$nodeVersion -ge 18) {
+            Print-Success "Node.js v$(node --version) already installed"
+            return $true
+        } else {
+            Print-Warning "Node.js version $nodeVersion is too old (need 18+). Upgrading..."
+        }
+    }
+    
+    Print-Step "Installing Node.js 20 LTS..."
+    
+    # Try winget first (Windows 10/11)
+    $wingetCmd = Get-Command winget -ErrorAction SilentlyContinue
+    if ($wingetCmd) {
+        Print-Info "Installing via winget..."
+        try {
+            winget install OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements --silent
+            # Refresh PATH
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+            Print-Success "Node.js installed via winget"
+            return $true
+        } catch {
+            Print-Warning "winget installation failed, trying alternative method..."
+        }
+    }
+    
+    # Try chocolatey
+    $chocoCmd = Get-Command choco -ErrorAction SilentlyContinue
+    if ($chocoCmd) {
+        Print-Info "Installing via Chocolatey..."
+        try {
+            choco install nodejs-lts -y
+            # Refresh PATH
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+            Print-Success "Node.js installed via Chocolatey"
+            return $true
+        } catch {
+            Print-Warning "Chocolatey installation failed..."
+        }
+    }
+    
+    # Manual download as last resort
+    Print-Warning "Automatic installation not available."
+    Print-Info "Please install Node.js 20 LTS manually from: https://nodejs.org/"
+    Print-Info "After installation, restart the script."
+    return $false
+}
+
+function Install-NodeJsConsole {
+    Print-Step "Installing Node.js Web Console..."
+    
+    # Install Node.js if not present
+    if (-not (Install-NodeJs)) {
+        Print-Error "Cannot proceed without Node.js"
+        return $false
+    }
+    
+    # Create directory
+    if (-not (Test-Path $script:CONSOLE_PATH)) {
+        New-Item -ItemType Directory -Path $script:CONSOLE_PATH -Force | Out-Null
+    }
+    
+    # Check for web-nodejs folder first, then web folder with server.js
+    $sourceFolder = $null
+    $webNodejsPath = Join-Path $script:ScriptDir "web-nodejs"
+    $webPath = Join-Path $script:ScriptDir "web"
+    
+    if (Test-Path (Join-Path $webNodejsPath "server.js")) {
+        $sourceFolder = $webNodejsPath
+        Print-Info "Found Node.js console in web-nodejs/"
+    } elseif (Test-Path (Join-Path $webPath "server.js")) {
+        $sourceFolder = $webPath
+        Print-Info "Found Node.js console in web/"
+    } else {
+        Print-Error "Node.js web console not found!"
+        Print-Info "Expected: $webNodejsPath\server.js or $webPath\server.js"
+        return $false
+    }
+    
+    # Copy web files
+    Copy-Item -Path "$sourceFolder\*" -Destination $script:CONSOLE_PATH -Recurse -Force
+    
+    # Install npm dependencies
+    Print-Step "Installing npm dependencies..."
+    Push-Location $script:CONSOLE_PATH
+    try {
+        npm install --production 2>&1 | ForEach-Object { Write-Host "[npm] $_" }
+        
+        # Create data directory for databases
+        $dataDir = Join-Path $script:CONSOLE_PATH "data"
+        if (-not (Test-Path $dataDir)) {
+            New-Item -ItemType Directory -Path $dataDir -Force | Out-Null
+        }
+        
+        # Create .env file if not exists
+        $envFile = Join-Path $script:CONSOLE_PATH ".env"
+        if (-not (Test-Path $envFile)) {
+            $sessionSecret = -join ((65..90) + (97..122) + (48..57) | Get-Random -Count 32 | ForEach-Object {[char]$_})
+            $envContent = @"
+# BetterDesk Node.js Console Configuration
+PORT=5000
+RUSTDESK_PATH=$script:RUSTDESK_PATH
+API_PORT=$script:API_PORT
+NODE_ENV=production
+SESSION_SECRET=$sessionSecret
+"@
+            Set-Content -Path $envFile -Value $envContent
+            Print-Info "Created .env configuration file"
+        }
+        
+        $script:CONSOLE_TYPE = "nodejs"
+        Print-Success "Node.js Web Console installed"
+        return $true
+    } catch {
+        Print-Error "Failed to install npm dependencies: $_"
+        return $false
+    } finally {
+        Pop-Location
+    }
+}
+
+function Install-FlaskConsole {
+    Print-Step "Installing Flask (Python) Web Console..."
+    
+    # Create directory
+    if (-not (Test-Path $script:CONSOLE_PATH)) {
+        New-Item -ItemType Directory -Path $script:CONSOLE_PATH -Force | Out-Null
+    }
+    
+    # Copy web files
+    $webSource = Join-Path $script:ScriptDir "web"
+    if ((Test-Path $webSource) -and (Test-Path (Join-Path $webSource "app.py"))) {
+        Copy-Item -Path "$webSource\*" -Destination $script:CONSOLE_PATH -Recurse -Force
+    } else {
+        Print-Error "Flask web/ folder not found in project!"
+        return $false
+    }
+    
+    # Setup Python virtual environment
+    Print-Step "Configuring Python environment..."
+    
+    Push-Location $script:CONSOLE_PATH
+    try {
+        python -m venv venv
+        
+        # Install requirements
+        & "$script:CONSOLE_PATH\venv\Scripts\pip.exe" install --quiet --upgrade pip
+        & "$script:CONSOLE_PATH\venv\Scripts\pip.exe" install --quiet -r requirements.txt
+        
+        $script:CONSOLE_TYPE = "flask"
+        Print-Success "Flask Web Console installed"
+        return $true
+    } catch {
+        Print-Error "Failed to setup Python environment: $_"
+        return $false
+    } finally {
+        Pop-Location
+    }
+}
+
+function Migrate-Console {
+    param(
+        [string]$FromType,
+        [string]$ToType
+    )
+    
+    Print-Step "Migrating from $FromType to $ToType..."
+    
+    # Backup existing console
+    $backupPath = Join-Path $script:BACKUP_DIR "console_${FromType}_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
+    if (-not (Test-Path $backupPath)) {
+        New-Item -ItemType Directory -Path $backupPath -Force | Out-Null
+    }
+    
+    # Backup user database (auth.db) if exists
+    $authDb = Join-Path $script:CONSOLE_PATH "data\auth.db"
+    if (Test-Path $authDb) {
+        Copy-Item -Path $authDb -Destination $backupPath
+        Print-Info "Backed up user database"
+    }
+    
+    # Backup .env if exists
+    $envFile = Join-Path $script:CONSOLE_PATH ".env"
+    if (Test-Path $envFile) {
+        Copy-Item -Path $envFile -Destination $backupPath
+    }
+    
+    # Stop old console service/task
+    Stop-Service -Name $script:CONSOLE_SERVICE -ErrorAction SilentlyContinue -Force
+    Stop-ScheduledTask -TaskName $script:CONSOLE_SERVICE -ErrorAction SilentlyContinue
+    
+    # Remove old console specific files
+    $venvPath = Join-Path $script:CONSOLE_PATH "venv"
+    $nodeModulesPath = Join-Path $script:CONSOLE_PATH "node_modules"
+    if (Test-Path $venvPath) { Remove-Item -Path $venvPath -Recurse -Force }
+    if (Test-Path $nodeModulesPath) { Remove-Item -Path $nodeModulesPath -Recurse -Force }
+    
+    Print-Success "Old $FromType console backed up to $backupPath"
+}
+
+function Install-Console {
+    # Determine which console type to install
+    $consoleChoice = $script:PREFERRED_CONSOLE_TYPE
+    
+    # If not specified, ask user (unless in auto mode)
+    if ([string]::IsNullOrEmpty($consoleChoice)) {
+        if ($script:AUTO_MODE) {
+            # Default to Node.js in auto mode (recommended)
+            $consoleChoice = "nodejs"
+            Print-Info "Auto mode: Installing Node.js console (recommended)"
+        } else {
+            Write-Host ""
+            Write-Host "Select Web Console Type:" -ForegroundColor White
+            Write-Host ""
+            Write-Host "  1. Node.js (recommended) - faster, modern, better performance" -ForegroundColor Green
+            Write-Host "  2. Flask (Python) - legacy, original" -ForegroundColor Yellow
+            Write-Host ""
+            $choice = Read-Host "Choice [1]"
+            switch ($choice) {
+                "2" { $consoleChoice = "flask" }
+                "flask" { $consoleChoice = "flask" }
+                default { $consoleChoice = "nodejs" }
+            }
+        }
+    }
+    
+    # Check for existing console and offer migration
+    if (Test-Path $script:CONSOLE_PATH) {
+        $existingType = "unknown"
+        if ((Test-Path (Join-Path $script:CONSOLE_PATH "server.js")) -or (Test-Path (Join-Path $script:CONSOLE_PATH "package.json"))) {
+            $existingType = "nodejs"
+        } elseif (Test-Path (Join-Path $script:CONSOLE_PATH "app.py")) {
+            $existingType = "flask"
+        }
+        
+        if ($existingType -ne "unknown" -and $existingType -ne $consoleChoice) {
+            Print-Warning "Existing $existingType console detected at $script:CONSOLE_PATH"
+            if (-not $script:AUTO_MODE) {
+                if (Confirm-Action "Migrate from $existingType to $consoleChoice?") {
+                    Migrate-Console -FromType $existingType -ToType $consoleChoice
+                } else {
+                    Print-Info "Keeping existing $existingType console"
+                    $script:CONSOLE_TYPE = $existingType
+                    return $true
+                }
+            } else {
+                Print-Info "Auto mode: Migrating from $existingType to $consoleChoice"
+                Migrate-Console -FromType $existingType -ToType $consoleChoice
+            }
+        }
+    }
+    
+    # Install selected console type
+    switch ($consoleChoice) {
+        "nodejs" { return Install-NodeJsConsole }
+        "flask" { return Install-FlaskConsole }
+        default {
+            Print-Error "Unknown console type: $consoleChoice"
+            return $false
+        }
+    }
+}
+
 function Install-Binaries {
     Print-Step "Installing BetterDesk binaries..."
     
@@ -506,58 +823,43 @@ function Install-Binaries {
         return $false
     }
     
-    # Stop services if running
+    # Stop services and kill processes (prevents file locking)
+    Print-Info "Stopping services before binary installation..."
     Stop-Service -Name $script:HBBS_SERVICE -ErrorAction SilentlyContinue -Force
     Stop-Service -Name $script:HBBR_SERVICE -ErrorAction SilentlyContinue -Force
+    Stop-ScheduledTask -TaskName $script:HBBS_SERVICE -ErrorAction SilentlyContinue
+    Stop-ScheduledTask -TaskName $script:HBBR_SERVICE -ErrorAction SilentlyContinue
+    
+    # Kill any remaining processes
+    Get-Process -Name "hbbs" -ErrorAction SilentlyContinue | Stop-Process -Force
+    Get-Process -Name "hbbr" -ErrorAction SilentlyContinue | Stop-Process -Force
     Start-Sleep -Seconds 2
     
+    # Verify files are not locked
+    $hbbsTarget = Join-Path $script:RUSTDESK_PATH "hbbs.exe"
+    $hbbrTarget = Join-Path $script:RUSTDESK_PATH "hbbr.exe"
+    
+    foreach ($file in @($hbbsTarget, $hbbrTarget)) {
+        if (Test-Path $file) {
+            try {
+                $stream = [System.IO.File]::Open($file, 'Open', 'ReadWrite', 'None')
+                $stream.Close()
+            } catch {
+                Print-Warning "File $file is still locked, waiting..."
+                Start-Sleep -Seconds 3
+                Get-Process -Name ($file -replace '.*\\(.*)\.exe', '$1') -ErrorAction SilentlyContinue | Stop-Process -Force
+            }
+        }
+    }
+    
     # Copy binaries
-    Copy-Item -Path (Join-Path $binSource "hbbs-windows-x86_64.exe") -Destination (Join-Path $script:RUSTDESK_PATH "hbbs.exe") -Force
+    Copy-Item -Path (Join-Path $binSource "hbbs-windows-x86_64.exe") -Destination $hbbsTarget -Force
     Print-Success "Installed hbbs.exe (signal server)"
     
-    Copy-Item -Path (Join-Path $binSource "hbbr-windows-x86_64.exe") -Destination (Join-Path $script:RUSTDESK_PATH "hbbr.exe") -Force
+    Copy-Item -Path (Join-Path $binSource "hbbr-windows-x86_64.exe") -Destination $hbbrTarget -Force
     Print-Success "Installed hbbr.exe (relay server)"
     
     Print-Success "BetterDesk binaries v$script:VERSION installed"
-    return $true
-}
-
-function Install-Console {
-    Print-Step "Installing Web Console..."
-    
-    # Create directory
-    if (-not (Test-Path $script:CONSOLE_PATH)) {
-        New-Item -ItemType Directory -Path $script:CONSOLE_PATH -Force | Out-Null
-    }
-    
-    # Copy web files
-    $webSource = Join-Path $script:ScriptDir "web"
-    if (Test-Path $webSource) {
-        Copy-Item -Path "$webSource\*" -Destination $script:CONSOLE_PATH -Recurse -Force
-    } else {
-        Print-Error "web/ folder not found in project!"
-        return $false
-    }
-    
-    # Setup Python virtual environment
-    Print-Step "Configuring Python environment..."
-    
-    Push-Location $script:CONSOLE_PATH
-    try {
-        python -m venv venv
-        
-        # Install requirements
-        & "$script:CONSOLE_PATH\venv\Scripts\pip.exe" install --quiet --upgrade pip
-        & "$script:CONSOLE_PATH\venv\Scripts\pip.exe" install --quiet -r requirements.txt
-        
-        Print-Success "Web Console installed"
-    } catch {
-        Print-Error "Failed to setup Python environment: $_"
-        return $false
-    } finally {
-        Pop-Location
-    }
-    
     return $true
 }
 
@@ -622,18 +924,37 @@ function Setup-Services {
     & $nssm set $script:HBBR_SERVICE AppStdout "$script:RUSTDESK_PATH\logs\hbbr.log"
     & $nssm set $script:HBBR_SERVICE AppStderr "$script:RUSTDESK_PATH\logs\hbbr_error.log"
     
-    # Console Service (Web Interface)
-    $pythonExe = Join-Path $script:CONSOLE_PATH "venv\Scripts\python.exe"
-    $appPy = Join-Path $script:CONSOLE_PATH "app.py"
-    
-    & $nssm install $script:CONSOLE_SERVICE $pythonExe $appPy
-    & $nssm set $script:CONSOLE_SERVICE AppDirectory $script:CONSOLE_PATH
-    & $nssm set $script:CONSOLE_SERVICE DisplayName "BetterDesk Web Console"
-    & $nssm set $script:CONSOLE_SERVICE Description "BetterDesk Web Management Console"
-    & $nssm set $script:CONSOLE_SERVICE Start SERVICE_AUTO_START
-    & $nssm set $script:CONSOLE_SERVICE AppEnvironmentExtra "FLASK_ENV=production" "RUSTDESK_PATH=$script:RUSTDESK_PATH" "API_PORT=$script:API_PORT"
-    & $nssm set $script:CONSOLE_SERVICE AppStdout "$script:CONSOLE_PATH\logs\console.log"
-    & $nssm set $script:CONSOLE_SERVICE AppStderr "$script:CONSOLE_PATH\logs\console_error.log"
+    # Console Service (Web Interface) - depends on console type
+    if ($script:CONSOLE_TYPE -eq "nodejs") {
+        # Node.js console
+        $nodeExe = (Get-Command node -ErrorAction SilentlyContinue).Source
+        if (-not $nodeExe) { $nodeExe = "node.exe" }
+        $serverJs = Join-Path $script:CONSOLE_PATH "server.js"
+        
+        & $nssm install $script:CONSOLE_SERVICE $nodeExe $serverJs
+        & $nssm set $script:CONSOLE_SERVICE AppDirectory $script:CONSOLE_PATH
+        & $nssm set $script:CONSOLE_SERVICE DisplayName "BetterDesk Web Console (Node.js)"
+        & $nssm set $script:CONSOLE_SERVICE Description "BetterDesk Web Management Console - Node.js"
+        & $nssm set $script:CONSOLE_SERVICE Start SERVICE_AUTO_START
+        & $nssm set $script:CONSOLE_SERVICE AppEnvironmentExtra "NODE_ENV=production" "RUSTDESK_PATH=$script:RUSTDESK_PATH" "API_PORT=$script:API_PORT" "PORT=5000"
+        & $nssm set $script:CONSOLE_SERVICE AppStdout "$script:CONSOLE_PATH\logs\console.log"
+        & $nssm set $script:CONSOLE_SERVICE AppStderr "$script:CONSOLE_PATH\logs\console_error.log"
+        Print-Info "Created Node.js console service"
+    } else {
+        # Flask console (default/fallback)
+        $pythonExe = Join-Path $script:CONSOLE_PATH "venv\Scripts\python.exe"
+        $appPy = Join-Path $script:CONSOLE_PATH "app.py"
+        
+        & $nssm install $script:CONSOLE_SERVICE $pythonExe $appPy
+        & $nssm set $script:CONSOLE_SERVICE AppDirectory $script:CONSOLE_PATH
+        & $nssm set $script:CONSOLE_SERVICE DisplayName "BetterDesk Web Console (Flask)"
+        & $nssm set $script:CONSOLE_SERVICE Description "BetterDesk Web Management Console - Flask"
+        & $nssm set $script:CONSOLE_SERVICE Start SERVICE_AUTO_START
+        & $nssm set $script:CONSOLE_SERVICE AppEnvironmentExtra "FLASK_ENV=production" "RUSTDESK_PATH=$script:RUSTDESK_PATH" "API_PORT=$script:API_PORT"
+        & $nssm set $script:CONSOLE_SERVICE AppStdout "$script:CONSOLE_PATH\logs\console.log"
+        & $nssm set $script:CONSOLE_SERVICE AppStderr "$script:CONSOLE_PATH\logs\console_error.log"
+        Print-Info "Created Flask console service"
+    }
     
     # Create logs directories
     New-Item -ItemType Directory -Path "$script:RUSTDESK_PATH\logs" -Force | Out-Null
@@ -669,14 +990,28 @@ function Setup-ScheduledTasks {
     $hbbrSettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
     Register-ScheduledTask -TaskName $script:HBBR_SERVICE -Action $hbbrAction -Trigger $hbbrTrigger -Principal $hbbrPrincipal -Settings $hbbrSettings -Description "BetterDesk Relay Server" | Out-Null
     
-    # Console Task
-    $pythonExe = Join-Path $script:CONSOLE_PATH "venv\Scripts\python.exe"
-    $appPy = Join-Path $script:CONSOLE_PATH "app.py"
-    $consoleAction = New-ScheduledTaskAction -Execute $pythonExe -Argument $appPy -WorkingDirectory $script:CONSOLE_PATH
+    # Console Task - depends on console type
+    if ($script:CONSOLE_TYPE -eq "nodejs") {
+        # Node.js console
+        $nodeExe = (Get-Command node -ErrorAction SilentlyContinue).Source
+        if (-not $nodeExe) { $nodeExe = "node.exe" }
+        $serverJs = Join-Path $script:CONSOLE_PATH "server.js"
+        $consoleAction = New-ScheduledTaskAction -Execute $nodeExe -Argument $serverJs -WorkingDirectory $script:CONSOLE_PATH
+        $consoleDesc = "BetterDesk Web Console (Node.js)"
+        Print-Info "Creating Node.js console task"
+    } else {
+        # Flask console (default/fallback)
+        $pythonExe = Join-Path $script:CONSOLE_PATH "venv\Scripts\python.exe"
+        $appPy = Join-Path $script:CONSOLE_PATH "app.py"
+        $consoleAction = New-ScheduledTaskAction -Execute $pythonExe -Argument $appPy -WorkingDirectory $script:CONSOLE_PATH
+        $consoleDesc = "BetterDesk Web Console (Flask)"
+        Print-Info "Creating Flask console task"
+    }
+    
     $consoleTrigger = New-ScheduledTaskTrigger -AtStartup
     $consolePrincipal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
     $consoleSettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
-    Register-ScheduledTask -TaskName $script:CONSOLE_SERVICE -Action $consoleAction -Trigger $consoleTrigger -Principal $consolePrincipal -Settings $consoleSettings -Description "BetterDesk Web Console" | Out-Null
+    Register-ScheduledTask -TaskName $script:CONSOLE_SERVICE -Action $consoleAction -Trigger $consoleTrigger -Principal $consolePrincipal -Settings $consoleSettings -Description $consoleDesc | Out-Null
     
     Print-Success "Scheduled tasks created"
 }
@@ -913,6 +1248,130 @@ function Stop-AllServices {
 }
 
 #===============================================================================
+# Enhanced Service Management Functions (v2.1.2)
+#===============================================================================
+
+function Test-PortAvailable {
+    param([int]$Port, [string]$ServiceName = "unknown")
+    
+    $listener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+    
+    if ($listener) {
+        $process = Get-Process -Id $listener.OwningProcess -ErrorAction SilentlyContinue
+        Print-Error "Port $Port is in use by: $($process.Name) (PID: $($listener.OwningProcess))"
+        return $false
+    }
+    return $true
+}
+
+function Test-ServiceHealth {
+    param(
+        [string]$ServiceName,
+        [int]$ExpectedPort = 0,
+        [int]$TimeoutSeconds = 10
+    )
+    
+    # Check if process is running  
+    $processName = if ($ServiceName -match "Signal") { "hbbs" } 
+                   elseif ($ServiceName -match "Relay") { "hbbr" }
+                   else { "python" }
+    
+    $process = Get-Process -Name $processName -ErrorAction SilentlyContinue
+    
+    if (-not $process) {
+        Print-Error "Process $processName is not running"
+        return $false
+    }
+    
+    # Check port if specified
+    if ($ExpectedPort -gt 0) {
+        $elapsed = 0
+        while ($elapsed -lt $TimeoutSeconds) {
+            $listener = Get-NetTCPConnection -LocalPort $ExpectedPort -State Listen -ErrorAction SilentlyContinue
+            if ($listener) {
+                return $true
+            }
+            Start-Sleep -Seconds 1
+            $elapsed++
+        }
+        Print-Error "Service not listening on port $ExpectedPort after ${TimeoutSeconds}s"
+        return $false
+    }
+    
+    return $true
+}
+
+function Start-ServicesWithVerification {
+    Print-Step "Starting services with health verification..."
+    
+    $hasErrors = $false
+    
+    # Check ports first
+    if (-not (Test-PortAvailable -Port 21116 -ServiceName "hbbs")) {
+        Print-Error "Port 21116 (ID server) not available"
+        $hasErrors = $true
+    }
+    
+    if (-not (Test-PortAvailable -Port 21117 -ServiceName "hbbr")) {
+        Print-Error "Port 21117 (relay) not available"  
+        $hasErrors = $true
+    }
+    
+    if ($hasErrors) {
+        Print-Error "Cannot start services - ports in use"
+        Print-Info "Use: Get-NetTCPConnection -State Listen | Where-Object LocalPort -in 21116,21117"
+        return $false
+    }
+    
+    # Start HBBS
+    Print-Info "Starting $($script:HBBS_SERVICE)..."
+    $serviceExists = Get-Service -Name $script:HBBS_SERVICE -ErrorAction SilentlyContinue
+    
+    if ($serviceExists) {
+        Start-Service -Name $script:HBBS_SERVICE -ErrorAction SilentlyContinue
+    } else {
+        Start-ScheduledTask -TaskName $script:HBBS_SERVICE -ErrorAction SilentlyContinue
+    }
+    
+    Start-Sleep -Seconds 2
+    
+    if (-not (Test-ServiceHealth -ServiceName $script:HBBS_SERVICE -ExpectedPort 21116 -TimeoutSeconds 10)) {
+        Print-Error "Failed to start hbbs"
+        return $false
+    }
+    Print-Success "hbbs started and healthy"
+    
+    # Start HBBR
+    Print-Info "Starting $($script:HBBR_SERVICE)..."
+    if ($serviceExists) {
+        Start-Service -Name $script:HBBR_SERVICE -ErrorAction SilentlyContinue
+    } else {
+        Start-ScheduledTask -TaskName $script:HBBR_SERVICE -ErrorAction SilentlyContinue
+    }
+    
+    Start-Sleep -Seconds 2
+    
+    if (-not (Test-ServiceHealth -ServiceName $script:HBBR_SERVICE -ExpectedPort 21117 -TimeoutSeconds 10)) {
+        Print-Error "Failed to start hbbr"
+        return $false
+    }
+    Print-Success "hbbr started and healthy"
+    
+    # Start Console
+    Print-Info "Starting $($script:CONSOLE_SERVICE)..."
+    if ($serviceExists) {
+        Start-Service -Name $script:CONSOLE_SERVICE -ErrorAction SilentlyContinue
+    } else {
+        Start-ScheduledTask -TaskName $script:CONSOLE_SERVICE -ErrorAction SilentlyContinue
+    }
+    
+    Start-Sleep -Seconds 2
+    Print-Success "All services started and verified"
+    
+    return $true
+}
+
+#=============================================================================
 # Main Installation Function
 #===============================================================================
 
@@ -1046,13 +1505,72 @@ function Do-Repair {
 }
 
 function Repair-Binaries {
-    Print-Step "Repairing binaries..."
+    Print-Step "Repairing binaries (enhanced v2.1.2)..."
     
+    # Verify binaries exist
+    $binSource = Join-Path $script:ScriptDir "hbbs-patch-v2"
+    $hbbsPath = Join-Path $binSource "hbbs-windows-x86_64.exe"
+    $hbbrPath = Join-Path $binSource "hbbr-windows-x86_64.exe"
+    
+    if (-not (Test-Path $hbbsPath) -or -not (Test-Path $hbbrPath)) {
+        Print-Error "BetterDesk binaries not found in $binSource"
+        return
+    }
+    
+    # Backup current binaries
+    $timestamp = Get-Date -Format "yyyyMMddHHmmss"
+    if (Test-Path "$script:RUSTDESK_PATH\hbbs.exe") {
+        Copy-Item "$script:RUSTDESK_PATH\hbbs.exe" "$script:RUSTDESK_PATH\hbbs.exe.backup.$timestamp" -ErrorAction SilentlyContinue
+    }
+    if (Test-Path "$script:RUSTDESK_PATH\hbbr.exe") {
+        Copy-Item "$script:RUSTDESK_PATH\hbbr.exe" "$script:RUSTDESK_PATH\hbbr.exe.backup.$timestamp" -ErrorAction SilentlyContinue
+    }
+    
+    # Stop services and wait
     Stop-AllServices
-    Install-Binaries | Out-Null
-    Start-Services
+    Start-Sleep -Seconds 3
     
-    Print-Success "Binaries repaired"
+    # Extra check - make sure files are not locked
+    $hbbsLocked = $false
+    $hbbrLocked = $false
+    
+    try {
+        if (Test-Path "$script:RUSTDESK_PATH\hbbs.exe") {
+            $stream = [System.IO.File]::Open("$script:RUSTDESK_PATH\hbbs.exe", 'Open', 'ReadWrite', 'None')
+            $stream.Close()
+        }
+    } catch {
+        $hbbsLocked = $true
+        Print-Warning "hbbs.exe is still locked, killing stale processes..."
+        Get-Process -Name "hbbs" -ErrorAction SilentlyContinue | Stop-Process -Force
+        Start-Sleep -Seconds 2
+    }
+    
+    try {
+        if (Test-Path "$script:RUSTDESK_PATH\hbbr.exe") {
+            $stream = [System.IO.File]::Open("$script:RUSTDESK_PATH\hbbr.exe", 'Open', 'ReadWrite', 'None')
+            $stream.Close()
+        }
+    } catch {
+        $hbbrLocked = $true
+        Print-Warning "hbbr.exe is still locked, killing stale processes..."
+        Get-Process -Name "hbbr" -ErrorAction SilentlyContinue | Stop-Process -Force
+        Start-Sleep -Seconds 2
+    }
+    
+    # Install binaries
+    if (-not (Install-Binaries)) {
+        Print-Error "Failed to install binaries"
+        return
+    }
+    
+    # Start with verification
+    if (-not (Start-ServicesWithVerification)) {
+        Print-Error "Services failed to start after repair"
+        return
+    }
+    
+    Print-Success "Binaries repaired and verified!"
 }
 
 function Repair-Database {
@@ -1064,12 +1582,35 @@ function Repair-Database {
 }
 
 function Repair-Services {
-    Print-Step "Repairing Windows services..."
+    Print-Step "Repairing Windows services (enhanced v2.1.2)..."
     
+    # Stop services first
+    Stop-AllServices
+    Start-Sleep -Seconds 2
+    
+    # Verify binaries exist
+    if (-not (Test-Path "$script:RUSTDESK_PATH\hbbs.exe")) {
+        Print-Error "hbbs.exe not found at $script:RUSTDESK_PATH"
+        Print-Info "Run 'Repair binaries' first"
+        return
+    }
+    
+    if (-not (Test-Path "$script:RUSTDESK_PATH\hbbr.exe")) {
+        Print-Error "hbbr.exe not found at $script:RUSTDESK_PATH"
+        Print-Info "Run 'Repair binaries' first"  
+        return
+    }
+    
+    # Recreate services/tasks
     Setup-Services
-    Start-Services
     
-    Print-Success "Services repaired"
+    # Start with verification
+    if (-not (Start-ServicesWithVerification)) {
+        Print-Error "Services failed to start after repair"
+        return
+    }
+    
+    Print-Success "Services repaired and verified!"
 }
 
 #===============================================================================
@@ -1279,12 +1820,23 @@ function Do-ResetPassword {
     Write-Host "========== ADMIN PASSWORD RESET ==========" -ForegroundColor White
     Write-Host ""
     
-    if (-not (Test-Path $script:DB_PATH)) {
-        Print-Error "Database not found: $script:DB_PATH"
+    # Detect console type
+    Detect-Installation
+    
+    if ($script:CONSOLE_TYPE -eq "none") {
+        Print-Error "No console installation detected"
         Print-Info "Run installation first"
         Press-Enter
         return
     }
+    
+    Write-Host "Detected console type: " -NoNewline
+    if ($script:CONSOLE_TYPE -eq "nodejs") {
+        Write-Host "Node.js" -ForegroundColor Cyan
+    } else {
+        Write-Host "Flask/Python" -ForegroundColor Cyan
+    }
+    Write-Host ""
     
     Write-Host "Select option:"
     Write-Host ""
@@ -1313,7 +1865,93 @@ function Do-ResetPassword {
     
     if (-not $newPassword) { return }
     
-    $pythonScript = @"
+    $success = $false
+    
+    if ($script:CONSOLE_TYPE -eq "nodejs") {
+        # Node.js console - update auth.db
+        $authDbPath = Join-Path $script:CONSOLE_PATH "data\auth.db"
+        
+        # Also check in RUSTDESK_PATH for auth.db (alternative location)
+        if (-not (Test-Path $authDbPath)) {
+            $authDbPath = Join-Path $script:RUSTDESK_PATH "auth.db"
+        }
+        
+        Print-Info "Auth database: $authDbPath"
+        
+        # Use Node.js reset-password script if available
+        $resetScript = Join-Path $script:CONSOLE_PATH "scripts\reset-password.js"
+        if (Test-Path $resetScript) {
+            Print-Info "Using reset-password.js script..."
+            $nodeExe = Get-Command "node" -ErrorAction SilentlyContinue
+            if ($nodeExe) {
+                Push-Location $script:CONSOLE_PATH
+                try {
+                    $env:DATA_DIR = Split-Path $authDbPath -Parent
+                    & node $resetScript $newPassword admin
+                    if ($LASTEXITCODE -eq 0) {
+                        $success = $true
+                    }
+                } finally {
+                    Pop-Location
+                }
+            }
+        }
+        
+        # Fallback: use Python with bcrypt to update auth.db directly
+        if (-not $success) {
+            Print-Info "Using direct database update..."
+            $pythonScript = @"
+import sqlite3
+import bcrypt
+import os
+
+auth_db_path = r'$authDbPath'
+
+# Create parent directory if needed
+os.makedirs(os.path.dirname(auth_db_path), exist_ok=True)
+
+conn = sqlite3.connect(auth_db_path)
+cursor = conn.cursor()
+
+# Ensure table exists (for fresh installations)
+cursor.execute('''CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    role TEXT DEFAULT 'admin',
+    created_at TEXT DEFAULT (datetime('now')),
+    last_login TEXT
+)''')
+
+new_password = '$newPassword'
+password_hash = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt(12)).decode()
+
+cursor.execute("UPDATE users SET password_hash = ? WHERE username = 'admin'", (password_hash,))
+
+if cursor.rowcount == 0:
+    cursor.execute('''INSERT INTO users (username, password_hash, role)
+                      VALUES ('admin', ?, 'admin')''', (password_hash,))
+
+conn.commit()
+conn.close()
+print("Password updated successfully")
+"@
+            $output = $pythonScript | python 2>&1
+            if ($output -match "successfully") {
+                $success = $true
+            } else {
+                Print-Warning "Python output: $output"
+            }
+        }
+    } else {
+        # Flask/Python console - update db_v2.sqlite3 users table
+        if (-not (Test-Path $script:DB_PATH)) {
+            Print-Error "Database not found: $script:DB_PATH"
+            Press-Enter
+            return
+        }
+        
+        $pythonScript = @"
 import sqlite3
 import bcrypt
 
@@ -1332,22 +1970,32 @@ if cursor.rowcount == 0:
 
 conn.commit()
 conn.close()
-print("Password updated")
+print("Password updated successfully")
 "@
-    
-    $pythonScript | python
+        $output = $pythonScript | python 2>&1
+        if ($output -match "successfully") {
+            $success = $true
+        } else {
+            Print-Warning "Python output: $output"
+        }
+    }
     
     Write-Host ""
-    Write-Host "============================================================" -ForegroundColor Green
-    Write-Host "              NEW LOGIN CREDENTIALS                         " -ForegroundColor Green
-    Write-Host "============================================================" -ForegroundColor Green
-    Write-Host "  Login:    " -NoNewline; Write-Host "admin" -ForegroundColor White
-    Write-Host "  Password: " -NoNewline; Write-Host $newPassword -ForegroundColor White
-    Write-Host "============================================================" -ForegroundColor Green
-    
-    # Save credentials
-    $credentialsFile = Join-Path $script:RUSTDESK_PATH ".admin_credentials"
-    "admin:$newPassword" | Out-File -FilePath $credentialsFile -Encoding UTF8
+    if ($success) {
+        Write-Host "============================================================" -ForegroundColor Green
+        Write-Host "              NEW LOGIN CREDENTIALS                         " -ForegroundColor Green
+        Write-Host "============================================================" -ForegroundColor Green
+        Write-Host "  Login:    " -NoNewline; Write-Host "admin" -ForegroundColor White
+        Write-Host "  Password: " -NoNewline; Write-Host $newPassword -ForegroundColor White
+        Write-Host "============================================================" -ForegroundColor Green
+        
+        # Save credentials
+        $credentialsFile = Join-Path $script:RUSTDESK_PATH ".admin_credentials"
+        "admin:$newPassword" | Out-File -FilePath $credentialsFile -Encoding UTF8
+    } else {
+        Print-Error "Failed to reset password!"
+        Print-Info "Make sure Python with bcrypt is installed, or Node.js for Node.js console"
+    }
     
     Press-Enter
 }

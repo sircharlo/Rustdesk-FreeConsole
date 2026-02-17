@@ -1,13 +1,13 @@
 #!/bin/bash
 #===============================================================================
 #
-#   BetterDesk Console Manager v2.1.1
+#   BetterDesk Console Manager v2.2.0
 #   All-in-One Interactive Tool for Linux
 #
 #   Features:
-#     - Fresh installation
+#     - Fresh installation (Flask or Node.js console)
 #     - Update existing installation  
-#     - Repair/fix issues
+#     - Repair/fix issues (enhanced with graceful shutdown)
 #     - Validate installation
 #     - Backup & restore
 #     - Reset admin password
@@ -15,22 +15,29 @@
 #     - Full diagnostics
 #     - SHA256 binary verification
 #     - Auto mode (non-interactive)
+#     - Enhanced service management with health verification
+#     - Port conflict detection
+#     - Fixed ban system (device-specific, not IP-based)
+#     - Node.js web console support (recommended)
+#     - Migration from Flask to Node.js
 #
 #   Usage: 
 #     Interactive: sudo ./betterdesk.sh
 #     Auto mode:   sudo ./betterdesk.sh --auto
+#     Node.js:     sudo ./betterdesk.sh --auto --nodejs
 #
 #===============================================================================
 
 set -e
 
 # Version
-VERSION="2.1.1"
+VERSION="2.2.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Auto mode flag
 AUTO_MODE=false
 SKIP_VERIFY=false
+PREFERRED_CONSOLE_TYPE=""  # flask, nodejs, or empty for interactive choice
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -43,6 +50,14 @@ while [[ $# -gt 0 ]]; do
             SKIP_VERIFY=true
             shift
             ;;
+        --nodejs)
+            PREFERRED_CONSOLE_TYPE="nodejs"
+            shift
+            ;;
+        --flask)
+            PREFERRED_CONSOLE_TYPE="flask"
+            shift
+            ;;
         --help|-h)
             echo "BetterDesk Console Manager v$VERSION"
             echo ""
@@ -51,6 +66,8 @@ while [[ $# -gt 0 ]]; do
             echo "Options:"
             echo "  --auto, -a      Run in automatic mode (non-interactive)"
             echo "  --skip-verify   Skip SHA256 verification of binaries"
+            echo "  --nodejs        Install Node.js web console (recommended)"
+            echo "  --flask         Install Flask (Python) web console (legacy)"
             echo "  --help, -h      Show this help message"
             exit 0
             ;;
@@ -68,6 +85,7 @@ HBBR_LINUX_X86_64_SHA256="8E7492CB1695B3D812CA13ABAC9A31E4DEA95B50497128D8E128DA
 # Default paths (can be overridden by environment variables)
 RUSTDESK_PATH="${RUSTDESK_PATH:-}"
 CONSOLE_PATH="${CONSOLE_PATH:-}"
+CONSOLE_TYPE="none"  # none, flask, nodejs
 BACKUP_DIR="${BACKUP_DIR:-/opt/rustdesk-backups}"
 
 # API configuration
@@ -154,6 +172,211 @@ confirm() {
 }
 
 #===============================================================================
+# Service Management Functions (Enhanced v2.1.2)
+#===============================================================================
+
+# Wait for a service to fully stop with timeout
+wait_for_service_stop() {
+    local service_name="$1"
+    local timeout="${2:-30}"
+    local elapsed=0
+    
+    while [ $elapsed -lt $timeout ]; do
+        if ! systemctl is-active --quiet "$service_name" 2>/dev/null; then
+            return 0
+        fi
+        sleep 1
+        ((elapsed++))
+    done
+    
+    print_warning "Service $service_name did not stop within ${timeout}s"
+    return 1
+}
+
+# Kill any stale processes that might be holding files/ports
+kill_stale_processes() {
+    local process_name="$1"
+    
+    # Find and kill any remaining processes
+    local pids=$(pgrep -f "$process_name" 2>/dev/null || true)
+    
+    if [ -n "$pids" ]; then
+        print_warning "Found stale $process_name processes: $pids"
+        
+        # Try graceful termination first
+        for pid in $pids; do
+            kill -TERM "$pid" 2>/dev/null || true
+        done
+        sleep 2
+        
+        # Force kill if still running
+        pids=$(pgrep -f "$process_name" 2>/dev/null || true)
+        if [ -n "$pids" ]; then
+            for pid in $pids; do
+                kill -9 "$pid" 2>/dev/null || true
+            done
+            sleep 1
+        fi
+        
+        print_info "Cleaned up stale $process_name processes"
+    fi
+}
+
+# Check if a port is available
+check_port_available() {
+    local port="$1"
+    local service_name="${2:-unknown}"
+    
+    if ss -tlnp 2>/dev/null | grep -q ":${port} " || \
+       netstat -tlnp 2>/dev/null | grep -q ":${port} "; then
+        local process=$(ss -tlnp 2>/dev/null | grep ":${port} " | awk '{print $NF}' || \
+                       netstat -tlnp 2>/dev/null | grep ":${port} " | awk '{print $NF}')
+        print_error "Port $port is already in use by: $process"
+        return 1
+    fi
+    return 0
+}
+
+# Verify that a service is healthy (running and listening on expected port)
+verify_service_health() {
+    local service_name="$1"
+    local expected_port="$2"
+    local timeout="${3:-10}"
+    local elapsed=0
+    
+    # First check if service is active
+    if ! systemctl is-active --quiet "$service_name" 2>/dev/null; then
+        print_error "Service $service_name is not running"
+        show_service_logs "$service_name" 20
+        return 1
+    fi
+    
+    # If port specified, wait for it to be bound
+    if [ -n "$expected_port" ]; then
+        while [ $elapsed -lt $timeout ]; do
+            if ss -tlnp 2>/dev/null | grep -q ":${expected_port} " || \
+               netstat -tlnp 2>/dev/null | grep -q ":${expected_port} "; then
+                return 0
+            fi
+            sleep 1
+            ((elapsed++))
+        done
+        
+        print_error "Service $service_name is running but not listening on port $expected_port"
+        show_service_logs "$service_name" 20
+        return 1
+    fi
+    
+    return 0
+}
+
+# Show recent service logs for debugging
+show_service_logs() {
+    local service_name="$1"
+    local lines="${2:-30}"
+    
+    echo ""
+    echo -e "${YELLOW}═══ Recent logs for $service_name ═══${NC}"
+    journalctl -u "$service_name" -n "$lines" --no-pager 2>/dev/null || \
+        print_warning "Could not retrieve logs for $service_name"
+    echo -e "${YELLOW}═══════════════════════════════════════${NC}"
+    echo ""
+}
+
+# Gracefully stop all BetterDesk services with proper cleanup
+graceful_stop_services() {
+    print_step "Stopping services gracefully..."
+    
+    local services=("betterdesk" "rustdesksignal" "rustdeskrelay")
+    
+    # Stop services in order
+    for service in "${services[@]}"; do
+        if systemctl is-active --quiet "$service" 2>/dev/null; then
+            print_info "Stopping $service..."
+            systemctl stop "$service" 2>/dev/null || true
+        fi
+    done
+    
+    # Wait for each service to stop
+    for service in "${services[@]}"; do
+        wait_for_service_stop "$service" 15
+    done
+    
+    # Kill any stale processes
+    kill_stale_processes "hbbs"
+    kill_stale_processes "hbbr"
+    
+    # Verify ports are free
+    sleep 2
+    
+    print_success "All services stopped"
+}
+
+# Start services with health verification
+start_services_with_verification() {
+    print_step "Starting services with health verification..."
+    
+    local has_errors=false
+    
+    # Check ports before starting
+    if ! check_port_available "21116" "hbbs"; then
+        print_error "Port 21116 (ID server) is not available"
+        has_errors=true
+    fi
+    
+    if ! check_port_available "21117" "hbbr"; then
+        print_error "Port 21117 (relay) is not available"
+        has_errors=true
+    fi
+    
+    if [ "$has_errors" = true ]; then
+        print_error "Cannot start services - ports are in use"
+        print_info "Try: sudo lsof -i :21116 and sudo lsof -i :21117 to find conflicts"
+        return 1
+    fi
+    
+    # Enable services
+    systemctl enable rustdesksignal rustdeskrelay betterdesk 2>/dev/null || true
+    
+    # Start HBBS first (signal server)
+    print_info "Starting rustdesksignal (hbbs)..."
+    systemctl start rustdesksignal
+    sleep 2
+    
+    if ! verify_service_health "rustdesksignal" "21116" 10; then
+        print_error "Failed to start rustdesksignal"
+        return 1
+    fi
+    print_success "rustdesksignal started and healthy"
+    
+    # Start HBBR (relay server)
+    print_info "Starting rustdeskrelay (hbbr)..."
+    systemctl start rustdeskrelay
+    sleep 2
+    
+    if ! verify_service_health "rustdeskrelay" "21117" 10; then
+        print_error "Failed to start rustdeskrelay"
+        return 1
+    fi
+    print_success "rustdeskrelay started and healthy"
+    
+    # Start console
+    print_info "Starting betterdesk (web console)..."
+    systemctl start betterdesk
+    sleep 2
+    
+    if ! verify_service_health "betterdesk" "5000" 10; then
+        print_warning "Web console may not be running correctly"
+        # Don't fail for console - it's not critical
+    else
+        print_success "betterdesk console started and healthy"
+    fi
+    
+    print_success "All services started and verified"
+    return 0
+}
+
+#===============================================================================
 # Detection Functions
 #===============================================================================
 
@@ -164,6 +387,7 @@ detect_installation() {
     CONSOLE_RUNNING=false
     BINARIES_OK=false
     DATABASE_OK=false
+    CONSOLE_TYPE="none"
     
     # Check paths
     if [ -d "$RUSTDESK_PATH" ]; then
@@ -180,8 +404,15 @@ detect_installation() {
         fi
     fi
     
-    if [ -d "$CONSOLE_PATH" ] && [ -f "$CONSOLE_PATH/app.py" ]; then
-        if [ "$BINARIES_OK" = true ] && [ "$DATABASE_OK" = true ]; then
+    # Detect console type
+    if [ -d "$CONSOLE_PATH" ]; then
+        if [ -f "$CONSOLE_PATH/server.js" ] || [ -f "$CONSOLE_PATH/package.json" ]; then
+            CONSOLE_TYPE="nodejs"
+        elif [ -f "$CONSOLE_PATH/app.py" ]; then
+            CONSOLE_TYPE="flask"
+        fi
+        
+        if [ "$CONSOLE_TYPE" != "none" ] && [ "$BINARIES_OK" = true ] && [ "$DATABASE_OK" = true ]; then
             INSTALL_STATUS="complete"
         fi
     fi
@@ -256,10 +487,17 @@ auto_detect_paths() {
         print_info "No installation detected. Default path: $RUSTDESK_PATH"
     fi
     
-    # Auto-detect Console path
+    # Auto-detect Console path and type
+    CONSOLE_TYPE="none"
+    
     if [ -n "$CONSOLE_PATH" ]; then
-        if [ -d "$CONSOLE_PATH" ] && [ -f "$CONSOLE_PATH/app.py" ]; then
-            print_info "Using configured Console path: $CONSOLE_PATH"
+        # Check for Node.js console first
+        if [ -d "$CONSOLE_PATH" ] && { [ -f "$CONSOLE_PATH/server.js" ] || [ -f "$CONSOLE_PATH/package.json" ]; }; then
+            CONSOLE_TYPE="nodejs"
+            print_info "Using configured Node.js Console path: $CONSOLE_PATH"
+        elif [ -d "$CONSOLE_PATH" ] && [ -f "$CONSOLE_PATH/app.py" ]; then
+            CONSOLE_TYPE="flask"
+            print_info "Using configured Flask Console path: $CONSOLE_PATH"
         else
             print_warning "Configured CONSOLE_PATH ($CONSOLE_PATH) is invalid"
             CONSOLE_PATH=""
@@ -268,9 +506,18 @@ auto_detect_paths() {
     
     if [ -z "$CONSOLE_PATH" ]; then
         for path in "${COMMON_CONSOLE_PATHS[@]}"; do
+            # Check for Node.js console first
+            if [ -d "$path" ] && { [ -f "$path/server.js" ] || [ -f "$path/package.json" ]; }; then
+                CONSOLE_PATH="$path"
+                CONSOLE_TYPE="nodejs"
+                print_success "Detected Node.js Console: $CONSOLE_PATH"
+                break
+            fi
+            # Check for Flask console
             if [ -d "$path" ] && [ -f "$path/app.py" ]; then
                 CONSOLE_PATH="$path"
-                print_success "Detected Console installation: $CONSOLE_PATH"
+                CONSOLE_TYPE="flask"
+                print_success "Detected Flask Console: $CONSOLE_PATH"
                 break
             fi
         done
@@ -427,7 +674,11 @@ print_status() {
     fi
     
     if [ -d "$CONSOLE_PATH" ]; then
-        echo -e "  Web Console:  ${GREEN}✓ OK${NC}"
+        case "$CONSOLE_TYPE" in
+            nodejs) echo -e "  Web Console:  ${GREEN}✓ OK${NC} (Node.js)" ;;
+            flask) echo -e "  Web Console:  ${GREEN}✓ OK${NC} (Flask)" ;;
+            *) echo -e "  Web Console:  ${GREEN}✓ OK${NC}" ;;
+        esac
     else
         echo -e "  Web Console:  ${RED}✗ Not found${NC}"
     fi
@@ -542,13 +793,13 @@ install_dependencies() {
     
     if command -v apt-get &> /dev/null; then
         apt-get update -qq
-        apt-get install -y -qq python3 python3-pip python3-venv sqlite3 curl wget openssl
+        apt-get install -y -qq python3 python3-pip python3-venv sqlite3 curl wget openssl build-essential
     elif command -v dnf &> /dev/null; then
-        dnf install -y -q python3 python3-pip sqlite curl wget openssl
+        dnf install -y -q python3 python3-pip sqlite curl wget openssl gcc gcc-c++ make
     elif command -v yum &> /dev/null; then
-        yum install -y -q python3 python3-pip sqlite curl wget openssl
+        yum install -y -q python3 python3-pip sqlite curl wget openssl gcc gcc-c++ make
     elif command -v pacman &> /dev/null; then
-        pacman -Sy --noconfirm python python-pip sqlite curl wget openssl
+        pacman -Sy --noconfirm python python-pip sqlite curl wget openssl base-devel
     else
         print_warning "Unknown package manager. Make sure Python 3 and SQLite are installed."
     fi
@@ -556,8 +807,137 @@ install_dependencies() {
     print_success "Dependencies installed"
 }
 
+#===============================================================================
+# Node.js Installation Functions
+#===============================================================================
+
+install_nodejs() {
+    print_step "Checking Node.js installation..."
+    
+    # Check if Node.js is already installed and version is sufficient
+    if command -v node &> /dev/null; then
+        local node_version=$(node --version | sed 's/v//' | cut -d'.' -f1)
+        if [ "$node_version" -ge 18 ]; then
+            print_success "Node.js v$(node --version) already installed"
+            return 0
+        else
+            print_warning "Node.js version $node_version is too old (need 18+). Upgrading..."
+        fi
+    fi
+    
+    print_step "Installing Node.js 20 LTS..."
+    
+    # Detect OS and install Node.js
+    if command -v apt-get &> /dev/null; then
+        # Debian/Ubuntu - use NodeSource
+        curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+        apt-get install -y -qq nodejs
+    elif command -v dnf &> /dev/null; then
+        # Fedora/RHEL 8+
+        curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -
+        dnf install -y -q nodejs
+    elif command -v yum &> /dev/null; then
+        # RHEL/CentOS 7
+        curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -
+        yum install -y -q nodejs
+    elif command -v pacman &> /dev/null; then
+        # Arch Linux
+        pacman -Sy --noconfirm nodejs npm
+    elif command -v apk &> /dev/null; then
+        # Alpine Linux
+        apk add --no-cache nodejs npm
+    else
+        print_error "Cannot install Node.js automatically. Please install Node.js 18+ manually."
+        return 1
+    fi
+    
+    # Verify installation
+    if command -v node &> /dev/null; then
+        print_success "Node.js $(node --version) installed"
+        print_info "npm $(npm --version)"
+        return 0
+    else
+        print_error "Node.js installation failed!"
+        return 1
+    fi
+}
+
+install_nodejs_console() {
+    print_step "Installing Node.js Web Console..."
+    
+    # Install Node.js if not present
+    if ! install_nodejs; then
+        print_error "Cannot proceed without Node.js"
+        return 1
+    fi
+    
+    mkdir -p "$CONSOLE_PATH"
+    
+    # Check for web-nodejs folder first, then web folder
+    local source_folder=""
+    if [ -d "$SCRIPT_DIR/web-nodejs" ]; then
+        source_folder="$SCRIPT_DIR/web-nodejs"
+        print_info "Found Node.js console in web-nodejs/"
+    elif [ -d "$SCRIPT_DIR/web" ] && [ -f "$SCRIPT_DIR/web/server.js" ]; then
+        source_folder="$SCRIPT_DIR/web"
+        print_info "Found Node.js console in web/"
+    else
+        print_error "Node.js web console not found!"
+        print_info "Expected: $SCRIPT_DIR/web-nodejs/ or $SCRIPT_DIR/web/server.js"
+        return 1
+    fi
+    
+    # Copy web files
+    cp -r "$source_folder/"* "$CONSOLE_PATH/"
+    
+    # Install npm dependencies
+    print_step "Installing npm dependencies..."
+    cd "$CONSOLE_PATH"
+    
+    npm install --production 2>&1 | while read line; do
+        echo -ne "\r[npm] $line                    \r"
+    done
+    echo ""
+    
+    # Create data directory for databases
+    mkdir -p "$CONSOLE_PATH/data"
+    
+    # Create .env file if not exists
+    if [ ! -f "$CONSOLE_PATH/.env" ]; then
+        cat > "$CONSOLE_PATH/.env" << EOF
+# BetterDesk Node.js Console Configuration
+PORT=5000
+RUSTDESK_PATH=$RUSTDESK_PATH
+API_PORT=$API_PORT
+NODE_ENV=production
+SESSION_SECRET=$(openssl rand -hex 32)
+EOF
+        print_info "Created .env configuration file"
+    fi
+    
+    # Set permissions
+    chown -R root:root "$CONSOLE_PATH"
+    chmod -R 755 "$CONSOLE_PATH"
+    chmod 600 "$CONSOLE_PATH/.env" 2>/dev/null || true
+    
+    CONSOLE_TYPE="nodejs"
+    print_success "Node.js Web Console installed"
+}
+
 install_binaries() {
     print_step "Installing BetterDesk binaries..."
+    
+    # Ensure architecture is detected
+    if [ -z "$ARCH_NAME" ]; then
+        detect_architecture
+    fi
+    
+    # Safety: stop services before copying (prevents "Text file busy")
+    if systemctl is-active --quiet rustdesksignal 2>/dev/null || \
+       systemctl is-active --quiet rustdeskrelay 2>/dev/null; then
+        print_info "Stopping running services before binary installation..."
+        graceful_stop_services
+    fi
     
     mkdir -p "$RUSTDESK_PATH"
     
@@ -572,6 +952,8 @@ install_binaries() {
         print_info "Found binaries in server/binaries/linux/"
     else
         print_error "BetterDesk binaries not found!"
+        print_info "Expected: $SCRIPT_DIR/hbbs-patch-v2/hbbs-linux-$ARCH_NAME"
+        print_info "Architecture detected: $ARCH_NAME"
         print_info "Run 'Build binaries' option or download prebuilt files."
         return 1
     fi
@@ -602,17 +984,16 @@ install_binaries() {
     print_success "BetterDesk binaries v$VERSION installed"
 }
 
-
-install_console() {
-    print_step "Installing Web Console..."
+install_flask_console() {
+    print_step "Installing Flask (Python) Web Console..."
     
     mkdir -p "$CONSOLE_PATH"
     
     # Copy web files
-    if [ -d "$SCRIPT_DIR/web" ]; then
+    if [ -d "$SCRIPT_DIR/web" ] && [ -f "$SCRIPT_DIR/web/app.py" ]; then
         cp -r "$SCRIPT_DIR/web/"* "$CONSOLE_PATH/"
     else
-        print_error "web/ folder not found in project!"
+        print_error "Flask web/ folder not found in project!"
         return 1
     fi
     
@@ -628,7 +1009,106 @@ install_console() {
     
     deactivate
     
-    print_success "Web Console installed"
+    CONSOLE_TYPE="flask"
+    print_success "Flask Web Console installed"
+}
+
+install_console() {
+    # Determine which console type to install
+    local console_choice="$PREFERRED_CONSOLE_TYPE"
+    
+    # If not specified, ask user (unless in auto mode)
+    if [ -z "$console_choice" ]; then
+        if [ "$AUTO_MODE" = true ]; then
+            # Default to Node.js in auto mode (recommended)
+            console_choice="nodejs"
+            print_info "Auto mode: Installing Node.js console (recommended)"
+        else
+            echo ""
+            echo -e "${WHITE}${BOLD}Select Web Console Type:${NC}"
+            echo ""
+            echo -e "  ${GREEN}1.${NC} Node.js (recommended) - faster, modern, better performance"
+            echo -e "  ${YELLOW}2.${NC} Flask (Python) - legacy, original"
+            echo ""
+            read -p "Choice [1]: " choice
+            case "$choice" in
+                2|flask|Flask) console_choice="flask" ;;
+                *) console_choice="nodejs" ;;
+            esac
+        fi
+    fi
+    
+    # Check for existing console and offer migration
+    if [ -d "$CONSOLE_PATH" ]; then
+        local existing_type="unknown"
+        if [ -f "$CONSOLE_PATH/server.js" ] || [ -f "$CONSOLE_PATH/package.json" ]; then
+            existing_type="nodejs"
+        elif [ -f "$CONSOLE_PATH/app.py" ]; then
+            existing_type="flask"
+        fi
+        
+        if [ "$existing_type" != "unknown" ] && [ "$existing_type" != "$console_choice" ]; then
+            print_warning "Existing $existing_type console detected at $CONSOLE_PATH"
+            if [ "$AUTO_MODE" = false ]; then
+                if confirm "Migrate from $existing_type to $console_choice?"; then
+                    migrate_console "$existing_type" "$console_choice"
+                else
+                    print_info "Keeping existing $existing_type console"
+                    CONSOLE_TYPE="$existing_type"
+                    return 0
+                fi
+            else
+                print_info "Auto mode: Migrating from $existing_type to $console_choice"
+                migrate_console "$existing_type" "$console_choice"
+            fi
+        fi
+    fi
+    
+    # Install selected console type
+    case "$console_choice" in
+        nodejs)
+            install_nodejs_console
+            ;;
+        flask)
+            install_flask_console
+            ;;
+        *)
+            print_error "Unknown console type: $console_choice"
+            return 1
+            ;;
+    esac
+}
+
+migrate_console() {
+    local from_type="$1"
+    local to_type="$2"
+    
+    print_step "Migrating from $from_type to $to_type..."
+    
+    # Backup existing console
+    local backup_path="$BACKUP_DIR/console_${from_type}_$(date +%Y%m%d_%H%M%S)"
+    mkdir -p "$backup_path"
+    
+    # Backup user database (auth.db) if exists
+    if [ -f "$CONSOLE_PATH/data/auth.db" ]; then
+        cp "$CONSOLE_PATH/data/auth.db" "$backup_path/"
+        print_info "Backed up user database"
+    fi
+    
+    # Backup .env if exists
+    if [ -f "$CONSOLE_PATH/.env" ]; then
+        cp "$CONSOLE_PATH/.env" "$backup_path/"
+    fi
+    
+    # Stop old console service
+    systemctl stop betterdesk 2>/dev/null || true
+    
+    # Remove old console files but preserve data
+    rm -rf "$CONSOLE_PATH/venv" 2>/dev/null || true
+    rm -rf "$CONSOLE_PATH/node_modules" 2>/dev/null || true
+    rm -f "$CONSOLE_PATH/app.py" "$CONSOLE_PATH/server.js" 2>/dev/null || true
+    
+    print_success "Old $from_type console backed up to $backup_path"
 }
 
 setup_services() {
@@ -682,10 +1162,34 @@ LimitNOFILE=1000000
 WantedBy=multi-user.target
 EOF
 
-    # Console service (Web Interface)
-    cat > /etc/systemd/system/betterdesk.service << EOF
+    # Console service (Web Interface) - depends on console type
+    if [ "$CONSOLE_TYPE" = "nodejs" ]; then
+        cat > /etc/systemd/system/betterdesk.service << EOF
 [Unit]
-Description=BetterDesk Web Console
+Description=BetterDesk Web Console (Node.js)
+Documentation=https://github.com/UNITRONIX/Rustdesk-FreeConsole
+After=network.target rustdesksignal.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=$CONSOLE_PATH
+ExecStart=/usr/bin/node server.js
+Environment=NODE_ENV=production
+Environment=RUSTDESK_PATH=$RUSTDESK_PATH
+Environment=API_PORT=$API_PORT
+Environment=PORT=5000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+        print_info "Created Node.js console service"
+    else
+        cat > /etc/systemd/system/betterdesk.service << EOF
+[Unit]
+Description=BetterDesk Web Console (Flask)
 Documentation=https://github.com/UNITRONIX/Rustdesk-FreeConsole
 After=network.target rustdesksignal.service
 
@@ -703,6 +1207,8 @@ RestartSec=5
 [Install]
 WantedBy=multi-user.target
 EOF
+        print_info "Created Flask console service"
+    fi
 
     systemctl daemon-reload
     
@@ -796,20 +1302,8 @@ EOF
 }
 
 start_services() {
-    print_step "Starting services..."
-    
-    systemctl enable rustdesksignal rustdeskrelay betterdesk 2>/dev/null
-    systemctl start rustdesksignal rustdeskrelay betterdesk
-    
-    sleep 2
-    
-    if systemctl is-active --quiet rustdesksignal && \
-       systemctl is-active --quiet rustdeskrelay && \
-       systemctl is-active --quiet betterdesk; then
-        print_success "All services started"
-    else
-        print_warning "Some services may not be working properly"
-    fi
+    # Use enhanced start function with health verification
+    start_services_with_verification
 }
 
 do_install() {
@@ -834,9 +1328,7 @@ do_install() {
     echo ""
     
     # Stop services if running (prevents "Text file busy" error)
-    print_step "Stopping existing services (if any)..."
-    systemctl stop rustdesksignal rustdeskrelay betterdesk 2>/dev/null || true
-    sleep 1
+    graceful_stop_services
     
     install_dependencies
     detect_architecture
@@ -893,16 +1385,16 @@ do_update() {
     print_info "Creating backup before update..."
     do_backup_silent
     
-    print_step "Stopping services..."
-    systemctl stop rustdesksignal rustdeskrelay betterdesk 2>/dev/null || true
+    # Stop services gracefully
+    graceful_stop_services
     
     detect_architecture
     install_binaries
     install_console
     run_migrations
     
-    print_step "Starting services..."
-    systemctl start rustdesksignal rustdeskrelay betterdesk
+    # Start services with verification
+    start_services_with_verification
     
     print_success "Update completed!"
     press_enter
@@ -952,16 +1444,59 @@ do_repair() {
 }
 
 repair_binaries() {
-    print_step "Repair binaries..."
-    
-    systemctl stop rustdesksignal rustdeskrelay 2>/dev/null || true
+    print_step "Repairing binaries (enhanced v2.1.2)..."
     
     detect_architecture
-    install_binaries
     
-    systemctl start rustdesksignal rustdeskrelay 2>/dev/null || true
+    # Verify we have binaries to install
+    local bin_source="$SCRIPT_DIR/hbbs-patch-v2"
+    if [ ! -f "$bin_source/hbbs-linux-$ARCH_NAME" ] || [ ! -f "$bin_source/hbbr-linux-$ARCH_NAME" ]; then
+        print_error "BetterDesk binaries not found in $bin_source/"
+        print_info "Expected: hbbs-linux-$ARCH_NAME and hbbr-linux-$ARCH_NAME"
+        return 1
+    fi
     
-    print_success "Binaries repaired"
+    # Create backup before repair
+    if [ -f "$RUSTDESK_PATH/hbbs" ]; then
+        cp "$RUSTDESK_PATH/hbbs" "$RUSTDESK_PATH/hbbs.backup.$(date +%Y%m%d%H%M%S)" 2>/dev/null || true
+    fi
+    if [ -f "$RUSTDESK_PATH/hbbr" ]; then
+        cp "$RUSTDESK_PATH/hbbr" "$RUSTDESK_PATH/hbbr.backup.$(date +%Y%m%d%H%M%S)" 2>/dev/null || true
+    fi
+    
+    # Gracefully stop all services
+    graceful_stop_services
+    
+    # Extra safety: wait and verify files are not in use
+    sleep 2
+    
+    # Check if binaries are still locked (Text file busy prevention)
+    if lsof "$RUSTDESK_PATH/hbbs" 2>/dev/null | grep -q .; then
+        print_error "hbbs binary is still in use!"
+        kill_stale_processes "hbbs"
+        sleep 2
+    fi
+    
+    if lsof "$RUSTDESK_PATH/hbbr" 2>/dev/null | grep -q .; then
+        print_error "hbbr binary is still in use!"
+        kill_stale_processes "hbbr"
+        sleep 2
+    fi
+    
+    # Now install binaries
+    if ! install_binaries; then
+        print_error "Failed to install binaries"
+        return 1
+    fi
+    
+    # Start services with health verification
+    if ! start_services_with_verification; then
+        print_error "Services failed to start after binary repair"
+        print_info "Check logs above for details"
+        return 1
+    fi
+    
+    print_success "Binaries repaired and services verified!"
 }
 
 repair_database() {
@@ -1011,10 +1546,51 @@ EOF
 }
 
 repair_services() {
-    print_step "Repairing systemd services..."
+    print_step "Repairing systemd services (enhanced v2.1.2)..."
+    
+    # Stop services gracefully first
+    graceful_stop_services
+    
+    # Backup existing service files
+    for svc in rustdesksignal rustdeskrelay betterdesk; do
+        if [ -f "/etc/systemd/system/${svc}.service" ]; then
+            cp "/etc/systemd/system/${svc}.service" "/etc/systemd/system/${svc}.service.backup.$(date +%Y%m%d%H%M%S)" 2>/dev/null || true
+        fi
+    done
+    
+    # Verify paths exist
+    if [ ! -f "$RUSTDESK_PATH/hbbs" ]; then
+        print_error "hbbs binary not found at $RUSTDESK_PATH/hbbs"
+        print_info "Run 'Repair binaries' first"
+        return 1
+    fi
+    
+    if [ ! -f "$RUSTDESK_PATH/hbbr" ]; then
+        print_error "hbbr binary not found at $RUSTDESK_PATH/hbbr"
+        print_info "Run 'Repair binaries' first"
+        return 1
+    fi
+    
+    # Regenerate service files
     setup_services
-    systemctl restart rustdesksignal rustdeskrelay betterdesk 2>/dev/null || true
-    print_success "Services repaired"
+    
+    # Start services with health verification
+    if ! start_services_with_verification; then
+        print_error "Services failed to start after repair"
+        print_info "Restoring backup service files..."
+        
+        for svc in rustdesksignal rustdeskrelay betterdesk; do
+            backup_file=$(ls -t /etc/systemd/system/${svc}.service.backup.* 2>/dev/null | head -1)
+            if [ -n "$backup_file" ]; then
+                cp "$backup_file" "/etc/systemd/system/${svc}.service"
+            fi
+        done
+        systemctl daemon-reload
+        
+        return 1
+    fi
+    
+    print_success "Services repaired and verified!"
 }
 
 repair_permissions() {
@@ -1229,11 +1805,17 @@ do_reset_password() {
     echo -e "${WHITE}${BOLD}══════════ ADMIN PASSWORD RESET ══════════${NC}"
     echo ""
     
-    if [ ! -f "$DB_PATH" ]; then
-        print_error "Database does not exist!"
+    # Refresh detection
+    auto_detect_paths
+    
+    if [ "$CONSOLE_TYPE" = "none" ]; then
+        print_error "No console installation detected!"
         press_enter
         return
     fi
+    
+    echo -e "Detected console type: ${CYAN}${CONSOLE_TYPE}${NC}"
+    echo ""
     
     echo "Select option:"
     echo ""
@@ -1268,8 +1850,83 @@ do_reset_password() {
             ;;
     esac
     
-    # Update password
-    python3 << EOF
+    local success=false
+    
+    if [ "$CONSOLE_TYPE" = "nodejs" ]; then
+        # Node.js console - update auth.db
+        local auth_db_path="$CONSOLE_PATH/data/auth.db"
+        
+        # Also check in RUSTDESK_PATH for auth.db (alternative location)
+        if [ ! -f "$auth_db_path" ]; then
+            auth_db_path="$RUSTDESK_PATH/auth.db"
+        fi
+        
+        print_info "Auth database: $auth_db_path"
+        
+        # Use Node.js reset-password script if available
+        local reset_script="$CONSOLE_PATH/scripts/reset-password.js"
+        if [ -f "$reset_script" ] && command -v node &> /dev/null; then
+            print_info "Using reset-password.js script..."
+            pushd "$CONSOLE_PATH" > /dev/null
+            DATA_DIR="$(dirname "$auth_db_path")" node "$reset_script" "$new_password" admin
+            if [ $? -eq 0 ]; then
+                success=true
+            fi
+            popd > /dev/null
+        fi
+        
+        # Fallback: use Python with bcrypt to update auth.db directly
+        if [ "$success" = "false" ]; then
+            print_info "Using direct database update..."
+            python3 << EOF
+import sqlite3
+import bcrypt
+import os
+
+auth_db_path = '$auth_db_path'
+
+# Create parent directory if needed
+os.makedirs(os.path.dirname(auth_db_path), exist_ok=True)
+
+conn = sqlite3.connect(auth_db_path)
+cursor = conn.cursor()
+
+# Ensure table exists (for fresh installations)
+cursor.execute('''CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    role TEXT DEFAULT 'admin',
+    created_at TEXT DEFAULT (datetime('now')),
+    last_login TEXT
+)''')
+
+new_password = '$new_password'
+password_hash = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt(12)).decode()
+
+cursor.execute("UPDATE users SET password_hash = ? WHERE username = 'admin'", (password_hash,))
+
+if cursor.rowcount == 0:
+    cursor.execute('''INSERT INTO users (username, password_hash, role)
+                      VALUES ('admin', ?, 'admin')''', (password_hash,))
+
+conn.commit()
+conn.close()
+print("Password updated successfully")
+EOF
+            if [ $? -eq 0 ]; then
+                success=true
+            fi
+        fi
+    else
+        # Flask/Python console - update db_v2.sqlite3 users table
+        if [ ! -f "$DB_PATH" ]; then
+            print_error "Database does not exist!"
+            press_enter
+            return
+        fi
+        
+        python3 << EOF
 import sqlite3
 import bcrypt
 
@@ -1285,19 +1942,29 @@ if cursor.rowcount == 0:
 
 conn.commit()
 conn.close()
+print("Password updated successfully")
 EOF
+        if [ $? -eq 0 ]; then
+            success=true
+        fi
+    fi
 
     echo ""
-    echo -e "${GREEN}╔════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║              NEW LOGIN CREDENTIALS                       ║${NC}"
-    echo -e "${GREEN}╠════════════════════════════════════════════════════════╣${NC}"
-    echo -e "${GREEN}║  Login:    ${WHITE}admin${GREEN}                                     ║${NC}"
-    echo -e "${GREEN}║  Password: ${WHITE}${new_password}${GREEN}                         ║${NC}"
-    echo -e "${GREEN}╚════════════════════════════════════════════════════════╝${NC}"
-    
-    # Save credentials
-    echo "admin:$new_password" > "$RUSTDESK_PATH/.admin_credentials"
-    chmod 600 "$RUSTDESK_PATH/.admin_credentials"
+    if [ "$success" = "true" ]; then
+        echo -e "${GREEN}╔════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${GREEN}║              NEW LOGIN CREDENTIALS                       ║${NC}"
+        echo -e "${GREEN}╠════════════════════════════════════════════════════════╣${NC}"
+        echo -e "${GREEN}║  Login:    ${WHITE}admin${GREEN}                                     ║${NC}"
+        echo -e "${GREEN}║  Password: ${WHITE}${new_password}${GREEN}                         ║${NC}"
+        echo -e "${GREEN}╚════════════════════════════════════════════════════════╝${NC}"
+        
+        # Save credentials
+        echo "admin:$new_password" > "$RUSTDESK_PATH/.admin_credentials"
+        chmod 600 "$RUSTDESK_PATH/.admin_credentials"
+    else
+        print_error "Failed to reset password!"
+        print_info "Make sure Python with bcrypt is installed, or Node.js for Node.js console"
+    fi
     
     press_enter
 }

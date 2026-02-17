@@ -1,0 +1,165 @@
+<%- include('layouts/main', {
+    title: _('nav.dashboard'),
+    pageStyles: ['dashboard'],
+    pageScripts: ['dashboard'],
+    currentPage: 'dashboard',
+    body: `
+        <div class="dashboard-header">
+            <h1>${_('dashboard.title')}</h1>
+            <p>${_('dashboard.subtitle')}</p>
+        </div>
+        
+        <!-- Stats Cards -->
+        <div class="dashboard-stats">
+            <div class="dashboard-stat-card">
+                <div class="dashboard-stat-icon devices">
+                    <span class="material-icons">devices</span>
+                </div>
+                <div class="dashboard-stat-content">
+                    <div class="dashboard-stat-value" id="stat-total">
+                        <span class="skeleton skeleton-text"></span>
+                    </div>
+                    <div class="dashboard-stat-label">${_('dashboard.total_devices')}</div>
+                </div>
+            </div>
+            
+            <div class="dashboard-stat-card">
+                <div class="dashboard-stat-icon online">
+                    <span class="material-icons">wifi</span>
+                </div>
+                <div class="dashboard-stat-content">
+                    <div class="dashboard-stat-value" id="stat-online">
+                        <span class="skeleton skeleton-text"></span>
+                    </div>
+                    <div class="dashboard-stat-label">${_('dashboard.online_now')}</div>
+                </div>
+            </div>
+            
+            <div class="dashboard-stat-card">
+                <div class="dashboard-stat-icon banned">
+                    <span class="material-icons">block</span>
+                </div>
+                <div class="dashboard-stat-content">
+                    <div class="dashboard-stat-value" id="stat-banned">
+                        <span class="skeleton skeleton-text"></span>
+                    </div>
+                    <div class="dashboard-stat-label">${_('dashboard.banned')}</div>
+                </div>
+            </div>
+            
+            <div class="dashboard-stat-card">
+                <div class="dashboard-stat-icon offline">
+                    <span class="material-icons">cloud_off</span>
+                </div>
+                <div class="dashboard-stat-content">
+                    <div class="dashboard-stat-value" id="stat-connections">
+                        <span class="skeleton skeleton-text"></span>
+                    </div>
+                    <div class="dashboard-stat-label">${_('dashboard.offline_devices')}</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Server Status -->
+        <section class="server-status-section">
+            <div class="section-header">
+                <h2 class="section-title">
+                    <span class="material-icons">dns</span>
+                    ${_('dashboard.server_status')}
+                </h2>
+                <button class="btn btn-secondary btn-sm" id="refresh-status-btn">
+                    <span class="material-icons">refresh</span>
+                    ${_('actions.refresh')}
+                </button>
+            </div>
+            
+            <div class="server-status-grid">
+                <div class="server-status-card">
+                    <div class="server-status-header">
+                        <span class="server-status-title">
+                            <span class="material-icons">router</span>
+                            HBBS (Signal Server)
+                        </span>
+                        <span class="server-status-indicator" id="hbbs-status">
+                            <span class="status-dot"></span>
+                            <span class="status-text">${_('status.checking')}</span>
+                        </span>
+                    </div>
+                    <div class="server-status-details">
+                        <div class="server-detail-row">
+                            <span class="server-detail-label">${_('server.port')}</span>
+                            <span class="server-detail-value">21116</span>
+                        </div>
+                        <div class="server-detail-row">
+                            <span class="server-detail-label">${_('server.api_port')}</span>
+                            <span class="server-detail-value" id="api-port">21114</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="server-status-card">
+                    <div class="server-status-header">
+                        <span class="server-status-title">
+                            <span class="material-icons">swap_horiz</span>
+                            HBBR (Relay Server)
+                        </span>
+                        <span class="server-status-indicator" id="hbbr-status">
+                            <span class="status-dot"></span>
+                            <span class="status-text">${_('status.checking')}</span>
+                        </span>
+                    </div>
+                    <div class="server-status-details">
+                        <div class="server-detail-row">
+                            <span class="server-detail-label">${_('server.port')}</span>
+                            <span class="server-detail-value">21117</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Quick Actions -->
+        <section class="quick-actions-section">
+            <div class="section-header">
+                <h2 class="section-title">
+                    <span class="material-icons">flash_on</span>
+                    ${_('dashboard.quick_actions')}
+                </h2>
+            </div>
+            
+            <div class="quick-actions">
+                <a href="/devices" class="quick-action-card">
+                    <div class="quick-action-icon">
+                        <span class="material-icons">devices</span>
+                    </div>
+                    <div class="quick-action-title">${_('nav.devices')}</div>
+                    <div class="quick-action-desc">${_('dashboard.manage_devices')}</div>
+                </a>
+                
+                <a href="/keys" class="quick-action-card">
+                    <div class="quick-action-icon">
+                        <span class="material-icons">vpn_key</span>
+                    </div>
+                    <div class="quick-action-title">${_('nav.keys')}</div>
+                    <div class="quick-action-desc">${_('dashboard.view_keys')}</div>
+                </a>
+                
+                <a href="/generator" class="quick-action-card">
+                    <div class="quick-action-icon">
+                        <span class="material-icons">build</span>
+                    </div>
+                    <div class="quick-action-title">${_('nav.generator')}</div>
+                    <div class="quick-action-desc">${_('dashboard.generate_config')}</div>
+                </a>
+                
+                <a href="/settings" class="quick-action-card">
+                    <div class="quick-action-icon">
+                        <span class="material-icons">settings</span>
+                    </div>
+                    <div class="quick-action-title">${_('nav.settings')}</div>
+                    <div class="quick-action-desc">${_('dashboard.server_settings')}</div>
+                </a>
+            </div>
+        </section>
+    `
+}) %>

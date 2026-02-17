@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="<%= lang || 'en' %>">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="BetterDesk Console - RustDesk Server Management">
+    <meta name="robots" content="noindex, nofollow">
+    <title><%= typeof title !== 'undefined' ? title + ' - ' : '' %>BetterDesk Console</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="/css/main.css">
+    <% if (typeof pageStyles !== 'undefined' && pageStyles.length) { %>
+        <% pageStyles.forEach(style => { %>
+    <link rel="stylesheet" href="/css/<%= style %>.css">
+        <% }); %>
+    <% } %>
+</head>
+<body>
+    <div class="app-layout" id="app">
+        <!-- Sidebar -->
+        <%- include('../partials/sidebar') %>
+        
+        <!-- Sidebar overlay for mobile -->
+        <div class="sidebar-overlay" id="sidebar-overlay"></div>
+        
+        <!-- Main wrapper -->
+        <div class="main-wrapper">
+            <!-- Navbar -->
+            <%- include('../partials/navbar') %>
+            
+            <!-- Main content -->
+            <main class="main-content">
+                <%- body %>
+            </main>
+        </div>
+    </div>
+    
+    <!-- Modal container -->
+    <div id="modal-container"></div>
+    
+    <!-- Toast container -->
+    <div id="toast-container" class="toast-container"></div>
+    
+    <!-- Scripts -->
+    <script>
+        // Global config
+        window.BetterDesk = {
+            lang: '<%= lang || "en" %>',
+            translations: <%- JSON.stringify(translations || {}) %>,
+            csrfToken: '<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>',
+            user: <%- JSON.stringify(user || null) %>
+        };
+    </script>
+    <script src="/js/utils.js"></script>
+    <script src="/js/i18n-client.js?v=<%= Date.now() %>"></script>
+    <script src="/js/notifications.js?v=<%= Date.now() %>"></script>
+    <script src="/js/modal.js?v=<%= Date.now() %>"></script>
+    <script src="/js/app.js?v=<%= Date.now() %>"></script>
+    <% if (typeof pageScripts !== 'undefined' && pageScripts.length) { %>
+        <% pageScripts.forEach(script => { %>
+    <script src="/js/<%= script %>.js?v=<%= Date.now() %>"></script>
+        <% }); %>
+    <% } %>
+</body>
+</html>
