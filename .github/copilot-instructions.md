@@ -13,7 +13,7 @@
 |------|--------|-----------|--------|
 | `betterdesk.sh` | v2.3.0 | Linux | ✅ ALL-IN-ONE + Node.js only + SSL config + Auto mode |
 | `betterdesk.ps1` | v2.3.0 | Windows | ✅ ALL-IN-ONE + Node.js only + SSL config + Auto mode |
-| `betterdesk-docker.sh` | v2.0.0 | Docker | ✅ Interaktywny ALL-IN-ONE |
+| `betterdesk-docker.sh` | v2.1.0 | Docker | ✅ Interaktywny ALL-IN-ONE + Migration |
 
 ### Konsole Webowe
 
@@ -89,6 +89,7 @@ Windows:
 8. 📊 **Diagnostics** - detailed problem analysis
 9. 🗑️ **Uninstall** - full removal
 10. 🔒 **SSL config** - configure SSL/TLS certificates (NEW in v2.3.0)
+11. 🔄 **Migrate** - migrate from existing RustDesk Docker (Docker script only)
 
 ### Użycie
 

@@ -5,6 +5,7 @@
 
 const { manager } = require('../services/i18nService');
 const config = require('../config/config');
+const brandingService = require('../services/brandingService');
 
 /**
  * Parse Accept-Language header
@@ -69,7 +70,12 @@ function i18nMiddleware(req, res, next) {
     res.locals.isRtl = langMeta?.rtl || false;
     res.locals.availableLanguages = manager.getAvailable();
     res.locals.appVersion = config.appVersion;
-    res.locals.appName = config.appName;
+    
+    // Branding - inject dynamic app name and branding data
+    const branding = brandingService.getBranding();
+    res.locals.appName = branding.appName || config.appName;
+    res.locals.appDescription = branding.appDescription || 'RustDesk Server Management';
+    res.locals.branding = branding;
     
     // Full translations object for client-side JS
     res.locals.translations = manager.getTranslations(lang);

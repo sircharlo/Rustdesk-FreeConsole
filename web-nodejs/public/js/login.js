@@ -21,6 +21,8 @@
         
         if (!loginForm) return;
         
+        const csrfToken = window.BetterDesk?.csrfToken || '';
+        
         // Password visibility toggle
         passwordToggle?.addEventListener('click', () => {
             const isPassword = passwordInput.type === 'password';
@@ -50,7 +52,7 @@
             try {
                 const response = await fetch('/api/auth/login', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
                     credentials: 'same-origin',
                     body: JSON.stringify({ username, password, remember })
                 });
@@ -111,7 +113,7 @@
                 
                 const response = await fetch('/api/auth/totp/verify', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
                     credentials: 'same-origin',
                     body: JSON.stringify(body)
                 });
@@ -157,13 +159,9 @@
             hideTotpForm();
         });
         
-        // Auto-submit TOTP when 6 digits entered
+        // Filter TOTP input to digits only
         document.getElementById('totp-code')?.addEventListener('input', (e) => {
-            // Only allow digits
             e.target.value = e.target.value.replace(/[^0-9]/g, '');
-            if (e.target.value.length === 6) {
-                totpForm.dispatchEvent(new Event('submit'));
-            }
         });
         
         function showTotpForm() {

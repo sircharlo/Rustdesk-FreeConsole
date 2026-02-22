@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)
 ![RustDesk](https://img.shields.io/badge/RustDesk-1.1.14-green.svg)
 ![Node.js](https://img.shields.io/badge/Node.js-18+-339933.svg)
 ![Version](https://img.shields.io/badge/version-2.3.0-brightgreen.svg)
@@ -28,6 +28,7 @@
   - [Linux](#-linux-betterdesk-sh)
   - [Windows](#-windows-betterdeskps1)
   - [Docker](#-docker-betterdesk-dockersh)
+  - [Migrating from Existing RustDesk](#-migrating-from-existing-rustdesk-docker)
 - [Internationalization](#-internationalization-i18n)
 - [Troubleshooting](#-troubleshooting)
 - [Configuration](#-configuration)
@@ -87,6 +88,7 @@ chmod +x betterdesk-docker.sh
 7. 🔨 Build Binaries
 8. 📊 Diagnostics
 9. 🗑️ Uninstall
+M. 🔄 Migrate from existing RustDesk *(Docker only)*
 C. 🔒 Configure SSL Certificates
 S. ⚙️ Settings (path configuration)
 
@@ -393,6 +395,20 @@ docker compose up -d
 ```
 
 **Full Docker guide**: [DOCKER_TROUBLESHOOTING.md](docs/DOCKER_TROUBLESHOOTING.md)
+
+### 🔄 Migrating from Existing RustDesk Docker
+
+Already running RustDesk with Docker? You can migrate to BetterDesk while preserving your encryption keys, device database, and client connections — **no client-side reconfiguration needed**.
+
+**Automatic (recommended):**
+```bash
+./betterdesk-docker.sh
+# Select: M (Migrate from existing RustDesk)
+```
+
+The wizard auto-detects your existing containers and data, creates a backup, then migrates everything to BetterDesk.
+
+**Full migration guide**: [DOCKER_MIGRATION.md](docs/DOCKER_MIGRATION.md)
 
 ### Prerequisites
 
@@ -959,7 +975,7 @@ Access at: `http://localhost:5001`
 ```
 BetterDeskConsole/
 ├── README.md                    # This file
-├── LICENSE                      # MIT License
+├── LICENSE                      # AGPL-3.0 License
 ├── VERSION                      # Current version number
 ├── betterdesk.sh                # Linux ALL-IN-ONE installer (v2.3.0)
 ├── betterdesk.ps1               # Windows ALL-IN-ONE installer (v2.3.0)
@@ -1102,9 +1118,9 @@ Contributions are welcome! Here's how you can help:
 
 ## 📄 License
 
-This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)** - see the [LICENSE](LICENSE) file for details.
 
-**Note**: The HBBS patches maintain RustDesk's original **AGPL-3.0** license. The web console and installation scripts are MIT licensed.
+The HBBS patches inherit RustDesk's original AGPL-3.0 license. The web console and scripts are also AGPL-3.0 for license consistency across the project.
 
 ---
 
@@ -1154,7 +1170,7 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 ### Core Documentation
 - **[README.md](README.md)** - This file (overview and installation)
-- **[LICENSE](LICENSE)** - MIT License
+- **[LICENSE](LICENSE)** - AGPL-3.0 License
 - **[VERSION](VERSION)** - Current version number
 
 ### Additional Documentation ([docs/](docs/))

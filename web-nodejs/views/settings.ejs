@@ -10,6 +10,20 @@
             <p class="page-subtitle">${_('settings.subtitle')}</p>
         </div>
         
+        <!-- Settings Tab Navigation -->
+        <div class="settings-tabs">
+            <button class="settings-tab active" data-tab="general">
+                <span class="material-icons">tune</span>
+                ${_('settings.tab_general')}
+            </button>
+            <button class="settings-tab" data-tab="branding">
+                <span class="material-icons">palette</span>
+                ${_('settings.tab_branding')}
+            </button>
+        </div>
+        
+        <!-- General Tab -->
+        <div class="settings-tab-content active" id="tab-general">
         <div class="settings-sections">
             <!-- Password Change Section -->
             <div class="settings-section">
@@ -138,6 +152,296 @@
                     </div>
                 </div>
             </div>
+        </div>
+        </div>
+        
+        <!-- Branding Tab -->
+        <div class="settings-tab-content" id="tab-branding">
+        <div class="settings-sections">
+            <!-- Brand Identity -->
+            <div class="settings-section">
+                <div class="settings-section-header">
+                    <h2 class="settings-section-title">
+                        <span class="material-icons">badge</span>
+                        ${_('branding.identity_title')}
+                    </h2>
+                    <p class="settings-section-desc">${_('branding.identity_desc')}</p>
+                </div>
+                <div class="settings-section-body">
+                    <form class="settings-form branding-form" id="branding-identity-form" style="max-width: 600px;">
+                        <div class="form-group">
+                            <label class="form-label" for="brand-name">${_('branding.app_name')}</label>
+                            <input type="text" id="brand-name" class="form-input" maxlength="50" 
+                                   placeholder="BetterDesk">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="brand-description">${_('branding.app_description')}</label>
+                            <input type="text" id="brand-description" class="form-input" maxlength="100"
+                                   placeholder="RustDesk Server Management">
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Logo Configuration -->
+            <div class="settings-section">
+                <div class="settings-section-header">
+                    <h2 class="settings-section-title">
+                        <span class="material-icons">image</span>
+                        ${_('branding.logo_title')}
+                    </h2>
+                    <p class="settings-section-desc">${_('branding.logo_desc')}</p>
+                </div>
+                <div class="settings-section-body">
+                    <div class="branding-logo-config">
+                        <div class="logo-type-selector">
+                            <label class="logo-type-option">
+                                <input type="radio" name="logo-type" value="icon" checked>
+                                <span class="logo-type-card">
+                                    <span class="material-icons">text_fields</span>
+                                    <span>${_('branding.logo_type_icon')}</span>
+                                </span>
+                            </label>
+                            <label class="logo-type-option">
+                                <input type="radio" name="logo-type" value="svg">
+                                <span class="logo-type-card">
+                                    <span class="material-icons">code</span>
+                                    <span>${_('branding.logo_type_svg')}</span>
+                                </span>
+                            </label>
+                            <label class="logo-type-option">
+                                <input type="radio" name="logo-type" value="image">
+                                <span class="logo-type-card">
+                                    <span class="material-icons">photo</span>
+                                    <span>${_('branding.logo_type_image')}</span>
+                                </span>
+                            </label>
+                        </div>
+                        
+                        <!-- Icon options -->
+                        <div class="logo-config-panel" id="logo-icon-panel">
+                            <div class="form-group">
+                                <label class="form-label" for="logo-icon-name">${_('branding.logo_icon_name')}</label>
+                                <input type="text" id="logo-icon-name" class="form-input" 
+                                       placeholder="dns" maxlength="50">
+                                <small class="form-hint">${_('branding.logo_icon_hint')}</small>
+                            </div>
+                        </div>
+                        
+                        <!-- SVG options -->
+                        <div class="logo-config-panel hidden" id="logo-svg-panel">
+                            <div class="form-group">
+                                <label class="form-label" for="logo-svg-input">${_('branding.logo_svg_code')}</label>
+                                <textarea id="logo-svg-input" class="form-input form-textarea" rows="6"
+                                          placeholder="<svg>...</svg>"></textarea>
+                                <small class="form-hint">${_('branding.logo_svg_hint')}</small>
+                            </div>
+                        </div>
+                        
+                        <!-- Image options -->
+                        <div class="logo-config-panel hidden" id="logo-image-panel">
+                            <div class="form-group">
+                                <label class="form-label">${_('branding.logo_image_upload')}</label>
+                                <div class="logo-upload-area">
+                                    <input type="file" id="logo-image-file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" class="logo-file-input">
+                                    <label for="logo-image-file" class="logo-upload-btn">
+                                        <span class="material-icons">upload_file</span>
+                                        <span>${_('branding.logo_image_choose')}</span>
+                                    </label>
+                                    <span id="logo-file-name" class="logo-file-name"></span>
+                                </div>
+                                <small class="form-hint">${_('branding.logo_image_hint')}</small>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="logo-image-url">${_('branding.logo_image_url')}</label>
+                                <input type="text" id="logo-image-url" class="form-input" 
+                                       placeholder="https://example.com/logo.png" readonly>
+                                <small class="form-hint">${_('branding.logo_image_url_hint')}</small>
+                            </div>
+                        </div>
+                        
+                        <!-- Logo preview -->
+                        <div class="branding-preview-box">
+                            <label class="form-label">${_('branding.preview')}</label>
+                            <div class="logo-preview" id="logo-preview">
+                                <span class="material-icons">dns</span>
+                                <span class="logo-preview-text">BetterDesk</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Color Scheme -->
+            <div class="settings-section">
+                <div class="settings-section-header">
+                    <h2 class="settings-section-title">
+                        <span class="material-icons">palette</span>
+                        ${_('branding.colors_title')}
+                    </h2>
+                    <p class="settings-section-desc">${_('branding.colors_desc')}</p>
+                </div>
+                <div class="settings-section-body">
+                    <div class="color-grid">
+                        <div class="color-group">
+                            <h3 class="color-group-title">${_('branding.colors_backgrounds')}</h3>
+                            <div class="color-row">
+                                <label class="form-label">Primary</label>
+                                <div class="color-input-wrapper">
+                                    <input type="color" class="color-picker" data-color="bgPrimary" value="#0d1117">
+                                    <input type="text" class="form-input color-hex" data-color="bgPrimary" 
+                                           placeholder="#0d1117" maxlength="7">
+                                </div>
+                            </div>
+                            <div class="color-row">
+                                <label class="form-label">Secondary</label>
+                                <div class="color-input-wrapper">
+                                    <input type="color" class="color-picker" data-color="bgSecondary" value="#161b22">
+                                    <input type="text" class="form-input color-hex" data-color="bgSecondary" 
+                                           placeholder="#161b22" maxlength="7">
+                                </div>
+                            </div>
+                            <div class="color-row">
+                                <label class="form-label">Tertiary</label>
+                                <div class="color-input-wrapper">
+                                    <input type="color" class="color-picker" data-color="bgTertiary" value="#21262d">
+                                    <input type="text" class="form-input color-hex" data-color="bgTertiary" 
+                                           placeholder="#21262d" maxlength="7">
+                                </div>
+                            </div>
+                            <div class="color-row">
+                                <label class="form-label">Elevated</label>
+                                <div class="color-input-wrapper">
+                                    <input type="color" class="color-picker" data-color="bgElevated" value="#30363d">
+                                    <input type="text" class="form-input color-hex" data-color="bgElevated"
+                                           placeholder="#30363d" maxlength="7">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="color-group">
+                            <h3 class="color-group-title">${_('branding.colors_text')}</h3>
+                            <div class="color-row">
+                                <label class="form-label">Primary</label>
+                                <div class="color-input-wrapper">
+                                    <input type="color" class="color-picker" data-color="textPrimary" value="#e6edf3">
+                                    <input type="text" class="form-input color-hex" data-color="textPrimary"
+                                           placeholder="#e6edf3" maxlength="7">
+                                </div>
+                            </div>
+                            <div class="color-row">
+                                <label class="form-label">Secondary</label>
+                                <div class="color-input-wrapper">
+                                    <input type="color" class="color-picker" data-color="textSecondary" value="#8b949e">
+                                    <input type="text" class="form-input color-hex" data-color="textSecondary"
+                                           placeholder="#8b949e" maxlength="7">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="color-group">
+                            <h3 class="color-group-title">${_('branding.colors_accents')}</h3>
+                            <div class="color-row">
+                                <label class="form-label">Blue (Primary Accent)</label>
+                                <div class="color-input-wrapper">
+                                    <input type="color" class="color-picker" data-color="accentBlue" value="#58a6ff">
+                                    <input type="text" class="form-input color-hex" data-color="accentBlue"
+                                           placeholder="#58a6ff" maxlength="7">
+                                </div>
+                            </div>
+                            <div class="color-row">
+                                <label class="form-label">Green (Success)</label>
+                                <div class="color-input-wrapper">
+                                    <input type="color" class="color-picker" data-color="accentGreen" value="#2ea44f">
+                                    <input type="text" class="form-input color-hex" data-color="accentGreen"
+                                           placeholder="#2ea44f" maxlength="7">
+                                </div>
+                            </div>
+                            <div class="color-row">
+                                <label class="form-label">Red (Danger)</label>
+                                <div class="color-input-wrapper">
+                                    <input type="color" class="color-picker" data-color="accentRed" value="#f85149">
+                                    <input type="text" class="form-input color-hex" data-color="accentRed"
+                                           placeholder="#f85149" maxlength="7">
+                                </div>
+                            </div>
+                            <div class="color-row">
+                                <label class="form-label">Yellow (Warning)</label>
+                                <div class="color-input-wrapper">
+                                    <input type="color" class="color-picker" data-color="accentYellow" value="#d29922">
+                                    <input type="text" class="form-input color-hex" data-color="accentYellow"
+                                           placeholder="#d29922" maxlength="7">
+                                </div>
+                            </div>
+                            <div class="color-row">
+                                <label class="form-label">Purple</label>
+                                <div class="color-input-wrapper">
+                                    <input type="color" class="color-picker" data-color="accentPurple" value="#a371f7">
+                                    <input type="text" class="form-input color-hex" data-color="accentPurple"
+                                           placeholder="#a371f7" maxlength="7">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="color-group">
+                            <h3 class="color-group-title">${_('branding.colors_borders')}</h3>
+                            <div class="color-row">
+                                <label class="form-label">Primary</label>
+                                <div class="color-input-wrapper">
+                                    <input type="color" class="color-picker" data-color="borderPrimary" value="#30363d">
+                                    <input type="text" class="form-input color-hex" data-color="borderPrimary"
+                                           placeholder="#30363d" maxlength="7">
+                                </div>
+                            </div>
+                            <div class="color-row">
+                                <label class="form-label">Secondary</label>
+                                <div class="color-input-wrapper">
+                                    <input type="color" class="color-picker" data-color="borderSecondary" value="#21262d">
+                                    <input type="text" class="form-input color-hex" data-color="borderSecondary"
+                                           placeholder="#21262d" maxlength="7">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Import / Export -->
+            <div class="settings-section">
+                <div class="settings-section-header">
+                    <h2 class="settings-section-title">
+                        <span class="material-icons">swap_horiz</span>
+                        ${_('branding.import_export_title')}
+                    </h2>
+                    <p class="settings-section-desc">${_('branding.import_export_desc')}</p>
+                </div>
+                <div class="settings-section-body">
+                    <div class="branding-actions-row">
+                        <button class="btn btn-secondary" id="branding-export-btn">
+                            <span class="material-icons">download</span>
+                            ${_('branding.export_theme')}
+                        </button>
+                        <label class="btn btn-secondary">
+                            <span class="material-icons">upload</span>
+                            ${_('branding.import_theme')}
+                            <input type="file" id="branding-import-input" accept=".json" hidden>
+                        </label>
+                        <button class="btn btn-danger" id="branding-reset-btn">
+                            <span class="material-icons">restart_alt</span>
+                            ${_('branding.reset_defaults')}
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Save Branding Button -->
+            <div class="branding-save-bar">
+                <button class="btn btn-primary btn-lg" id="branding-save-btn">
+                    <span class="material-icons">save</span>
+                    ${_('branding.save_branding')}
+                </button>
+            </div>
+        </div>
         </div>
     `
 }) %>

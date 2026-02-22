@@ -49,9 +49,9 @@ if (!fs.existsSync(config.dataDir)) {
 // Security headers (Helmet)
 app.use(securityMiddleware);
 
-// Body parsing
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+// Body parsing (2MB limit for base64 logo images)
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: false, limit: '2mb' }));
 
 // Cookie parsing
 app.use(cookieParser());

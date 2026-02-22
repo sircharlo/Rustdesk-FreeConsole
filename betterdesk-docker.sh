@@ -1,7 +1,7 @@
 #!/bin/bash
 #===============================================================================
 #
-#   BetterDesk Console Manager v2.0
+#   BetterDesk Console Manager v2.1
 #   All-in-One Interactive Tool for Docker
 #
 #   Features:
@@ -13,6 +13,7 @@
 #     - Reset admin password
 #     - Build custom images
 #     - Full diagnostics
+#     - Migrate from existing RustDesk Docker
 #
 #   Usage: ./betterdesk-docker.sh
 #
@@ -21,7 +22,7 @@
 set -e
 
 # Version
-VERSION="2.0.0"
+VERSION="2.1.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Default paths (can be overridden by environment variables)
@@ -1193,6 +1194,380 @@ do_uninstall() {
 }
 
 #===============================================================================
+# Migration Functions
+#===============================================================================
+
+# Detect existing standard RustDesk Docker installation
+detect_existing_rustdesk() {
+    EXISTING_FOUND=false
+    EXISTING_CONTAINERS=()
+    EXISTING_DATA_DIR=""
+    EXISTING_COMPOSE_FILE=""
+    EXISTING_KEY_FILE=""
+    EXISTING_DB_FILE=""
+    
+    print_step "Scanning for existing RustDesk Docker installations..."
+    echo ""
+    
+    # 1. Search for RustDesk containers (common naming patterns)
+    local container_patterns=("hbbs" "hbbr" "rustdesk" "s6")
+    local found_containers=()
+    
+    for pattern in "${container_patterns[@]}"; do
+        while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            # Skip BetterDesk containers
+            if [[ "$line" == *"betterdesk"* ]]; then
+                continue
+            fi
+            found_containers+=("$line")
+        done < <(docker ps -a --format '{{.Names}}' 2>/dev/null | grep -i "$pattern" || true)
+    done
+    
+    # Deduplicate
+    local unique_containers=()
+    for c in "${found_containers[@]}"; do
+        local is_dup=false
+        for u in "${unique_containers[@]}"; do
+            if [ "$c" = "$u" ]; then
+                is_dup=true
+                break
+            fi
+        done
+        if [ "$is_dup" = false ]; then
+            unique_containers+=("$c")
+        fi
+    done
+    EXISTING_CONTAINERS=("${unique_containers[@]}")
+    
+    if [ ${#EXISTING_CONTAINERS[@]} -gt 0 ]; then
+        print_info "Found RustDesk containers:"
+        for c in "${EXISTING_CONTAINERS[@]}"; do
+            local status
+            status=$(docker inspect --format '{{.State.Status}}' "$c" 2>/dev/null || echo "unknown")
+            echo -e "    ${CYAN}•${NC} $c (${status})"
+        done
+        echo ""
+    fi
+    
+    # 2. Try to find data directory from container mounts
+    for c in "${EXISTING_CONTAINERS[@]}"; do
+        local mounts
+        mounts=$(docker inspect --format '{{range .Mounts}}{{.Source}}:{{.Destination}} {{end}}' "$c" 2>/dev/null || true)
+        
+        for mount in $mounts; do
+            local src="${mount%%:*}"
+            local dst="${mount##*:}"
+            
+            # Look for RustDesk data mounts (typically /root or /data or /opt/rustdesk)
+            if [[ "$dst" == "/root" ]] || [[ "$dst" == "/data" ]] || [[ "$dst" == "/opt/rustdesk" ]]; then
+                if [ -d "$src" ]; then
+                    # Check for key files
+                    if [ -f "$src/id_ed25519" ] || [ -f "$src/id_ed25519.pub" ] || [ -f "$src/db_v2.sqlite3" ]; then
+                        EXISTING_DATA_DIR="$src"
+                        break 2
+                    fi
+                fi
+            fi
+        done
+    done
+    
+    # 3. If no data dir from mounts, search common locations
+    if [ -z "$EXISTING_DATA_DIR" ]; then
+        local search_paths=(
+            "./data"
+            "./rustdesk-data"
+            "/opt/rustdesk"
+            "/opt/rustdesk-data"
+            "$HOME/rustdesk"
+            "$HOME/data"
+        )
+        
+        for path in "${search_paths[@]}"; do
+            if [ -d "$path" ] && [ -f "$path/id_ed25519" ]; then
+                EXISTING_DATA_DIR="$path"
+                break
+            fi
+        done
+    fi
+    
+    # 4. Search for existing docker-compose files
+    local compose_search_paths=(
+        "."
+        "$HOME"
+        "/opt/rustdesk"
+        "/opt"
+    )
+    
+    for base in "${compose_search_paths[@]}"; do
+        for fname in "docker-compose.yml" "docker-compose.yaml" "compose.yml" "compose.yaml"; do
+            local candidate="$base/$fname"
+            if [ -f "$candidate" ] && grep -qi "rustdesk\|hbbs\|hbbr" "$candidate" 2>/dev/null; then
+                # Skip BetterDesk's own compose file
+                if grep -qi "betterdesk" "$candidate" 2>/dev/null; then
+                    continue
+                fi
+                EXISTING_COMPOSE_FILE="$candidate"
+                break 2
+            fi
+        done
+    done
+    
+    # 5. Verify found data
+    if [ -n "$EXISTING_DATA_DIR" ]; then
+        [ -f "$EXISTING_DATA_DIR/id_ed25519" ] && EXISTING_KEY_FILE="$EXISTING_DATA_DIR/id_ed25519"
+        [ -f "$EXISTING_DATA_DIR/db_v2.sqlite3" ] && EXISTING_DB_FILE="$EXISTING_DATA_DIR/db_v2.sqlite3"
+    fi
+    
+    # Determine if we found anything useful
+    if [ ${#EXISTING_CONTAINERS[@]} -gt 0 ] || [ -n "$EXISTING_DATA_DIR" ]; then
+        EXISTING_FOUND=true
+    fi
+}
+
+do_migrate() {
+    print_header
+    echo -e "${WHITE}${BOLD}══════════ MIGRATE FROM EXISTING RUSTDESK ══════════${NC}"
+    echo ""
+    echo -e "${CYAN}This wizard will migrate your existing RustDesk Docker installation${NC}"
+    echo -e "${CYAN}to BetterDesk Console with enhanced features and web management.${NC}"
+    echo ""
+    
+    # Check Docker
+    if ! check_docker; then
+        print_error "Docker is not available!"
+        press_enter
+        return
+    fi
+    
+    if ! check_docker_compose; then
+        print_error "Docker Compose is not available!"
+        press_enter
+        return
+    fi
+    
+    # Detect existing installation
+    detect_existing_rustdesk
+    
+    if [ "$EXISTING_FOUND" = false ]; then
+        echo ""
+        print_warning "No existing RustDesk Docker installation detected automatically."
+        echo ""
+        echo "You can specify the data directory manually."
+        echo -e "${CYAN}The data directory should contain files like: id_ed25519, id_ed25519.pub, db_v2.sqlite3${NC}"
+        echo ""
+        
+        read -p "Enter path to existing RustDesk data directory (or press Enter to cancel): " manual_path
+        
+        if [ -z "$manual_path" ]; then
+            press_enter
+            return
+        fi
+        
+        if [ ! -d "$manual_path" ]; then
+            print_error "Directory not found: $manual_path"
+            press_enter
+            return
+        fi
+        
+        EXISTING_DATA_DIR="$manual_path"
+        [ -f "$EXISTING_DATA_DIR/id_ed25519" ] && EXISTING_KEY_FILE="$EXISTING_DATA_DIR/id_ed25519"
+        [ -f "$EXISTING_DATA_DIR/db_v2.sqlite3" ] && EXISTING_DB_FILE="$EXISTING_DATA_DIR/db_v2.sqlite3"
+    fi
+    
+    # Show migration summary
+    echo ""
+    echo -e "${WHITE}${BOLD}═══ Migration Summary ═══${NC}"
+    echo ""
+    
+    if [ ${#EXISTING_CONTAINERS[@]} -gt 0 ]; then
+        echo -e "  ${CYAN}Containers found:${NC}"
+        for c in "${EXISTING_CONTAINERS[@]}"; do
+            echo "    • $c"
+        done
+    fi
+    
+    if [ -n "$EXISTING_DATA_DIR" ]; then
+        echo -e "  ${CYAN}Data directory:${NC}  $EXISTING_DATA_DIR"
+    fi
+    
+    if [ -n "$EXISTING_COMPOSE_FILE" ]; then
+        echo -e "  ${CYAN}Compose file:${NC}    $EXISTING_COMPOSE_FILE"
+    fi
+    
+    echo ""
+    echo -e "  ${CYAN}Key files found:${NC}"
+    
+    local key_found=false
+    if [ -n "$EXISTING_KEY_FILE" ]; then
+        echo -e "    ${GREEN}✓${NC} id_ed25519 (encryption key)"
+        key_found=true
+    else
+        echo -e "    ${RED}✗${NC} id_ed25519 (not found)"
+    fi
+    
+    if [ -f "$EXISTING_DATA_DIR/id_ed25519.pub" ]; then
+        echo -e "    ${GREEN}✓${NC} id_ed25519.pub (public key)"
+    else
+        echo -e "    ${YELLOW}!${NC} id_ed25519.pub (not found - will be regenerated)"
+    fi
+    
+    if [ -n "$EXISTING_DB_FILE" ]; then
+        local peer_count
+        peer_count=$(sqlite3 "$EXISTING_DB_FILE" "SELECT COUNT(*) FROM peer;" 2>/dev/null || echo "?")
+        echo -e "    ${GREEN}✓${NC} db_v2.sqlite3 (${peer_count} devices)"
+    else
+        echo -e "    ${YELLOW}!${NC} db_v2.sqlite3 (not found - new DB will be created)"
+    fi
+    
+    echo ""
+    
+    if [ "$key_found" = false ]; then
+        print_warning "No encryption key found! Without the key, existing clients"
+        print_warning "will need to be reconfigured. Continue anyway?"
+        echo ""
+    fi
+    
+    echo -e "${YELLOW}${BOLD}IMPORTANT:${NC} This will:"
+    echo "  1. Create a backup of existing data"
+    echo "  2. Stop existing RustDesk containers (if found)"
+    echo "  3. Copy data to BetterDesk data directory"
+    echo "  4. Build and start BetterDesk containers"
+    echo "  5. Create a web admin account"
+    echo ""
+    echo -e "${CYAN}Your existing RustDesk data will NOT be deleted.${NC}"
+    echo ""
+    
+    if ! confirm "Do you want to proceed with the migration?"; then
+        press_enter
+        return
+    fi
+    
+    echo ""
+    
+    # === Step 1: Backup existing data ===
+    print_step "[1/6] Backing up existing data..."
+    
+    local migration_backup="$BACKUP_DIR/pre_migration_$(date +%Y%m%d_%H%M%S)"
+    mkdir -p "$migration_backup"
+    
+    if [ -n "$EXISTING_DATA_DIR" ] && [ -d "$EXISTING_DATA_DIR" ]; then
+        cp -r "$EXISTING_DATA_DIR"/* "$migration_backup/" 2>/dev/null || true
+        print_success "  Backup saved to: $migration_backup"
+    fi
+    
+    if [ -n "$EXISTING_COMPOSE_FILE" ] && [ -f "$EXISTING_COMPOSE_FILE" ]; then
+        cp "$EXISTING_COMPOSE_FILE" "$migration_backup/old_docker-compose.yml" 2>/dev/null || true
+        print_info "  Old compose file backed up"
+    fi
+    
+    # === Step 2: Stop existing containers ===
+    print_step "[2/6] Stopping existing RustDesk containers..."
+    
+    if [ ${#EXISTING_CONTAINERS[@]} -gt 0 ]; then
+        for c in "${EXISTING_CONTAINERS[@]}"; do
+            docker stop "$c" 2>/dev/null && print_info "  Stopped: $c" || true
+        done
+    else
+        print_info "  No containers to stop"
+    fi
+    
+    # === Step 3: Prepare BetterDesk data directory ===
+    print_step "[3/6] Preparing BetterDesk data directory..."
+    
+    if [ -z "$DATA_DIR" ]; then
+        DATA_DIR="/opt/betterdesk-data"
+    fi
+    
+    mkdir -p "$DATA_DIR"
+    mkdir -p "$BACKUP_DIR"
+    
+    # Copy key files
+    if [ -n "$EXISTING_DATA_DIR" ] && [ "$EXISTING_DATA_DIR" != "$DATA_DIR" ]; then
+        # Copy encryption keys (critical)
+        for keyfile in id_ed25519 id_ed25519.pub; do
+            if [ -f "$EXISTING_DATA_DIR/$keyfile" ]; then
+                cp "$EXISTING_DATA_DIR/$keyfile" "$DATA_DIR/"
+                print_success "  Copied: $keyfile"
+            fi
+        done
+        
+        # Copy database
+        if [ -f "$EXISTING_DATA_DIR/db_v2.sqlite3" ]; then
+            cp "$EXISTING_DATA_DIR/db_v2.sqlite3" "$DATA_DIR/"
+            print_success "  Copied: db_v2.sqlite3"
+        fi
+        
+        # Copy any other relevant files (.api_key etc.)
+        for extra in .api_key; do
+            if [ -f "$EXISTING_DATA_DIR/$extra" ]; then
+                cp "$EXISTING_DATA_DIR/$extra" "$DATA_DIR/"
+                print_info "  Copied: $extra"
+            fi
+        done
+    elif [ "$EXISTING_DATA_DIR" = "$DATA_DIR" ]; then
+        print_info "  Data already in target directory: $DATA_DIR"
+    else
+        print_warning "  No source data to copy"
+    fi
+    
+    # === Step 4: Create BetterDesk compose file ===
+    print_step "[4/6] Creating BetterDesk Docker Compose configuration..."
+    
+    if [ ! -f "$COMPOSE_FILE" ]; then
+        create_compose_file
+    else
+        print_info "  Compose file already exists: $COMPOSE_FILE"
+    fi
+    
+    # === Step 5: Build and start ===
+    print_step "[5/6] Building BetterDesk Docker images..."
+    
+    build_images
+    start_containers
+    
+    # === Step 6: Create admin user ===
+    print_step "[6/6] Setting up BetterDesk web console..."
+    
+    create_admin_user
+    
+    # === Migration complete ===
+    echo ""
+    echo -e "${GREEN}╔══════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║                  MIGRATION COMPLETED SUCCESSFULLY               ║${NC}"
+    echo -e "${GREEN}╠══════════════════════════════════════════════════════════════════╣${NC}"
+    
+    local server_ip
+    server_ip=$(curl -s ifconfig.me 2>/dev/null || echo "YOUR_IP")
+    
+    echo -e "${GREEN}║                                                                  ║${NC}"
+    echo -e "${GREEN}║  Web Panel:     ${WHITE}http://$server_ip:5000${GREEN}                           ║${NC}"
+    echo -e "${GREEN}║  Data Dir:      ${WHITE}$DATA_DIR${GREEN}                              ║${NC}"
+    echo -e "${GREEN}║  Backup:        ${WHITE}$migration_backup${GREEN}       ║${NC}"
+    echo -e "${GREEN}║                                                                  ║${NC}"
+    echo -e "${GREEN}╚══════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    
+    if [ -n "$EXISTING_KEY_FILE" ]; then
+        print_success "Encryption key preserved - existing clients will continue to work!"
+    else
+        print_warning "No key was migrated - existing clients may need reconfiguration."
+    fi
+    
+    echo ""
+    print_info "Your old data is preserved in: $migration_backup"
+    print_info "Old containers are stopped but not removed."
+    echo ""
+    echo -e "${CYAN}To remove old containers later, run:${NC}"
+    for c in "${EXISTING_CONTAINERS[@]}"; do
+        echo "  docker rm $c"
+    done
+    
+    echo ""
+    press_enter
+}
+
+#===============================================================================
 # Main Menu
 #===============================================================================
 
@@ -1212,6 +1587,7 @@ show_menu() {
     echo "  8. 📊 Diagnostics"
     echo "  9. 🗑️  UNINSTALL"
     echo ""
+    echo "  M. 🔄 Migrate from existing RustDesk"
     echo "  S. ⚙️  Settings (paths)"
     echo "  0. ❌ Exit"
     echo ""
@@ -1249,6 +1625,7 @@ main() {
             7) do_build ;;
             8) do_diagnostics ;;
             9) do_uninstall ;;
+            [Mm]) do_migrate ;;
             [Ss]) configure_docker_paths ;;
             0) 
                 echo ""

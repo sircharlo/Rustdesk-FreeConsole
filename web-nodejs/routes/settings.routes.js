@@ -8,7 +8,8 @@ const config = require('../config/config');
 const hbbsApi = require('../services/hbbsApi');
 const keyService = require('../services/keyService');
 const db = require('../services/database');
-const { requireAuth } = require('../middleware/auth');
+const brandingService = require('../services/brandingService');
+const { requireAuth, requireAdmin } = require('../middleware/auth');
 const os = require('os');
 
 /**
@@ -109,6 +110,123 @@ router.get('/api/settings/audit', requireAuth, (req, res) => {
             success: false,
             error: req.t('errors.server_error')
         });
+    }
+});
+
+// ==================== Branding / Theming API ====================
+
+/**
+ * GET /api/settings/branding - Get current branding configuration
+ */
+router.get('/api/settings/branding', requireAuth, (req, res) => {
+    try {
+        const branding = brandingService.getBranding();
+        res.json({ success: true, data: branding });
+    } catch (err) {
+        console.error('Get branding error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+/**
+ * POST /api/settings/branding - Save branding configuration (admin only)
+ */
+router.post('/api/settings/branding', requireAuth, requireAdmin, (req, res) => {
+    try {
+        const updates = req.body;
+        if (!updates || typeof updates !== 'object') {
+            return res.status(400).json({ success: false, error: 'Invalid branding data' });
+        }
+        
+        brandingService.saveBranding(updates);
+        
+        db.logAction(req.session?.userId, 'branding_update', 'Updated branding configuration', req.ip);
+        
+        res.json({ success: true, message: 'Branding saved' });
+    } catch (err) {
+        console.error('Save branding error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+/**
+ * POST /api/settings/branding/reset - Reset branding to defaults (admin only)
+ */
+router.post('/api/settings/branding/reset', requireAuth, requireAdmin, (req, res) => {
+    try {
+        brandingService.resetBranding();
+        
+        db.logAction(req.session?.userId, 'branding_reset', 'Reset branding to defaults', req.ip);
+        
+        res.json({ success: true, message: 'Branding reset to defaults' });
+    } catch (err) {
+        console.error('Reset branding error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+/**
+ * GET /api/settings/branding/export - Export branding preset as JSON
+ */
+router.get('/api/settings/branding/export', requireAuth, requireAdmin, (req, res) => {
+    try {
+        const preset = brandingService.exportPreset();
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Content-Disposition', 'attachment; filename="betterdesk-theme.json"');
+        res.json(preset);
+    } catch (err) {
+        console.error('Export branding error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+/**
+ * POST /api/settings/branding/import - Import branding preset from JSON (admin only)
+ */
+router.post('/api/settings/branding/import', requireAuth, requireAdmin, (req, res) => {
+    try {
+        const preset = req.body;
+        const success = brandingService.importPreset(preset);
+        
+        if (!success) {
+            return res.status(400).json({ success: false, error: 'Invalid theme preset file' });
+        }
+        
+        db.logAction(req.session?.userId, 'branding_import', 'Imported branding preset', req.ip);
+        
+        res.json({ success: true, message: 'Theme imported successfully' });
+    } catch (err) {
+        console.error('Import branding error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+/**
+ * GET /css/theme.css - Dynamic CSS theme overrides (no auth required, cached)
+ */
+router.get('/css/theme.css', (req, res) => {
+    try {
+        const css = brandingService.generateThemeCss();
+        res.setHeader('Content-Type', 'text/css');
+        res.setHeader('Cache-Control', 'public, max-age=60');
+        res.send(css);
+    } catch (err) {
+        res.setHeader('Content-Type', 'text/css');
+        res.send('/* theme error */');
+    }
+});
+
+/**
+ * GET /branding/favicon.svg - Dynamic favicon from branding (no auth required)
+ */
+router.get('/branding/favicon.svg', (req, res) => {
+    try {
+        const svg = brandingService.generateFavicon();
+        res.setHeader('Content-Type', 'image/svg+xml');
+        res.setHeader('Cache-Control', 'public, max-age=300');
+        res.send(svg);
+    } catch (err) {
+        res.status(500).send('');
     }
 });
 

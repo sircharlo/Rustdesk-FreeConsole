@@ -3,18 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="description" content="BetterDesk Console - Remote Desktop Viewer">
+    <meta name="description" content="<%= appName %> - Remote Desktop Viewer">
     <meta name="robots" content="noindex, nofollow">
-    <title><%= typeof title !== 'undefined' ? title + ' - ' : '' %>BetterDesk Console</title>
+    <title><%= typeof title !== 'undefined' ? title + ' - ' : '' %><%= appName %></title>
     
     <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="icon" type="image/svg+xml" href="/branding/favicon.svg">
     
     <!-- Google Material Icons -->
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
     
     <!-- Stylesheets -->
     <link rel="stylesheet" href="/css/variables.css">
+    <link rel="stylesheet" href="/css/theme.css">
     <link rel="stylesheet" href="/css/remote.css">
 </head>
 <body class="viewer-body">
@@ -28,7 +29,8 @@
             translations: <%- JSON.stringify(translations || {}) %>,
             csrfToken: '<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>',
             user: <%- JSON.stringify(user || null) %>,
-            serverPubKey: '<%= typeof serverPubKey !== 'undefined' ? serverPubKey : '' %>'
+            serverPubKey: '<%= typeof serverPubKey !== 'undefined' ? serverPubKey : '' %>',
+            branding: <%- JSON.stringify(branding || {}) %>
         };
     </script>
     

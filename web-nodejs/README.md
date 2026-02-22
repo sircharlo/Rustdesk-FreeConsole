@@ -157,4 +157,4 @@ web-nodejs/
 
 ## License
 
-MIT License - see LICENSE file for details.
+AGPL-3.0 License - see LICENSE file for details.

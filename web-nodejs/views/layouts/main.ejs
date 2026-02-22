@@ -3,15 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="BetterDesk Console - RustDesk Server Management">
+    <meta name="description" content="<%= appName %> - <%= appDescription %>">
     <meta name="robots" content="noindex, nofollow">
-    <title><%= typeof title !== 'undefined' ? title + ' - ' : '' %>BetterDesk Console</title>
+    <title><%= typeof title !== 'undefined' ? title + ' - ' : '' %><%= appName %></title>
     
     <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="icon" type="image/svg+xml" href="/branding/favicon.svg">
     
     <!-- Stylesheets -->
     <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="/css/theme.css">
     <% if (typeof pageStyles !== 'undefined' && pageStyles.length) { %>
         <% pageStyles.forEach(style => { %>
     <link rel="stylesheet" href="/css/<%= style %>.css">
@@ -51,7 +52,8 @@
             lang: '<%= lang || "en" %>',
             translations: <%- JSON.stringify(translations || {}) %>,
             csrfToken: '<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>',
-            user: <%- JSON.stringify(user || null) %>
+            user: <%- JSON.stringify(user || null) %>,
+            branding: <%- JSON.stringify(branding || {}) %>
         };
     </script>
     <script src="/js/utils.js"></script>

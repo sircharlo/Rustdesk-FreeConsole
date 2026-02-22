@@ -8,13 +8,39 @@
     document.addEventListener('DOMContentLoaded', init);
     
     function init() {
+        initTabs();
         initPasswordForm();
         initTotpSection();
+        initBrandingSection();
         loadAuditLog();
         loadServerInfo();
         
         // Refresh handler
         window.addEventListener('app:refresh', loadAuditLog);
+    }
+    
+    // ==================== Tab Navigation ====================
+    
+    function initTabs() {
+        const tabs = document.querySelectorAll('.settings-tab');
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                // Deactivate all
+                tabs.forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.settings-tab-content').forEach(c => c.classList.remove('active'));
+                
+                // Activate selected
+                tab.classList.add('active');
+                const target = document.getElementById('tab-' + tab.dataset.tab);
+                if (target) target.classList.add('active');
+            });
+        });
+        
+        // Check URL hash for direct tab navigation
+        if (window.location.hash === '#branding') {
+            const brandingTab = document.querySelector('[data-tab="branding"]');
+            if (brandingTab) brandingTab.click();
+        }
     }
     
     /**
@@ -419,6 +445,296 @@
         
         document.getElementById('cancel-disable-btn')?.addEventListener('click', () => {
             initTotpSection();
+        });
+    }
+    
+    // ==================== Branding / Theming Section ====================
+    
+    let brandingData = null;
+    
+    /**
+     * Initialize branding configuration section
+     */
+    async function initBrandingSection() {
+        try {
+            const response = await Utils.api('/api/settings/branding');
+            brandingData = response.data || response;
+            
+            populateBrandingForm(brandingData);
+            initLogoTypeSelector();
+            initColorPickers();
+            initBrandingActions();
+            
+        } catch (error) {
+            console.error('Failed to load branding:', error);
+        }
+    }
+    
+    /**
+     * Populate branding form with current config
+     */
+    function populateBrandingForm(data) {
+        // Identity fields
+        const nameInput = document.getElementById('brand-name');
+        const descInput = document.getElementById('brand-description');
+        if (nameInput) nameInput.value = data.appName || '';
+        if (descInput) descInput.value = data.appDescription || '';
+        
+        // Logo type
+        const logoTypeRadio = document.querySelector(`input[name="logo-type"][value="${data.logoType || 'icon'}"]`);
+        if (logoTypeRadio) {
+            logoTypeRadio.checked = true;
+            showLogoPanel(data.logoType || 'icon');
+        }
+        
+        // Logo fields
+        const iconInput = document.getElementById('logo-icon-name');
+        const svgInput = document.getElementById('logo-svg-input');
+        const imageInput = document.getElementById('logo-image-url');
+        if (iconInput) iconInput.value = data.logoIcon || 'dns';
+        if (svgInput) svgInput.value = data.logoSvg || '';
+        if (imageInput) imageInput.value = data.logoUrl || '';
+        
+        // Colors
+        if (data.colors) {
+            for (const [key, value] of Object.entries(data.colors)) {
+                if (!value) continue;
+                const picker = document.querySelector(`.color-picker[data-color="${key}"]`);
+                const hex = document.querySelector(`.color-hex[data-color="${key}"]`);
+                if (picker) picker.value = value;
+                if (hex) hex.value = value;
+            }
+        }
+        
+        // Update preview
+        updateLogoPreview();
+    }
+    
+    /**
+     * Initialize logo type selector
+     */
+    function initLogoTypeSelector() {
+        const radios = document.querySelectorAll('input[name="logo-type"]');
+        radios.forEach(radio => {
+            radio.addEventListener('change', () => {
+                showLogoPanel(radio.value);
+                updateLogoPreview();
+            });
+        });
+        
+        // Live preview on input changes
+        document.getElementById('logo-icon-name')?.addEventListener('input', updateLogoPreview);
+        document.getElementById('logo-svg-input')?.addEventListener('input', updateLogoPreview);
+        document.getElementById('logo-image-url')?.addEventListener('input', updateLogoPreview);
+        document.getElementById('brand-name')?.addEventListener('input', updateLogoPreview);
+        
+        // File upload handler
+        document.getElementById('logo-image-file')?.addEventListener('change', handleLogoFileUpload);
+    }
+    
+    /**
+     * Show the correct logo config panel
+     */
+    function showLogoPanel(type) {
+        document.querySelectorAll('.logo-config-panel').forEach(p => p.classList.add('hidden'));
+        const panel = document.getElementById(`logo-${type}-panel`);
+        if (panel) panel.classList.remove('hidden');
+    }
+    
+    /**
+     * Update logo preview
+     */
+    function updateLogoPreview() {
+        const preview = document.getElementById('logo-preview');
+        if (!preview) return;
+        
+        const type = document.querySelector('input[name="logo-type"]:checked')?.value || 'icon';
+        const name = document.getElementById('brand-name')?.value || 'BetterDesk';
+        
+        if (type === 'svg') {
+            const svg = document.getElementById('logo-svg-input')?.value || '';
+            if (svg.trim()) {
+                preview.innerHTML = `<span class="logo-preview-svg">${svg}</span>`;
+            } else {
+                preview.innerHTML = `<span class="material-icons">code</span><span class="logo-preview-text">${Utils.escapeHtml(name)}</span>`;
+            }
+        } else if (type === 'image') {
+            const url = document.getElementById('logo-image-url')?.value || '';
+            if (url.trim()) {
+                preview.innerHTML = `<img src="${Utils.escapeHtml(url)}" alt="${Utils.escapeHtml(name)}" style="max-height: 36px;">`;
+            } else {
+                preview.innerHTML = `<span class="material-icons">photo</span><span class="logo-preview-text">${Utils.escapeHtml(name)}</span>`;
+            }
+        } else {
+            const icon = document.getElementById('logo-icon-name')?.value || 'dns';
+            preview.innerHTML = `<span class="material-icons">${Utils.escapeHtml(icon)}</span><span class="logo-preview-text">${Utils.escapeHtml(name)}</span>`;
+        }
+    }
+    
+    /**
+     * Handle logo image file upload - convert to base64 data URI
+     */
+    function handleLogoFileUpload(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const maxSize = 1.5 * 1024 * 1024; // 1.5MB
+        if (file.size > maxSize) {
+            Utils.showNotification(_('branding.logo_image_too_large'), 'error');
+            e.target.value = '';
+            return;
+        }
+        
+        const validTypes = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml'];
+        if (!validTypes.includes(file.type)) {
+            Utils.showNotification(_('branding.logo_image_invalid_type'), 'error');
+            e.target.value = '';
+            return;
+        }
+        
+        // Show filename
+        const nameEl = document.getElementById('logo-file-name');
+        if (nameEl) nameEl.textContent = file.name;
+        
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            const dataUri = event.target.result;
+            const urlInput = document.getElementById('logo-image-url');
+            if (urlInput) {
+                urlInput.value = dataUri;
+                urlInput.removeAttribute('readonly');
+            }
+            updateLogoPreview();
+        };
+        reader.readAsDataURL(file);
+    }
+    
+    /**
+     * Initialize color picker sync (picker <-> hex input)
+     */
+    function initColorPickers() {
+        // Sync color picker → hex input
+        document.querySelectorAll('.color-picker').forEach(picker => {
+            picker.addEventListener('input', () => {
+                const key = picker.dataset.color;
+                const hex = document.querySelector(`.color-hex[data-color="${key}"]`);
+                if (hex) hex.value = picker.value;
+            });
+        });
+        
+        // Sync hex input → color picker
+        document.querySelectorAll('.color-hex').forEach(hex => {
+            hex.addEventListener('input', () => {
+                const key = hex.dataset.color;
+                const picker = document.querySelector(`.color-picker[data-color="${key}"]`);
+                if (picker && /^#[0-9a-fA-F]{6}$/.test(hex.value)) {
+                    picker.value = hex.value;
+                }
+            });
+        });
+    }
+    
+    /**
+     * Collect branding form data
+     */
+    function collectBrandingData() {
+        const data = {
+            appName: document.getElementById('brand-name')?.value || 'BetterDesk',
+            appDescription: document.getElementById('brand-description')?.value || '',
+            logoType: document.querySelector('input[name="logo-type"]:checked')?.value || 'icon',
+            logoIcon: document.getElementById('logo-icon-name')?.value || 'dns',
+            logoSvg: document.getElementById('logo-svg-input')?.value || '',
+            logoUrl: document.getElementById('logo-image-url')?.value || '',
+            colors: {}
+        };
+        
+        // Collect colors
+        document.querySelectorAll('.color-hex').forEach(hex => {
+            const key = hex.dataset.color;
+            const value = hex.value.trim();
+            if (value && /^#[0-9a-fA-F]{6}$/.test(value)) {
+                data.colors[key] = value;
+            }
+        });
+        
+        return data;
+    }
+    
+    /**
+     * Initialize branding action buttons
+     */
+    function initBrandingActions() {
+        // Save
+        document.getElementById('branding-save-btn')?.addEventListener('click', async () => {
+            try {
+                const data = collectBrandingData();
+                await Utils.api('/api/settings/branding', {
+                    method: 'POST',
+                    body: data
+                });
+                Notifications.success(_('branding.saved'));
+                
+                // Reload page to apply changes
+                setTimeout(() => window.location.reload(), 800);
+                
+            } catch (error) {
+                Notifications.error(error.message || _('errors.server_error'));
+            }
+        });
+        
+        // Export
+        document.getElementById('branding-export-btn')?.addEventListener('click', async () => {
+            try {
+                const response = await Utils.api('/api/settings/branding/export');
+                const blob = new Blob([JSON.stringify(response, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'betterdesk-theme.json';
+                a.click();
+                URL.revokeObjectURL(url);
+                Notifications.success(_('branding.exported'));
+            } catch (error) {
+                Notifications.error(error.message || _('errors.server_error'));
+            }
+        });
+        
+        // Import
+        document.getElementById('branding-import-input')?.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            try {
+                const text = await file.text();
+                const preset = JSON.parse(text);
+                
+                await Utils.api('/api/settings/branding/import', {
+                    method: 'POST',
+                    body: preset
+                });
+                
+                Notifications.success(_('branding.imported'));
+                setTimeout(() => window.location.reload(), 800);
+                
+            } catch (error) {
+                Notifications.error(error.message || _('branding.import_error'));
+            }
+            
+            // Reset file input
+            e.target.value = '';
+        });
+        
+        // Reset
+        document.getElementById('branding-reset-btn')?.addEventListener('click', async () => {
+            if (!confirm(_('branding.reset_confirm'))) return;
+            
+            try {
+                await Utils.api('/api/settings/branding/reset', { method: 'POST' });
+                Notifications.success(_('branding.reset_success'));
+                setTimeout(() => window.location.reload(), 800);
+            } catch (error) {
+                Notifications.error(error.message || _('errors.server_error'));
+            }
         });
     }
     

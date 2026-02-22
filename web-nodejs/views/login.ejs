@@ -3,12 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="BetterDesk Console - Login">
+    <meta name="description" content="<%= appName %> - Login">
     <meta name="robots" content="noindex, nofollow">
-    <title><%= _('auth.login') %> - BetterDesk Console</title>
+    <title><%= _('auth.login') %> - <%= appName %></title>
     
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="icon" type="image/svg+xml" href="/branding/favicon.svg">
     <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="/css/theme.css">
     <link rel="stylesheet" href="/css/login.css">
 </head>
 <body class="login-page">
@@ -16,8 +17,14 @@
         <div class="login-card">
             <div class="login-header">
                 <div class="login-logo">
+                    <% if (branding.logoType === 'svg' && branding.logoSvg) { %>
+                    <span class="login-logo-svg"><%- branding.logoSvg %></span>
+                    <% } else if (branding.logoType === 'image' && branding.logoUrl) { %>
+                    <img src="<%= branding.logoUrl %>" alt="<%= appName %>" class="login-logo-img">
+                    <% } else { %>
                     <span class="material-icons">dns</span>
-                    <span class="login-logo-text">BetterDesk</span>
+                    <span class="login-logo-text"><%= appName %></span>
+                    <% } %>
                 </div>
                 <h1 class="login-title"><%= _('auth.login_title') %></h1>
                 <p class="login-subtitle"><%= _('auth.login_subtitle') %></p>
@@ -143,15 +150,17 @@
             </form>
             
             <div class="login-footer">
-                <p>BetterDesk Console v<%= appVersion %></p>
+                <p><%= appName %> v<%= appVersion %></p>
             </div>
         </div>
     </div>
     
     <script>
         window.BetterDesk = {
+            csrfToken: '<%= csrfToken || "" %>',
             lang: '<%= lang || "en" %>',
-            translations: <%- JSON.stringify(translations || {}) %>
+            translations: <%- JSON.stringify(translations || {}) %>,
+            branding: <%- JSON.stringify(branding || {}) %>
         };
     </script>
     <script src="/js/utils.js"></script>

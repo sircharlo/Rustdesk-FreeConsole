@@ -3,8 +3,14 @@
     <!-- Sidebar Header -->
     <div class="sidebar-header">
         <a href="/" class="sidebar-logo">
-            <span class="material-icons">dns</span>
-            <span class="sidebar-logo-text">BetterDesk</span>
+            <% if (branding.logoType === 'svg' && branding.logoSvg) { %>
+            <span class="sidebar-logo-svg"><%- branding.logoSvg %></span>
+            <% } else if (branding.logoType === 'image' && branding.logoUrl) { %>
+            <img src="<%= branding.logoUrl %>" alt="<%= appName %>" class="sidebar-logo-img">
+            <% } else { %>
+            <span class="material-icons"><%= branding.logoIcon || 'dns' %></span>
+            <span class="sidebar-logo-text"><%= appName %></span>
+            <% } %>
         </a>
     </div>
     

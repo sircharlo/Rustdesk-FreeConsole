@@ -813,8 +813,9 @@ def get_build_status(build_id):
 # Test configuration
 if __name__ == "__main__":
     test_config = {
-        'server_host': '192.168.0.110',
+        'server_host': '127.0.0.1',
         'server_key': 'TestKey123==',
+        # Change server_host to your actual server IP before running
         'app_name': 'MyRemoteApp',
         'platform': 'linux',
         'version': '1.4.5'
