@@ -5,22 +5,22 @@
 
 ---
 
-## 📊 Stan Projektu (aktualizacja: 2026-02-17)
+## 📊 Stan Projektu (aktualizacja: 2026-02-22)
 
-### Wersja Skryptów ALL-IN-ONE (v2.2.1)
+### Wersja Skryptów ALL-IN-ONE (v2.3.0)
 
 | Plik | Wersja | Platforma | Status |
 |------|--------|-----------|--------|
-| `betterdesk.sh` | v2.2.1 | Linux | ✅ ALL-IN-ONE + Node.js/Flask choice + Auto mode |
-| `betterdesk.ps1` | v2.2.1 | Windows | ✅ ALL-IN-ONE + Node.js/Flask choice + Auto mode |
+| `betterdesk.sh` | v2.3.0 | Linux | ✅ ALL-IN-ONE + Node.js only + SSL config + Auto mode |
+| `betterdesk.ps1` | v2.3.0 | Windows | ✅ ALL-IN-ONE + Node.js only + SSL config + Auto mode |
 | `betterdesk-docker.sh` | v2.0.0 | Docker | ✅ Interaktywny ALL-IN-ONE |
 
 ### Konsole Webowe
 
 | Typ | Folder | Status | Opis |
 |-----|--------|--------|------|
-| **Node.js (zalecana)** | `web-nodejs/` | ✅ Aktywna | Express.js, EJS, better-sqlite3 |
-| **Flask (legacy)** | `web/` | ✅ Aktywna | Python, Jinja2, sqlite3 |
+| **Node.js** | `web-nodejs/` | ✅ Aktywna (jedyna) | Express.js, EJS, better-sqlite3, CSRF, TOTP 2FA |
+| **Flask (deprecated)** | `web/` | ⚠️ Deprecated | Python, Jinja2, sqlite3 - nie instalowane od v2.3.0 |
 
 ### Binarki Serwera
 
@@ -45,23 +45,28 @@ Windows:
 
 ---
 
-## 🚀 Skrypty ALL-IN-ONE (v2.2.0)
+## 🚀 Skrypty ALL-IN-ONE (v2.3.0)
 
-### Nowe funkcje w v2.2.1
+### Nowe funkcje w v2.3.0
 
-- ✅ **Poprawka konfiguracji Node.js** - zmienne środowiskowe w .env są teraz poprawnie ustawione (RUSTDESK_DIR, KEYS_PATH, DATA_DIR)
-- ✅ **Poprawka hasła admina** - hasło jest teraz poprawnie przekazywane do konsoli Node.js przy instalacji
-- ✅ **Poprawka usług systemd** - usługa Node.js teraz ładuje plik .env z EnvironmentFile
-- ✅ **Poprawka aktualizacji** - do_update teraz aktualizuje usługi systemd i tworzy admina
-- ✅ **Poprawka QR code** - ścieżki do kluczy są teraz poprawnie konfigurowane
+- ✅ **Flask removed** - Flask console deprecated, Node.js is now the only option
+- ✅ **SSL certificate configuration** - new menu option C for SSL/TLS setup (Let's Encrypt, custom cert, self-signed)
+- ✅ **Security audit fixes** - CSRF protection, session fixation prevention, timing-safe auth, WebSocket auth
+- ✅ **TOTP 2FA** - Two-factor authentication with TOTP (otplib)
+- ✅ **RustDesk Client API** - dedicated WAN-facing port (21121) with 7-layer security
+- ✅ **Address book sync** - full AB storage with address_books table
+- ✅ **Operator role** - separate admin/operator roles with different permissions
+- ✅ **Desktop connect button** - connect to devices from browser (RustDesk URI handler)
 
-### Nowe funkcje w v2.2.0
+### Previous versions
 
-- ✅ **Wybór konsoli Node.js/Flask** - interaktywny wybór podczas instalacji
-- ✅ **Flagi --nodejs/--flask (Linux)** - wybór konsoli z linii poleceń
-- ✅ **Parametry -NodeJs/-Flask (Windows)** - wybór konsoli w PowerShell
-- ✅ **Migracja między konsolami** - automatyczna migracja z Flask do Node.js
-- ✅ **Automatyczna instalacja Node.js** - przez apt/dnf/yum/pacman/winget/chocolatey
+#### v2.2.1
+- ✅ Node.js .env config fixes, admin password fixes, systemd fixes
+
+#### v2.2.0
+- ✅ Node.js/Flask choice (Flask now deprecated)
+- ✅ Migration between consoles
+- ✅ Automatic Node.js installation
 
 ### Nowe funkcje w v2.1.2
 
@@ -74,15 +79,16 @@ Windows:
 
 ### Funkcje wspólne dla wszystkich skryptów
 
-1. 🚀 **Nowa instalacja** - pełna instalacja od zera (Node.js lub Flask)
-2. ⬆️ **Aktualizacja** - aktualizacja istniejącej instalacji
-3. 🔧 **Naprawa** - automatyczna naprawa problemów
-4. ✅ **Walidacja** - sprawdzenie poprawności instalacji
-5. 💾 **Backup** - tworzenie kopii zapasowych
-6. 🔐 **Reset hasła** - reset hasła administratora
-7. 🔨 **Budowanie binarek** - kompilacja ze źródeł
-8. 📊 **Diagnostyka** - szczegółowa analiza problemów
-9. 🗑️ **Odinstalowanie** - pełne usunięcie
+1. 🚀 **New installation** - full installation from scratch (Node.js only)
+2. ⬆️ **Update** - update existing installation
+3. 🔧 **Repair** - automatic fix for common issues
+4. ✅ **Validation** - check installation correctness
+5. 💾 **Backup** - create backups
+6. 🔐 **Password reset** - reset admin password
+7. 🔨 **Build binaries** - compile from source
+8. 📊 **Diagnostics** - detailed problem analysis
+9. 🗑️ **Uninstall** - full removal
+10. 🔒 **SSL config** - configure SSL/TLS certificates (NEW in v2.3.0)
 
 ### Użycie
 
@@ -90,11 +96,8 @@ Windows:
 # Linux - tryb interaktywny
 sudo ./betterdesk.sh
 
-# Linux - tryb automatyczny z Node.js (zalecane)
-sudo ./betterdesk.sh --auto --nodejs
-
-# Linux - tryb automatyczny z Flask (legacy)
-sudo ./betterdesk.sh --auto --flask
+# Linux - tryb automatyczny
+sudo ./betterdesk.sh --auto
 
 # Linux - pomiń weryfikację SHA256
 sudo ./betterdesk.sh --skip-verify
@@ -102,11 +105,8 @@ sudo ./betterdesk.sh --skip-verify
 # Windows (PowerShell jako Administrator) - tryb interaktywny
 .\betterdesk.ps1
 
-# Windows - tryb automatyczny z Node.js (zalecane)
-.\betterdesk.ps1 -Auto -NodeJs
-
-# Windows - tryb automatyczny z Flask (legacy)
-.\betterdesk.ps1 -Auto -Flask
+# Windows - tryb automatyczny
+.\betterdesk.ps1 -Auto
 
 # Windows - pomiń weryfikację SHA256
 .\betterdesk.ps1 -SkipVerify
@@ -139,7 +139,8 @@ $env:API_PORT = "21114"
 | 21115 | TCP | NAT type test |
 | 21116 | TCP/UDP | ID Server (rejestracja klientów) |
 | 21117 | TCP | Relay Server |
-| 5000 | HTTP | Web Console |
+| 5000 | HTTP | Web Console (admin panel) |
+| 21121 | TCP | RustDesk Client API (WAN-facing, dedicated) |
 
 ### Skrypt diagnostyczny (dev)
 ```bash
@@ -155,8 +156,9 @@ $env:API_PORT = "21114"
 
 ```
 Rustdesk-FreeConsole/
-├── web/                     # Flask web console (Python)
-├── hbbs-patch-v2/           # Enhanced server binaries (v2.0.0)
+├── web/                     # Flask web console (deprecated)
+├── web-nodejs/              # Node.js web console (active)
+├── hbbs-patch-v2/           # Enhanced server binaries (v2.1.2)
 │   ├── hbbs-linux-x86_64    # Signal server Linux
 │   ├── hbbr-linux-x86_64    # Relay server Linux  
 │   ├── hbbs-windows-x86_64.exe  # Signal server Windows
@@ -174,11 +176,12 @@ Rustdesk-FreeConsole/
 
 | Port | Usługa | Opis |
 |------|--------|------|
-| 21114 | HTTP API | BetterDesk Console API (domyślny) |
+| 21114 | HTTP API | HBBS HTTP API (Rust) |
 | 21115 | TCP | NAT type test |
-| 21116 | TCP/UDP | ID Server (rejestracja klientów) |
+| 21116 | TCP/UDP | ID Server (client registration) |
 | 21117 | TCP | Relay Server |
-| 5000 | HTTP | Web Console |
+| 5000 | HTTP | Web Console (admin panel, LAN) |
+| 21121 | TCP | RustDesk Client API (WAN-facing, Node.js) |
 
 ---
 
@@ -263,11 +266,28 @@ sudo apt-get install -y build-essential libsqlite3-dev pkg-config libssl-dev git
 28. [x] **Selector języka** - w sidebarze panelu
 29. [x] **Dokumentacja i18n** - docs/CONTRIBUTING_TRANSLATIONS.md
 
+### ✅ Ukończone (2026-02-17)
+30. [x] **Security audit v2.3.0** - 3 Critical, 5 High, 8 Medium, 6 Low findings - all Critical/High fixed
+31. [x] **CSRF protection** - double-submit cookie pattern with csrf-csrf
+32. [x] **Session fixation prevention** - session regeneration after login
+33. [x] **Timing-safe auth** - pre-computed dummy bcrypt hash for non-existent users
+34. [x] **WebSocket auth** - session cookie required for upgrade
+35. [x] **Trust proxy configurable** - TRUST_PROXY env var
+36. [x] **RustDesk Client API** - dedicated WAN port 21121 with 7-layer security
+37. [x] **TOTP 2FA** - two-factor authentication with otplib
+38. [x] **Address book sync** - AB storage with address_books table
+39. [x] **Operator role** - admin/operator role separation
+40. [x] **Flask removed from scripts** - betterdesk.sh + betterdesk.ps1 updated
+41. [x] **SSL certificate configuration** - new menu option in both scripts
+42. [x] **README updated** - comprehensive update for v2.3.0
+43. [x] **Web Remote Client fixed** - 5 Critical, 2 High, 3 Low bugs fixed (video_received ack, autoplay, modifier keys, Opus audio, timestamps, O(n²) buffer, seeking, mouse, cursor, i18n)
+
 ### 🔜 Do Zrobienia (priorytety)
 1. [ ] Kompilacja binarek v3.0.0 z nowymi plikami źródłowymi
 2. [ ] WebSocket real-time push dla statusu
 3. [ ] Dodać testy jednostkowe dla HTTP API
 4. [ ] Integracja id_change.rs z rendezvous_server_core.rs
+5. [ ] Deploy v2.3.0 to production and test all new features
 
 ---
 
@@ -344,10 +364,12 @@ Pełna dokumentacja: [ID_CHANGE_FEATURE.md](../docs/ID_CHANGE_FEATURE.md)
 
 | Plik | Opis |
 |------|------|
-| `web/i18n.py` | Moduł Flask z API endpoints |
+| `web/i18n.py` | Moduł Flask z API endpoints (deprecated) |
+| `web-nodejs/middleware/i18n.js` | Node.js i18n middleware |
+| `web-nodejs/lang/*.json` | Pliki tłumaczeń (Node.js) |
 | `web/static/js/i18n.js` | Klient JavaScript |
 | `web/static/css/i18n.css` | Style dla selektora języka |
-| `web/lang/*.json` | Pliki tłumaczeń |
+| `web/lang/*.json` | Pliki tłumaczeń (Flask, deprecated) |
 
 ### API Endpoints
 
@@ -433,6 +455,7 @@ Pełna dokumentacja budowania: [BUILD_GUIDE.md](../docs/BUILD_GUIDE.md)
 5. W plikach projektu używaj angielskiego, dokumentacja także ma być po angielsku, upewnij się za każdym razem że twoje zmiany są zgodne z aktualnym stylem i konwencjami projektu, nie wprowadzaj nowych konwencji bez uzasadnienia oraz są napisane w sposób spójny z resztą kodu, unikaj mieszania stylów kodowania, jeśli masz wątpliwości co do stylu, sprawdź istniejący kod i dostosuj się do niego, pamiętaj że spójność jest kluczowa dla utrzymania czytelności i jakości kodu. Wykorzystuj tylko język angielski w komunikacji, dokumentacji i komentarzach, nawet jeśli pracujesz nad polskojęzyczną funkcją, zachowaj angielski dla wszystkich aspektów kodu i dokumentacji, to ułatwi współpracę z innymi deweloperami i utrzyma spójność projektu.
 6. Tworząc nowe moduły i zakładki pamiętaj o zachowaniu spójności z istniejącym stylem kodowania, strukturą projektu i konwencjami nazewnictwa, sprawdź istniejące moduły i zakładki, aby upewnić się że twoje zmiany są zgodne z aktualnym stylem, unikaj wprowadzania nowych konwencji bez uzasadnienia, jeśli masz wątpliwości co do stylu, dostosuj się do istniejącego kodu, pamiętaj że spójność jest kluczowa dla utrzymania czytelności i jakości kodu.
 7. Przy dodawaniu nowych elementów do panelu web czy innych części projektu upewnij się że są one zgodne z systemem i18n, dodaj odpowiednie klucze do plików tłumaczeń i przetestuj działanie w obu językach, pamiętaj że wszystkie teksty powinny być tłumaczalne i nie powinno się używać hardcoded stringów w kodzie, to ułatwi utrzymanie wielojęzyczności projektu i zapewni spójność w komunikacji z użytkownikami (nie stosuj tych praktyk w przypadku elementów które nie będą bezpośrednio dostępne w interfejsie i które są zwyczajnymi funkcjami w kodzie).
+8. Przy wprowadzaniu zmian projekcie upewnij się że będą one możliwe do instalacji przez obecne skrypty ALL-IN-ONE, jeśli wprowadzasz nowe funkcje lub zmieniasz istniejące, zaktualizuj skrypty instalacyjne, aby uwzględniały te zmiany, przetestuj instalację na czystym systemie, aby upewnić się że wszystko działa poprawnie, pamiętaj że skrypty ALL-IN-ONE są kluczowym elementem projektu i muszą być aktualizowane wraz z rozwojem funkcji, to zapewni użytkownikom łatwą i bezproblemową instalację najnowszych wersji projektu. Skrypty ALL-IN-ONE powinny być aktualizowane i testowane przy każdej większej zmianie, aby zapewnić kompatybilność i łatwość instalacji dla użytkowników, pamiętaj że skrypty te są często używane przez osoby bez zaawansowaną wiedzą techniczną, więc ważne jest aby były one jak najbardziej niezawodne i łatwe w użyciu, zawsze testuj skrypty po wprowadzeniu zmian, aby upewnić się że działają poprawnie i nie powodują problemów z instalacją.
 
 ### Przy problemach Docker:
 1. Sprawdź czy obrazy są budowane lokalne (`docker compose build`)
@@ -448,4 +471,4 @@ Pełna dokumentacja budowania: [BUILD_GUIDE.md](../docs/BUILD_GUIDE.md)
 
 ---
 
-*Ostatnia aktualizacja: 2026-02-07 przez GitHub Copilot*
+*Ostatnia aktualizacja: 2026-02-22 przez GitHub Copilot*

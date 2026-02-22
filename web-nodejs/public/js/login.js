@@ -8,14 +8,18 @@
     document.addEventListener('DOMContentLoaded', init);
     
     function init() {
-        const form = document.getElementById('login-form');
+        const loginForm = document.getElementById('login-form');
+        const totpForm = document.getElementById('totp-form');
         const passwordToggle = document.getElementById('password-toggle');
         const passwordInput = document.getElementById('password');
         const loginBtn = document.getElementById('login-btn');
+        const totpBtn = document.getElementById('totp-btn');
         const errorContainer = document.getElementById('login-error');
         const errorMessage = document.getElementById('error-message');
+        const toggleRecovery = document.getElementById('toggle-recovery');
+        const totpBack = document.getElementById('totp-back');
         
-        if (!form) return;
+        if (!loginForm) return;
         
         // Password visibility toggle
         passwordToggle?.addEventListener('click', () => {
@@ -25,14 +29,12 @@
                 isPassword ? 'visibility_off' : 'visibility';
         });
         
-        // Form submission
-        form.addEventListener('submit', async (e) => {
+        // Login form submission
+        loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            // Hide previous error
             errorContainer.classList.add('hidden');
             
-            // Get form data
             const username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value;
             const remember = document.getElementById('remember').checked;
@@ -42,16 +44,13 @@
                 return;
             }
             
-            // Set loading state
             loginBtn.classList.add('loading');
             loginBtn.disabled = true;
             
             try {
                 const response = await fetch('/api/auth/login', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     credentials: 'same-origin',
                     body: JSON.stringify({ username, password, remember })
                 });
@@ -60,6 +59,12 @@
                 
                 if (!response.ok) {
                     throw new Error(data.error || data.message || _('auth.login_failed'));
+                }
+                
+                // Check if TOTP verification is required
+                if (data.totpRequired) {
+                    showTotpForm();
+                    return;
                 }
                 
                 // Success - redirect to dashboard
@@ -73,11 +78,114 @@
             }
         });
         
+        // TOTP form submission
+        totpForm?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            errorContainer.classList.add('hidden');
+            
+            const totpCode = document.getElementById('totp-code').value.trim();
+            const recoveryCode = document.getElementById('recovery-code')?.value.trim();
+            const recoveryGroup = document.getElementById('recovery-group');
+            const useRecovery = recoveryGroup && !recoveryGroup.classList.contains('hidden');
+            
+            if (useRecovery) {
+                if (!recoveryCode) {
+                    showError(_('auth.totp_enter_recovery'));
+                    return;
+                }
+            } else {
+                if (!totpCode || totpCode.length !== 6) {
+                    showError(_('auth.totp_enter_code'));
+                    return;
+                }
+            }
+            
+            totpBtn.classList.add('loading');
+            totpBtn.disabled = true;
+            
+            try {
+                const body = useRecovery 
+                    ? { recoveryCode } 
+                    : { code: totpCode };
+                
+                const response = await fetch('/api/auth/totp/verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify(body)
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || _('auth.totp_invalid_code'));
+                }
+                
+                window.location.href = data.redirect || '/';
+                
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                totpBtn.classList.remove('loading');
+                totpBtn.disabled = false;
+            }
+        });
+        
+        // Toggle recovery code input
+        toggleRecovery?.addEventListener('click', (e) => {
+            e.preventDefault();
+            const recoveryGroup = document.getElementById('recovery-group');
+            const codeGroup = document.getElementById('totp-code-group');
+            
+            if (recoveryGroup.classList.contains('hidden')) {
+                recoveryGroup.classList.remove('hidden');
+                codeGroup.classList.add('hidden');
+                document.getElementById('totp-code').removeAttribute('required');
+                toggleRecovery.textContent = _('auth.totp_use_code');
+            } else {
+                recoveryGroup.classList.add('hidden');
+                codeGroup.classList.remove('hidden');
+                document.getElementById('totp-code').setAttribute('required', '');
+                toggleRecovery.textContent = _('auth.totp_use_recovery');
+            }
+        });
+        
+        // Back to login from TOTP
+        totpBack?.addEventListener('click', (e) => {
+            e.preventDefault();
+            hideTotpForm();
+        });
+        
+        // Auto-submit TOTP when 6 digits entered
+        document.getElementById('totp-code')?.addEventListener('input', (e) => {
+            // Only allow digits
+            e.target.value = e.target.value.replace(/[^0-9]/g, '');
+            if (e.target.value.length === 6) {
+                totpForm.dispatchEvent(new Event('submit'));
+            }
+        });
+        
+        function showTotpForm() {
+            loginForm.classList.add('hidden');
+            totpForm.classList.remove('hidden');
+            errorContainer.classList.add('hidden');
+            document.getElementById('totp-code').focus();
+        }
+        
+        function hideTotpForm() {
+            totpForm.classList.add('hidden');
+            loginForm.classList.remove('hidden');
+            errorContainer.classList.add('hidden');
+            document.getElementById('totp-code').value = '';
+            const recoveryInput = document.getElementById('recovery-code');
+            if (recoveryInput) recoveryInput.value = '';
+        }
+        
         function showError(message) {
             errorMessage.textContent = message;
             errorContainer.classList.remove('hidden');
             
-            // Shake animation
             errorContainer.style.animation = 'shake 0.5s ease';
             setTimeout(() => {
                 errorContainer.style.animation = '';

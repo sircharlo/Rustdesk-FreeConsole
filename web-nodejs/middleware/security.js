@@ -7,30 +7,41 @@ const helmet = require('helmet');
 const config = require('../config/config');
 
 /**
+ * Build CSP connect-src based on HTTPS mode
+ * When HTTPS is enabled, also allow wss:// for future WebSocket connections
+ */
+const connectSources = config.httpsEnabled
+    ? ["'self'", "wss:"]
+    : ["'self'"];
+
+/**
  * Configure Helmet with appropriate CSP for our app
- * Note: Disabled some policies for HTTP internal network use
+ * Security policies adjust automatically based on HTTPS mode
  */
 const helmetMiddleware = helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", "'unsafe-inline'"], // Allow inline scripts for EJS
+            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // unsafe-eval required by protobuf.js codegen
             styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
             fontSrc: ["'self'", "https://fonts.gstatic.com"],
             imgSrc: ["'self'", "data:", "blob:"],
-            connectSrc: ["'self'"],
+            mediaSrc: ["'self'", "blob:"], // blob: required by JMuxer MSE video decoding
+            connectSrc: connectSources,
             frameSrc: ["'none'"],
             objectSrc: ["'none'"],
             baseUri: ["'self'"],
             formAction: ["'self'"],
-            upgradeInsecureRequests: null // Don't force HTTPS
+            upgradeInsecureRequests: config.httpsEnabled ? [] : null
         }
     },
     crossOriginEmbedderPolicy: false,
     crossOriginResourcePolicy: false,
-    crossOriginOpenerPolicy: false, // Disable for HTTP
-    originAgentCluster: false, // Disable for HTTP
-    strictTransportSecurity: false // Disable HSTS for HTTP
+    crossOriginOpenerPolicy: config.httpsEnabled ? { policy: 'same-origin' } : false,
+    originAgentCluster: config.httpsEnabled,
+    strictTransportSecurity: config.httpsEnabled
+        ? { maxAge: 31536000, includeSubDomains: true, preload: false }
+        : false
 });
 
 /**
@@ -43,8 +54,8 @@ function customSecurityHeaders(req, res, next) {
     // Prevent MIME type sniffing
     res.setHeader('X-Content-Type-Options', 'nosniff');
     
-    // XSS Protection (legacy browsers)
-    res.setHeader('X-XSS-Protection', '1; mode=block');
+    // XSS Protection (disabled for modern browsers, can cause issues in legacy)
+    res.setHeader('X-XSS-Protection', '0');
     
     // Referrer policy
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');

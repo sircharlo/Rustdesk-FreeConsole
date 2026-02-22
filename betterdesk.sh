@@ -1,11 +1,11 @@
 #!/bin/bash
 #===============================================================================
 #
-#   BetterDesk Console Manager v2.2.0
+#   BetterDesk Console Manager v2.3.0
 #   All-in-One Interactive Tool for Linux
 #
 #   Features:
-#     - Fresh installation (Flask or Node.js console)
+#     - Fresh installation (Node.js web console)
 #     - Update existing installation  
 #     - Repair/fix issues (enhanced with graceful shutdown)
 #     - Validate installation
@@ -18,26 +18,26 @@
 #     - Enhanced service management with health verification
 #     - Port conflict detection
 #     - Fixed ban system (device-specific, not IP-based)
-#     - Node.js web console support (recommended)
-#     - Migration from Flask to Node.js
+#     - RustDesk Client API (login, address book sync)
+#     - TOTP Two-Factor Authentication
+#     - SSL/TLS certificate configuration
 #
 #   Usage: 
 #     Interactive: sudo ./betterdesk.sh
 #     Auto mode:   sudo ./betterdesk.sh --auto
-#     Node.js:     sudo ./betterdesk.sh --auto --nodejs
 #
 #===============================================================================
 
 set -e
 
 # Version
-VERSION="2.2.1"
+VERSION="2.3.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Auto mode flag
 AUTO_MODE=false
 SKIP_VERIFY=false
-PREFERRED_CONSOLE_TYPE=""  # flask, nodejs, or empty for interactive choice
+PREFERRED_CONSOLE_TYPE="nodejs"  # Always Node.js (Flask removed in v2.3.0)
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -55,7 +55,9 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --flask)
-            PREFERRED_CONSOLE_TYPE="flask"
+            echo "WARNING: Flask console is deprecated and no longer available in v2.3.0"
+            echo "Node.js console will be installed instead."
+            PREFERRED_CONSOLE_TYPE="nodejs"
             shift
             ;;
         --help|-h)
@@ -66,8 +68,7 @@ while [[ $# -gt 0 ]]; do
             echo "Options:"
             echo "  --auto, -a      Run in automatic mode (non-interactive)"
             echo "  --skip-verify   Skip SHA256 verification of binaries"
-            echo "  --nodejs        Install Node.js web console (recommended)"
-            echo "  --flask         Install Flask (Python) web console (legacy)"
+            echo "  --nodejs        Install Node.js web console (default)"
             echo "  --help, -h      Show this help message"
             exit 0
             ;;
@@ -85,7 +86,7 @@ HBBR_LINUX_X86_64_SHA256="8E7492CB1695B3D812CA13ABAC9A31E4DEA95B50497128D8E128DA
 # Default paths (can be overridden by environment variables)
 RUSTDESK_PATH="${RUSTDESK_PATH:-}"
 CONSOLE_PATH="${CONSOLE_PATH:-}"
-CONSOLE_TYPE="none"  # none, flask, nodejs
+CONSOLE_TYPE="none"  # none, nodejs
 BACKUP_DIR="${BACKUP_DIR:-/opt/rustdesk-backups}"
 
 # API configuration
@@ -409,7 +410,8 @@ detect_installation() {
         if [ -f "$CONSOLE_PATH/server.js" ] || [ -f "$CONSOLE_PATH/package.json" ]; then
             CONSOLE_TYPE="nodejs"
         elif [ -f "$CONSOLE_PATH/app.py" ]; then
-            CONSOLE_TYPE="flask"
+            CONSOLE_TYPE="nodejs"  # Flask detected, will be migrated to Node.js
+            print_warning "Legacy Flask console detected. It will be migrated to Node.js on update."
         fi
         
         if [ "$CONSOLE_TYPE" != "none" ] && [ "$BINARIES_OK" = true ] && [ "$DATABASE_OK" = true ]; then
@@ -496,8 +498,8 @@ auto_detect_paths() {
             CONSOLE_TYPE="nodejs"
             print_info "Using configured Node.js Console path: $CONSOLE_PATH"
         elif [ -d "$CONSOLE_PATH" ] && [ -f "$CONSOLE_PATH/app.py" ]; then
-            CONSOLE_TYPE="flask"
-            print_info "Using configured Flask Console path: $CONSOLE_PATH"
+            CONSOLE_TYPE="nodejs"  # Legacy Flask, will be migrated
+            print_warning "Legacy Flask console detected at $CONSOLE_PATH — will be migrated to Node.js"
         else
             print_warning "Configured CONSOLE_PATH ($CONSOLE_PATH) is invalid"
             CONSOLE_PATH=""
@@ -513,11 +515,11 @@ auto_detect_paths() {
                 print_success "Detected Node.js Console: $CONSOLE_PATH"
                 break
             fi
-            # Check for Flask console
+            # Check for legacy Flask console (will be migrated)
             if [ -d "$path" ] && [ -f "$path/app.py" ]; then
                 CONSOLE_PATH="$path"
-                CONSOLE_TYPE="flask"
-                print_success "Detected Flask Console: $CONSOLE_PATH"
+                CONSOLE_TYPE="nodejs"
+                print_warning "Legacy Flask console detected at $CONSOLE_PATH — will be migrated to Node.js"
                 break
             fi
         done
@@ -676,7 +678,6 @@ print_status() {
     if [ -d "$CONSOLE_PATH" ]; then
         case "$CONSOLE_TYPE" in
             nodejs) echo -e "  Web Console:  ${GREEN}✓ OK${NC} (Node.js)" ;;
-            flask) echo -e "  Web Console:  ${GREEN}✓ OK${NC} (Flask)" ;;
             *) echo -e "  Web Console:  ${GREEN}✓ OK${NC}" ;;
         esac
     else
@@ -931,6 +932,14 @@ DEFAULT_ADMIN_PASSWORD=$nodejs_admin_password
 
 # Session
 SESSION_SECRET=$(openssl rand -hex 32)
+
+# HTTPS (set to true and provide certificate paths to enable)
+HTTPS_ENABLED=false
+HTTPS_PORT=5443
+SSL_CERT_PATH=
+SSL_KEY_PATH=
+SSL_CA_PATH=
+HTTP_REDIRECT_HTTPS=true
 EOF
     print_info "Created .env configuration file"
     
@@ -1037,69 +1046,29 @@ install_flask_console() {
 }
 
 install_console() {
-    # Determine which console type to install
-    local console_choice="$PREFERRED_CONSOLE_TYPE"
+    # Always install Node.js console (Flask removed in v2.3.0)
+    local console_choice="nodejs"
     
-    # If not specified, ask user (unless in auto mode)
-    if [ -z "$console_choice" ]; then
-        if [ "$AUTO_MODE" = true ]; then
-            # Default to Node.js in auto mode (recommended)
-            console_choice="nodejs"
-            print_info "Auto mode: Installing Node.js console (recommended)"
-        else
-            echo ""
-            echo -e "${WHITE}${BOLD}Select Web Console Type:${NC}"
-            echo ""
-            echo -e "  ${GREEN}1.${NC} Node.js (recommended) - faster, modern, better performance"
-            echo -e "  ${YELLOW}2.${NC} Flask (Python) - legacy, original"
-            echo ""
-            read -p "Choice [1]: " choice
-            case "$choice" in
-                2|flask|Flask) console_choice="flask" ;;
-                *) console_choice="nodejs" ;;
-            esac
-        fi
-    fi
+    print_info "Installing Node.js web console..."
     
-    # Check for existing console and offer migration
+    # Check for existing Flask console and migrate
     if [ -d "$CONSOLE_PATH" ]; then
-        local existing_type="unknown"
-        if [ -f "$CONSOLE_PATH/server.js" ] || [ -f "$CONSOLE_PATH/package.json" ]; then
-            existing_type="nodejs"
-        elif [ -f "$CONSOLE_PATH/app.py" ]; then
-            existing_type="flask"
-        fi
-        
-        if [ "$existing_type" != "unknown" ] && [ "$existing_type" != "$console_choice" ]; then
-            print_warning "Existing $existing_type console detected at $CONSOLE_PATH"
+        if [ -f "$CONSOLE_PATH/app.py" ] && ! [ -f "$CONSOLE_PATH/server.js" ]; then
+            print_warning "Legacy Flask console detected at $CONSOLE_PATH"
             if [ "$AUTO_MODE" = false ]; then
-                if confirm "Migrate from $existing_type to $console_choice?"; then
-                    migrate_console "$existing_type" "$console_choice"
+                if confirm "Migrate from Flask to Node.js?"; then
+                    migrate_console "flask" "nodejs"
                 else
-                    print_info "Keeping existing $existing_type console"
-                    CONSOLE_TYPE="$existing_type"
-                    return 0
+                    print_info "Flask is deprecated. Installing Node.js alongside..."
                 fi
             else
-                print_info "Auto mode: Migrating from $existing_type to $console_choice"
-                migrate_console "$existing_type" "$console_choice"
+                print_info "Auto mode: Migrating from Flask to Node.js"
+                migrate_console "flask" "nodejs"
             fi
         fi
     fi
     
-    # Install selected console type
-    case "$console_choice" in
-        nodejs)
-            install_nodejs_console
-            ;;
-        flask)
-            install_flask_console
-            ;;
-        *)
-            print_error "Unknown console type: $console_choice"
-            return 1
-            ;;
-    esac
+    install_nodejs_console
 }
 
 migrate_console() {
@@ -1213,28 +1182,6 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
         print_info "Created Node.js console service"
-    else
-        cat > /etc/systemd/system/betterdesk.service << EOF
-[Unit]
-Description=BetterDesk Web Console (Flask)
-Documentation=https://github.com/UNITRONIX/Rustdesk-FreeConsole
-After=network.target rustdesksignal.service
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=$CONSOLE_PATH
-ExecStart=$CONSOLE_PATH/venv/bin/python app.py
-Environment=FLASK_ENV=production
-Environment=RUSTDESK_PATH=$RUSTDESK_PATH
-Environment=API_PORT=$API_PORT
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-EOF
-        print_info "Created Flask console service"
     fi
 
     systemctl daemon-reload
@@ -1273,86 +1220,20 @@ run_migrations() {
 create_admin_user() {
     print_step "Creating admin user..."
     
-    # Detect console type
-    local current_console_type=""
-    if [ -f "$CONSOLE_PATH/server.js" ]; then
-        current_console_type="nodejs"
-    elif [ -f "$CONSOLE_PATH/app.py" ]; then
-        current_console_type="flask"
-    else
-        print_warning "No console detected, skipping admin creation"
+    # Node.js console only (Flask removed in v2.3.0)
+    if [ ! -f "$CONSOLE_PATH/server.js" ]; then
+        print_warning "No Node.js console detected, skipping admin creation"
         return
     fi
     
-    if [ "$current_console_type" = "nodejs" ]; then
-        # Node.js console - admin is created automatically on startup
-        # Read the password saved during install_nodejs_console
-        local creds_file="$CONSOLE_PATH/data/.admin_credentials"
-        
-        if [ -f "$creds_file" ]; then
-            local admin_password
-            admin_password=$(cat "$creds_file" | cut -d':' -f2)
-            
-            echo ""
-            echo -e "${GREEN}╔════════════════════════════════════════════════════════╗${NC}"
-            echo -e "${GREEN}║            PANEL LOGIN CREDENTIALS                    ║${NC}"
-            echo -e "${GREEN}╠════════════════════════════════════════════════════════╣${NC}"
-            echo -e "${GREEN}║  Login:    ${WHITE}admin${GREEN}                                     ║${NC}"
-            echo -e "${GREEN}║  Password: ${WHITE}${admin_password}${GREEN}                         ║${NC}"
-            echo -e "${GREEN}╚════════════════════════════════════════════════════════╝${NC}"
-            echo ""
-            
-            # Also save to main RustDesk path for consistency
-            echo "admin:$admin_password" > "$RUSTDESK_PATH/.admin_credentials"
-            chmod 600 "$RUSTDESK_PATH/.admin_credentials"
-            
-            print_info "Credentials saved in: $RUSTDESK_PATH/.admin_credentials"
-        else
-            print_warning "No Node.js admin credentials found"
-            print_info "Default credentials: admin / admin"
-            print_info "Please change password after first login!"
-        fi
-    else
-        # Flask console - create admin in db_v2.sqlite3
+    # Node.js console - admin is created automatically on startup
+    # Read the password saved during install_nodejs_console
+    local creds_file="$CONSOLE_PATH/data/.admin_credentials"
+    
+    if [ -f "$creds_file" ]; then
         local admin_password
-        admin_password=$(openssl rand -base64 12 | tr -d '/+=' | head -c 16)
+        admin_password=$(cat "$creds_file" | cut -d':' -f2)
         
-        # Create admin via Python
-        python3 << EOF
-import sqlite3
-import bcrypt
-from datetime import datetime
-
-conn = sqlite3.connect('$DB_PATH')
-cursor = conn.cursor()
-
-# Check if users table exists
-cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
-if not cursor.fetchone():
-    cursor.execute('''CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY,
-        username TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        role TEXT DEFAULT 'viewer',
-        is_active INTEGER DEFAULT 1,
-        created_at TEXT,
-        last_login TEXT
-    )''')
-
-# Check if admin exists
-cursor.execute("SELECT id FROM users WHERE username='admin'")
-if cursor.fetchone():
-    print("Admin already exists")
-else:
-    password_hash = bcrypt.hashpw('$admin_password'.encode(), bcrypt.gensalt()).decode()
-    cursor.execute('''INSERT INTO users (username, password_hash, role, is_active, created_at)
-                      VALUES ('admin', ?, 'admin', 1, ?)''', (password_hash, datetime.now().isoformat()))
-    conn.commit()
-    print("Admin created")
-
-conn.close()
-EOF
-
         echo ""
         echo -e "${GREEN}╔════════════════════════════════════════════════════════╗${NC}"
         echo -e "${GREEN}║            PANEL LOGIN CREDENTIALS                    ║${NC}"
@@ -1362,11 +1243,15 @@ EOF
         echo -e "${GREEN}╚════════════════════════════════════════════════════════╝${NC}"
         echo ""
         
-        # Save credentials
+        # Also save to main RustDesk path for consistency
         echo "admin:$admin_password" > "$RUSTDESK_PATH/.admin_credentials"
         chmod 600 "$RUSTDESK_PATH/.admin_credentials"
         
         print_info "Credentials saved in: $RUSTDESK_PATH/.admin_credentials"
+    else
+        print_warning "No Node.js admin credentials found"
+        print_info "Default credentials: admin / admin"
+        print_info "Please change password after first login!"
     fi
 }
 
@@ -1993,35 +1878,6 @@ EOF
                 success=true
             fi
         fi
-    else
-        # Flask/Python console - update db_v2.sqlite3 users table
-        if [ ! -f "$DB_PATH" ]; then
-            print_error "Database does not exist!"
-            press_enter
-            return
-        fi
-        
-        python3 << EOF
-import sqlite3
-import bcrypt
-
-conn = sqlite3.connect('$DB_PATH')
-cursor = conn.cursor()
-
-password_hash = bcrypt.hashpw('$new_password'.encode(), bcrypt.gensalt()).decode()
-cursor.execute("UPDATE users SET password_hash = ? WHERE username = 'admin'", (password_hash,))
-
-if cursor.rowcount == 0:
-    cursor.execute('''INSERT INTO users (username, password_hash, role, is_active)
-                      VALUES ('admin', ?, 'admin', 1)''', (password_hash,))
-
-conn.commit()
-conn.close()
-print("Password updated successfully")
-EOF
-        if [ $? -eq 0 ]; then
-            success=true
-        fi
     fi
 
     echo ""
@@ -2222,6 +2078,165 @@ do_uninstall() {
 }
 
 #===============================================================================
+# SSL Certificate Configuration
+#===============================================================================
+
+do_configure_ssl() {
+    print_header
+    echo -e "${WHITE}${BOLD}══════════ SSL CERTIFICATE CONFIGURATION ══════════${NC}"
+    echo ""
+    
+    if [ ! -f "$CONSOLE_PATH/.env" ]; then
+        print_error "Node.js console .env not found at $CONSOLE_PATH/.env"
+        print_info "Please install BetterDesk first (option 1)"
+        press_enter
+        return
+    fi
+    
+    echo -e "  ${WHITE}Configure SSL/TLS certificates for BetterDesk Console.${NC}"
+    echo -e "  ${WHITE}This enables HTTPS for both the admin panel and the RustDesk Client API.${NC}"
+    echo ""
+    echo -e "  ${YELLOW}Options:${NC}"
+    echo -e "  ${GREEN}1.${NC} Let's Encrypt (automatic, requires domain name + port 80)"
+    echo -e "  ${GREEN}2.${NC} Custom certificate (provide your own cert + key files)"
+    echo -e "  ${GREEN}3.${NC} Self-signed certificate (for testing only)"
+    echo -e "  ${RED}4.${NC} Disable SSL (revert to HTTP)"
+    echo ""
+    
+    read -p "Choice [1]: " ssl_choice
+    
+    case "${ssl_choice:-1}" in
+        1)
+            # Let's Encrypt
+            echo ""
+            read -p "Enter your domain name (e.g., betterdesk.example.com): " domain
+            if [ -z "$domain" ]; then
+                print_error "Domain name required for Let's Encrypt"
+                press_enter
+                return
+            fi
+            
+            # Install certbot if needed
+            if ! command -v certbot &> /dev/null; then
+                print_step "Installing certbot..."
+                if command -v apt-get &> /dev/null; then
+                    apt-get install -y certbot
+                elif command -v dnf &> /dev/null; then
+                    dnf install -y certbot
+                elif command -v yum &> /dev/null; then
+                    yum install -y certbot
+                elif command -v pacman &> /dev/null; then
+                    pacman -Sy --noconfirm certbot
+                else
+                    print_error "Could not install certbot. Please install it manually."
+                    press_enter
+                    return
+                fi
+            fi
+            
+            print_step "Requesting certificate for $domain..."
+            print_info "Port 80 must be accessible from the internet"
+            
+            certbot certonly --standalone --preferred-challenges http \
+                -d "$domain" --non-interactive --agree-tos \
+                --email "admin@$domain" 2>&1 || {
+                    print_error "Certificate request failed. Make sure port 80 is open and the domain points to this server."
+                    press_enter
+                    return
+                }
+            
+            local cert_path="/etc/letsencrypt/live/$domain/fullchain.pem"
+            local key_path="/etc/letsencrypt/live/$domain/privkey.pem"
+            
+            # Update .env
+            sed -i "s|^HTTPS_ENABLED=.*|HTTPS_ENABLED=true|" "$CONSOLE_PATH/.env"
+            sed -i "s|^SSL_CERT_PATH=.*|SSL_CERT_PATH=$cert_path|" "$CONSOLE_PATH/.env"
+            sed -i "s|^SSL_KEY_PATH=.*|SSL_KEY_PATH=$key_path|" "$CONSOLE_PATH/.env"
+            sed -i "s|^HTTP_REDIRECT_HTTPS=.*|HTTP_REDIRECT_HTTPS=true|" "$CONSOLE_PATH/.env"
+            
+            # Setup auto-renewal
+            if ! crontab -l 2>/dev/null | grep -q "certbot renew"; then
+                (crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet --post-hook 'systemctl restart betterdesk'") | crontab -
+                print_info "Auto-renewal cron job added (daily at 3:00 AM)"
+            fi
+            
+            print_success "Let's Encrypt certificate configured for $domain"
+            ;;
+        2)
+            # Custom certificate
+            echo ""
+            read -p "Path to certificate file (PEM): " cert_path
+            read -p "Path to private key file (PEM): " key_path
+            read -p "Path to CA bundle (optional, press Enter to skip): " ca_path
+            
+            if [ ! -f "$cert_path" ]; then
+                print_error "Certificate file not found: $cert_path"
+                press_enter
+                return
+            fi
+            if [ ! -f "$key_path" ]; then
+                print_error "Key file not found: $key_path"
+                press_enter
+                return
+            fi
+            
+            sed -i "s|^HTTPS_ENABLED=.*|HTTPS_ENABLED=true|" "$CONSOLE_PATH/.env"
+            sed -i "s|^SSL_CERT_PATH=.*|SSL_CERT_PATH=$cert_path|" "$CONSOLE_PATH/.env"
+            sed -i "s|^SSL_KEY_PATH=.*|SSL_KEY_PATH=$key_path|" "$CONSOLE_PATH/.env"
+            if [ -n "$ca_path" ] && [ -f "$ca_path" ]; then
+                sed -i "s|^SSL_CA_PATH=.*|SSL_CA_PATH=$ca_path|" "$CONSOLE_PATH/.env"
+            fi
+            sed -i "s|^HTTP_REDIRECT_HTTPS=.*|HTTP_REDIRECT_HTTPS=true|" "$CONSOLE_PATH/.env"
+            
+            print_success "Custom SSL certificate configured"
+            ;;
+        3)
+            # Self-signed
+            local ssl_dir="$CONSOLE_PATH/ssl"
+            mkdir -p "$ssl_dir"
+            
+            print_step "Generating self-signed certificate..."
+            openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+                -keyout "$ssl_dir/selfsigned.key" \
+                -out "$ssl_dir/selfsigned.crt" \
+                -subj "/CN=localhost/O=BetterDesk/C=PL" 2>&1
+            
+            chmod 600 "$ssl_dir/selfsigned.key"
+            
+            sed -i "s|^HTTPS_ENABLED=.*|HTTPS_ENABLED=true|" "$CONSOLE_PATH/.env"
+            sed -i "s|^SSL_CERT_PATH=.*|SSL_CERT_PATH=$ssl_dir/selfsigned.crt|" "$CONSOLE_PATH/.env"
+            sed -i "s|^SSL_KEY_PATH=.*|SSL_KEY_PATH=$ssl_dir/selfsigned.key|" "$CONSOLE_PATH/.env"
+            sed -i "s|^HTTP_REDIRECT_HTTPS=.*|HTTP_REDIRECT_HTTPS=true|" "$CONSOLE_PATH/.env"
+            
+            print_success "Self-signed certificate generated"
+            print_warning "Browsers will show security warning. Use Let's Encrypt for production."
+            ;;
+        4)
+            # Disable SSL
+            sed -i "s|^HTTPS_ENABLED=.*|HTTPS_ENABLED=false|" "$CONSOLE_PATH/.env"
+            sed -i "s|^SSL_CERT_PATH=.*|SSL_CERT_PATH=|" "$CONSOLE_PATH/.env"
+            sed -i "s|^SSL_KEY_PATH=.*|SSL_KEY_PATH=|" "$CONSOLE_PATH/.env"
+            sed -i "s|^HTTP_REDIRECT_HTTPS=.*|HTTP_REDIRECT_HTTPS=false|" "$CONSOLE_PATH/.env"
+            
+            print_success "SSL disabled. Running in HTTP mode."
+            ;;
+        *)
+            print_warning "Invalid option"
+            press_enter
+            return
+            ;;
+    esac
+    
+    echo ""
+    if confirm "Restart BetterDesk to apply changes?"; then
+        systemctl restart betterdesk 2>/dev/null || true
+        print_success "BetterDesk restarted"
+    fi
+    
+    press_enter
+}
+
+#===============================================================================
 # Main Menu
 #===============================================================================
 
@@ -2241,6 +2256,7 @@ show_menu() {
     echo "  8. 📊 DIAGNOSTICS"
     echo "  9. 🗑️  UNINSTALL"
     echo ""
+    echo "  C. 🔒 Configure SSL certificates"
     echo "  S. ⚙️  Settings (paths)"
     echo "  0. ❌ Exit"
     echo ""
@@ -2281,6 +2297,7 @@ main() {
             7) do_build ;;
             8) do_diagnostics ;;
             9) do_uninstall ;;
+            [Cc]) do_configure_ssl ;;
             [Ss]) configure_paths ;;
             0) 
                 echo ""

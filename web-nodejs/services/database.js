@@ -123,6 +123,64 @@ function initAuthTables(db) {
         )
     `);
     
+    // Add TOTP columns if they don't exist
+    const userColumns = db.prepare("PRAGMA table_info(users)").all();
+    const existingUserCols = new Set(userColumns.map(c => c.name));
+    const totpColumns = [
+        { name: 'totp_secret', sql: 'TEXT DEFAULT NULL' },
+        { name: 'totp_enabled', sql: 'INTEGER DEFAULT 0' },
+        { name: 'totp_recovery_codes', sql: 'TEXT DEFAULT NULL' }
+    ];
+    for (const col of totpColumns) {
+        if (!existingUserCols.has(col.name)) {
+            try {
+                db.exec(`ALTER TABLE users ADD COLUMN ${col.name} ${col.sql}`);
+                console.log(`Added column ${col.name} to users table`);
+            } catch (err) {
+                // Column might already exist
+            }
+        }
+    }
+
+    // Access tokens table for RustDesk client API (port 21114)
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS access_tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            token TEXT UNIQUE NOT NULL,
+            user_id INTEGER NOT NULL,
+            client_id TEXT DEFAULT '',
+            client_uuid TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now')),
+            expires_at TEXT NOT NULL,
+            last_used TEXT,
+            ip_address TEXT DEFAULT '',
+            revoked INTEGER DEFAULT 0,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    `);
+
+    // Login attempts tracking (brute-force protection)
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS login_attempts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            ip_address TEXT DEFAULT '',
+            success INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now'))
+        )
+    `);
+
+    // Account lockout table
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS account_lockouts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            locked_until TEXT NOT NULL,
+            attempt_count INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now'))
+        )
+    `);
+
     // Device folders table
     db.exec(`
         CREATE TABLE IF NOT EXISTS folders (
@@ -132,6 +190,19 @@ function initAuthTables(db) {
             icon TEXT DEFAULT 'folder',
             sort_order INTEGER DEFAULT 0,
             created_at TEXT DEFAULT (datetime('now'))
+        )
+    `);
+
+    // Address books table for RustDesk client sync
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS address_books (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            ab_type TEXT DEFAULT 'legacy',
+            data TEXT DEFAULT '{}',
+            updated_at TEXT DEFAULT (datetime('now')),
+            UNIQUE(user_id, ab_type),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
     `);
 }
@@ -347,6 +418,42 @@ function updateUserPassword(id, passwordHash) {
     return getAuthDb().prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash, id);
 }
 
+// ==================== TOTP Operations ====================
+
+/**
+ * Save TOTP secret for user
+ */
+function saveTotpSecret(userId, secret) {
+    return getAuthDb().prepare('UPDATE users SET totp_secret = ? WHERE id = ?').run(secret, userId);
+}
+
+/**
+ * Enable TOTP for user
+ */
+function enableTotp(userId, recoveryCodes) {
+    return getAuthDb().prepare(
+        'UPDATE users SET totp_enabled = 1, totp_recovery_codes = ? WHERE id = ?'
+    ).run(JSON.stringify(recoveryCodes), userId);
+}
+
+/**
+ * Disable TOTP for user
+ */
+function disableTotp(userId) {
+    return getAuthDb().prepare(
+        'UPDATE users SET totp_enabled = 0, totp_secret = NULL, totp_recovery_codes = NULL WHERE id = ?'
+    ).run(userId);
+}
+
+/**
+ * Use a recovery code (mark as used)
+ */
+function useRecoveryCode(userId, updatedCodes) {
+    return getAuthDb().prepare(
+        'UPDATE users SET totp_recovery_codes = ? WHERE id = ?'
+    ).run(JSON.stringify(updatedCodes), userId);
+}
+
 /**
  * Update last login
  */
@@ -543,6 +650,183 @@ function getUnassignedDeviceCount() {
     ).get().count;
 }
 
+// ==================== Access Token Operations ====================
+
+/**
+ * Create an access token for RustDesk client API
+ */
+function createAccessToken(token, userId, clientId, clientUuid, expiresAt, ipAddress) {
+    return getAuthDb().prepare(
+        'INSERT INTO access_tokens (token, user_id, client_id, client_uuid, expires_at, ip_address) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run(token, userId, clientId || '', clientUuid || '', expiresAt, ipAddress || '');
+}
+
+/**
+ * Get access token record (non-revoked, non-expired)
+ */
+function getAccessToken(token) {
+    return getAuthDb().prepare(
+        "SELECT * FROM access_tokens WHERE token = ? AND revoked = 0 AND expires_at > datetime('now')"
+    ).get(token);
+}
+
+/**
+ * Update last_used timestamp for token
+ */
+function touchAccessToken(token) {
+    return getAuthDb().prepare(
+        "UPDATE access_tokens SET last_used = datetime('now') WHERE token = ?"
+    ).run(token);
+}
+
+/**
+ * Revoke a specific token
+ */
+function revokeAccessToken(token) {
+    return getAuthDb().prepare(
+        'UPDATE access_tokens SET revoked = 1 WHERE token = ?'
+    ).run(token);
+}
+
+/**
+ * Revoke all tokens for a user + client combo
+ */
+function revokeUserClientTokens(userId, clientId, clientUuid) {
+    return getAuthDb().prepare(
+        'UPDATE access_tokens SET revoked = 1 WHERE user_id = ? AND client_id = ? AND client_uuid = ?'
+    ).run(userId, clientId || '', clientUuid || '');
+}
+
+/**
+ * Revoke all tokens for a user
+ */
+function revokeAllUserTokens(userId) {
+    return getAuthDb().prepare(
+        'UPDATE access_tokens SET revoked = 1 WHERE user_id = ?'
+    ).run(userId);
+}
+
+/**
+ * Cleanup expired tokens (housekeeping)
+ */
+function cleanupExpiredTokens() {
+    return getAuthDb().prepare(
+        "DELETE FROM access_tokens WHERE expires_at < datetime('now') OR revoked = 1"
+    ).run();
+}
+
+// ==================== Login Attempt Tracking ====================
+
+/**
+ * Record a login attempt
+ */
+function recordLoginAttempt(username, ipAddress, success) {
+    return getAuthDb().prepare(
+        'INSERT INTO login_attempts (username, ip_address, success) VALUES (?, ?, ?)'
+    ).run(username, ipAddress || '', success ? 1 : 0);
+}
+
+/**
+ * Count recent failed attempts for a username (within window)
+ */
+function countRecentFailedAttempts(username, windowMinutes) {
+    const result = getAuthDb().prepare(
+        "SELECT COUNT(*) as count FROM login_attempts WHERE username = ? AND success = 0 AND created_at > datetime('now', ? || ' minutes')"
+    ).get(username, `-${windowMinutes}`);
+    return result ? result.count : 0;
+}
+
+/**
+ * Count recent failed attempts from an IP (within window)
+ */
+function countRecentFailedAttemptsFromIp(ipAddress, windowMinutes) {
+    const result = getAuthDb().prepare(
+        "SELECT COUNT(*) as count FROM login_attempts WHERE ip_address = ? AND success = 0 AND created_at > datetime('now', ? || ' minutes')"
+    ).get(ipAddress, `-${windowMinutes}`);
+    return result ? result.count : 0;
+}
+
+/**
+ * Lock an account
+ */
+function lockAccount(username, lockedUntil, attemptCount) {
+    return getAuthDb().prepare(
+        'INSERT OR REPLACE INTO account_lockouts (username, locked_until, attempt_count) VALUES (?, ?, ?)'
+    ).run(username, lockedUntil, attemptCount);
+}
+
+/**
+ * Check if account is locked
+ */
+function getAccountLockout(username) {
+    return getAuthDb().prepare(
+        "SELECT * FROM account_lockouts WHERE username = ? AND locked_until > datetime('now')"
+    ).get(username);
+}
+
+/**
+ * Clear account lockout
+ */
+function clearAccountLockout(username) {
+    return getAuthDb().prepare(
+        'DELETE FROM account_lockouts WHERE username = ?'
+    ).run(username);
+}
+
+/**
+ * Cleanup old login attempts (older than 24h)
+ */
+function cleanupOldLoginAttempts() {
+    return getAuthDb().prepare(
+        "DELETE FROM login_attempts WHERE created_at < datetime('now', '-24 hours')"
+    ).run();
+}
+
+// ==================== Address Book Operations ====================
+
+/**
+ * Get address book data for a user
+ * @param {number} userId
+ * @param {string} abType - 'legacy' or 'personal'
+ * @returns {string} JSON string of address book data
+ */
+function getAddressBook(userId, abType = 'legacy') {
+    const row = getAuthDb().prepare(
+        'SELECT data FROM address_books WHERE user_id = ? AND ab_type = ?'
+    ).get(userId, abType);
+    return row ? row.data : '{}';
+}
+
+/**
+ * Save address book data for a user
+ * @param {number} userId
+ * @param {string} data - JSON string
+ * @param {string} abType - 'legacy' or 'personal'
+ */
+function saveAddressBook(userId, data, abType = 'legacy') {
+    return getAuthDb().prepare(`
+        INSERT INTO address_books (user_id, ab_type, data, updated_at)
+        VALUES (?, ?, ?, datetime('now'))
+        ON CONFLICT(user_id, ab_type)
+        DO UPDATE SET data = excluded.data, updated_at = datetime('now')
+    `).run(userId, abType, data);
+}
+
+/**
+ * Get address book tags for a user
+ * @param {number} userId
+ * @returns {string[]} Array of tags
+ */
+function getAddressBookTags(userId) {
+    const data = getAddressBook(userId, 'legacy');
+    try {
+        const parsed = JSON.parse(data);
+        return parsed.tags || [];
+    } catch {
+        return [];
+    }
+}
+
 // ==================== Close connections ====================
 
 function closeAll() {
@@ -578,6 +862,11 @@ module.exports = {
     updateUserRole,
     deleteUser,
     countAdmins,
+    // TOTP
+    saveTotpSecret,
+    enableTotp,
+    disableTotp,
+    useRecoveryCode,
     resetAdminPassword,
     deleteAllUsers,
     // Folders
@@ -593,6 +882,26 @@ module.exports = {
     // Audit
     logAction,
     getAuditLogs,
+    // Access tokens (RustDesk client API)
+    createAccessToken,
+    getAccessToken,
+    touchAccessToken,
+    revokeAccessToken,
+    revokeUserClientTokens,
+    revokeAllUserTokens,
+    cleanupExpiredTokens,
+    // Login attempt tracking
+    recordLoginAttempt,
+    countRecentFailedAttempts,
+    countRecentFailedAttemptsFromIp,
+    lockAccount,
+    getAccountLockout,
+    clearAccountLockout,
+    cleanupOldLoginAttempts,
+    // Address books
+    getAddressBook,
+    saveAddressBook,
+    getAddressBookTags,
     // Cleanup
     closeAll
 };

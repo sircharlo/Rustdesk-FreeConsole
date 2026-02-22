@@ -33,6 +33,14 @@ router.post('/api/auth/login', loginLimiter, async (req, res) => {
                 error: req.t('auth.invalid_credentials')
             });
         }
+
+        // Input length validation to prevent DoS via bcrypt
+        if (username.length > 128 || password.length > 128) {
+            return res.status(400).json({
+                success: false,
+                error: req.t('auth.invalid_credentials')
+            });
+        }
         
         const user = await authService.authenticate(username, password);
         
@@ -46,19 +54,44 @@ router.post('/api/auth/login', loginLimiter, async (req, res) => {
             });
         }
         
-        // Set session
-        req.session.userId = user.id;
-        req.session.user = user;
+        // Check if TOTP verification is required
+        if (user.totpRequired) {
+            // Store pending 2FA session
+            req.session.pendingTotpUserId = user.id;
+            req.session.pendingTotpUser = user;
+            
+            return res.json({
+                success: true,
+                totpRequired: true
+            });
+        }
         
-        // Log successful login
-        db.logAction(user.id, 'login', `User logged in`, req.ip);
-        
-        res.json({
-            success: true,
-            user: {
+        // Regenerate session to prevent session fixation
+        const oldSession = req.session;
+        req.session.regenerate((err) => {
+            if (err) {
+                console.error('Session regeneration error:', err);
+                return res.status(500).json({ success: false, error: 'Server error' });
+            }
+            
+            // Restore session data
+            req.session.userId = user.id;
+            req.session.user = {
+                id: user.id,
                 username: user.username,
                 role: user.role
-            }
+            };
+            
+            // Log successful login
+            db.logAction(user.id, 'login', `User logged in`, req.ip);
+            
+            res.json({
+                success: true,
+                user: {
+                    username: user.username,
+                    role: user.role
+                }
+            });
         });
     } catch (err) {
         console.error('Login error:', err);
@@ -83,7 +116,7 @@ router.post('/api/auth/logout', (req, res) => {
         if (err) {
             console.error('Session destroy error:', err);
         }
-        res.clearCookie('connect.sid');
+        res.clearCookie('betterdesk.sid');
         res.json({ success: true });
     });
 });
@@ -150,9 +183,212 @@ router.post('/api/auth/password', requireAuth, passwordChangeLimiter, async (req
  */
 router.get('/logout', (req, res) => {
     req.session.destroy(() => {
-        res.clearCookie('connect.sid');
+        res.clearCookie('betterdesk.sid');
         res.redirect('/login');
     });
+});
+
+// ==================== TOTP (2FA) Routes ====================
+
+/**
+ * POST /api/auth/totp/verify - Verify TOTP code during login
+ */
+router.post('/api/auth/totp/verify', loginLimiter, (req, res) => {
+    try {
+        const { code, recoveryCode } = req.body;
+        const pendingUserId = req.session.pendingTotpUserId;
+        const pendingUser = req.session.pendingTotpUser;
+        
+        if (!pendingUserId || !pendingUser) {
+            return res.status(400).json({
+                success: false,
+                error: req.t('auth.totp_session_expired')
+            });
+        }
+        
+        let verified = false;
+        let method = 'totp';
+        
+        if (recoveryCode) {
+            // Try recovery code
+            verified = authService.verifyRecoveryCode(pendingUserId, recoveryCode);
+            method = 'recovery';
+        } else if (code) {
+            // Try TOTP code
+            verified = authService.verifyTotpCode(pendingUserId, code);
+        }
+        
+        if (!verified) {
+            db.logAction(pendingUserId, 'totp_failed', `Method: ${method}`, req.ip);
+            return res.status(401).json({
+                success: false,
+                error: req.t('auth.totp_invalid_code')
+            });
+        }
+        
+        // Clear pending state
+        delete req.session.pendingTotpUserId;
+        delete req.session.pendingTotpUser;
+        
+        // Set full session
+        req.session.userId = pendingUser.id;
+        req.session.user = {
+            id: pendingUser.id,
+            username: pendingUser.username,
+            role: pendingUser.role
+        };
+        
+        // Update last login
+        db.updateLastLogin(pendingUser.id);
+        
+        // Log login
+        db.logAction(pendingUser.id, 'login', `User logged in (2FA: ${method})`, req.ip);
+        
+        res.json({
+            success: true,
+            user: {
+                username: pendingUser.username,
+                role: pendingUser.role
+            }
+        });
+    } catch (err) {
+        console.error('TOTP verify error:', err);
+        res.status(500).json({
+            success: false,
+            error: req.t('errors.server_error')
+        });
+    }
+});
+
+/**
+ * POST /api/auth/totp/setup - Generate TOTP setup (QR code + secret)
+ */
+router.post('/api/auth/totp/setup', requireAuth, async (req, res) => {
+    try {
+        // Check if already enabled
+        if (authService.isTotpEnabled(req.session.userId)) {
+            return res.status(400).json({
+                success: false,
+                error: req.t('auth.totp_already_enabled')
+            });
+        }
+        
+        const result = await authService.generateTotpSetup(req.session.userId);
+        
+        if (!result.success) {
+            return res.status(400).json({
+                success: false,
+                error: result.error
+            });
+        }
+        
+        res.json({
+            success: true,
+            qrCode: result.qrCode,
+            secret: result.secret,
+            otpauthUrl: result.otpauthUrl
+        });
+    } catch (err) {
+        console.error('TOTP setup error:', err);
+        res.status(500).json({
+            success: false,
+            error: req.t('errors.server_error')
+        });
+    }
+});
+
+/**
+ * POST /api/auth/totp/enable - Verify code and enable TOTP
+ */
+router.post('/api/auth/totp/enable', requireAuth, (req, res) => {
+    try {
+        const { code } = req.body;
+        
+        if (!code || code.length !== 6) {
+            return res.status(400).json({
+                success: false,
+                error: req.t('auth.totp_invalid_code')
+            });
+        }
+        
+        const result = authService.verifyAndEnableTotp(req.session.userId, code);
+        
+        if (!result.success) {
+            return res.status(400).json({
+                success: false,
+                error: result.error
+            });
+        }
+        
+        // Log action
+        db.logAction(req.session.userId, 'totp_enabled', '2FA enabled', req.ip);
+        
+        res.json({
+            success: true,
+            recoveryCodes: result.recoveryCodes
+        });
+    } catch (err) {
+        console.error('TOTP enable error:', err);
+        res.status(500).json({
+            success: false,
+            error: req.t('errors.server_error')
+        });
+    }
+});
+
+/**
+ * POST /api/auth/totp/disable - Disable TOTP
+ */
+router.post('/api/auth/totp/disable', requireAuth, (req, res) => {
+    try {
+        const { password } = req.body;
+        
+        if (!password) {
+            return res.status(400).json({
+                success: false,
+                error: req.t('auth.password_required')
+            });
+        }
+        
+        // Verify password before disabling
+        const user = db.getUserById(req.session.userId);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                error: req.t('users.not_found')
+            });
+        }
+        
+        const bcrypt = require('bcrypt');
+        const valid = bcrypt.compareSync(password, user.password_hash);
+        if (!valid) {
+            return res.status(401).json({
+                success: false,
+                error: req.t('auth.invalid_credentials')
+            });
+        }
+        
+        authService.disableTotp(req.session.userId);
+        
+        // Log action
+        db.logAction(req.session.userId, 'totp_disabled', '2FA disabled', req.ip);
+        
+        res.json({ success: true });
+    } catch (err) {
+        console.error('TOTP disable error:', err);
+        res.status(500).json({
+            success: false,
+            error: req.t('errors.server_error')
+        });
+    }
+});
+
+/**
+ * GET /api/auth/totp/status - Check if TOTP is enabled for current user
+ */
+router.get('/api/auth/totp/status', requireAuth, (req, res) => {
+    const enabled = authService.isTotpEnabled(req.session.userId);
+    res.json({ success: true, enabled });
 });
 
 module.exports = router;

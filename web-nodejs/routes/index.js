@@ -15,6 +15,7 @@ const generatorRoutes = require('./generator.routes');
 const i18nRoutes = require('./i18n.routes');
 const usersRoutes = require('./users.routes');
 const foldersRoutes = require('./folders.routes');
+const remoteRoutes = require('./remote.routes');
 
 // Health check (no auth required)
 router.get('/health', (req, res) => {
@@ -30,6 +31,7 @@ router.use('/', settingsRoutes);
 router.use('/', generatorRoutes);
 router.use('/', usersRoutes);
 router.use('/', foldersRoutes);
+router.use('/', remoteRoutes);
 router.use('/api/i18n', i18nRoutes);
 
 module.exports = router;

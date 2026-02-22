@@ -6,7 +6,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../services/database');
 const hbbsApi = require('../services/hbbsApi');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireRole } = require('../middleware/auth');
 
 /**
  * GET /devices - Devices list page
@@ -79,7 +79,7 @@ router.get('/api/devices/:id', requireAuth, (req, res) => {
 /**
  * PATCH /api/devices/:id - Update device (name, note)
  */
-router.patch('/api/devices/:id', requireAuth, (req, res) => {
+router.patch('/api/devices/:id', requireAuth, requireRole('operator'), (req, res) => {
     try {
         const { user, note } = req.body;
         const id = req.params.id;
@@ -114,7 +114,7 @@ router.patch('/api/devices/:id', requireAuth, (req, res) => {
 /**
  * DELETE /api/devices/:id - Delete device (soft delete)
  */
-router.delete('/api/devices/:id', requireAuth, (req, res) => {
+router.delete('/api/devices/:id', requireAuth, requireRole('operator'), (req, res) => {
     try {
         const id = req.params.id;
         
@@ -144,7 +144,7 @@ router.delete('/api/devices/:id', requireAuth, (req, res) => {
 /**
  * POST /api/devices/:id/ban - Ban device
  */
-router.post('/api/devices/:id/ban', requireAuth, (req, res) => {
+router.post('/api/devices/:id/ban', requireAuth, requireRole('operator'), (req, res) => {
     try {
         const id = req.params.id;
         const { reason } = req.body;
@@ -175,7 +175,7 @@ router.post('/api/devices/:id/ban', requireAuth, (req, res) => {
 /**
  * POST /api/devices/:id/unban - Unban device
  */
-router.post('/api/devices/:id/unban', requireAuth, (req, res) => {
+router.post('/api/devices/:id/unban', requireAuth, requireRole('operator'), (req, res) => {
     try {
         const id = req.params.id;
         
@@ -205,7 +205,7 @@ router.post('/api/devices/:id/unban', requireAuth, (req, res) => {
 /**
  * POST /api/devices/:id/change-id - Change device ID
  */
-router.post('/api/devices/:id/change-id', requireAuth, async (req, res) => {
+router.post('/api/devices/:id/change-id', requireAuth, requireRole('operator'), async (req, res) => {
     try {
         const oldId = req.params.id;
         const { newId } = req.body;
@@ -260,7 +260,7 @@ router.post('/api/devices/:id/change-id', requireAuth, async (req, res) => {
 /**
  * POST /api/devices/bulk-delete - Delete multiple devices
  */
-router.post('/api/devices/bulk-delete', requireAuth, (req, res) => {
+router.post('/api/devices/bulk-delete', requireAuth, requireRole('operator'), (req, res) => {
     try {
         const { ids } = req.body;
         

@@ -95,7 +95,7 @@ router.post('/api/users', requireAuth, requireAdmin, passwordChangeLimiter, asyn
         }
         
         // Validate role
-        const validRoles = ['admin', 'viewer'];
+        const validRoles = ['admin', 'operator', 'viewer'];
         const userRole = validRoles.includes(role) ? role : 'viewer';
         
         // Hash password
@@ -150,7 +150,7 @@ router.patch('/api/users/:id', requireAuth, requireAdmin, async (req, res) => {
         
         // Update role if provided
         if (role) {
-            const validRoles = ['admin', 'viewer'];
+            const validRoles = ['admin', 'operator', 'viewer'];
             if (!validRoles.includes(role)) {
                 return res.status(400).json({
                     success: false,

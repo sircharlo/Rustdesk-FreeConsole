@@ -1,0 +1,678 @@
+/**
+ * BetterDesk Web Remote Client - Video Decoder
+ * Uses WebCodecs API for hardware-accelerated video decoding (preferred).
+ * Falls back to JMuxer (H.264 via MSE) when WebCodecs is unavailable
+ * (e.g., insecure HTTP context on non-localhost).
+ * Supports VP9, H.264, AV1, VP8 codecs via WebCodecs;
+ * H.264 only via JMuxer fallback.
+ */
+
+// eslint-disable-next-line no-unused-vars
+class RDVideo {
+    constructor() {
+        /** @type {VideoDecoder|null} */
+        this.decoder = null;
+        /** @type {string|null} Current codec */
+        this.currentCodec = null;
+        /** @type {Function|null} Callback for decoded frames */
+        this.onFrame = null;
+        /** @type {Function|null} Callback for errors */
+        this.onError = null;
+        /** @type {number} Decoded frame counter */
+        this.frameCount = 0;
+        /** @type {number} Dropped frame counter */
+        this.droppedFrames = 0;
+        /** @type {boolean} */
+        this.initialized = false;
+        /** @type {number} Display width */
+        this.displayWidth = 0;
+        /** @type {number} Display height */
+        this.displayHeight = 0;
+        /** @type {boolean} Using JMuxer fallback mode */
+        this.fallbackMode = false;
+        /** @type {JMuxer|null} JMuxer instance for H.264 MSE fallback */
+        this._jmuxer = null;
+        /** @type {HTMLVideoElement|null} Hidden video element for JMuxer */
+        this._videoEl = null;
+        /** @type {number} RAF id for video-to-canvas sync */
+        this._syncRafId = 0;
+        /** @type {boolean} Whether JMuxer video has started playing */
+        this._videoPlaying = false;
+        /** @type {number[]} Timestamps of recent feeds for FPS calculation */
+        this._feedTimestamps = [];
+        /** @type {number} Monotonic feed counter for new-frame detection */
+        this._feedId = 0;
+        /** @type {number} Health check interval id */
+        this._healthInterval = 0;
+        /** @type {number} Last diagnostic log time */
+        this._lastDiagTime = 0;
+        /** @type {number} Last feed timestamp for stall detection */
+        this._lastFeedTime = 0;
+        /** @type {boolean} Whether autoplay is currently blocked */
+        this._autoplayBlocked = false;
+        /** @type {Function|null} Callback when autoplay is blocked */
+        this.onAutoplayBlocked = null;
+    }
+
+    /**
+     * Check if hardware WebCodecs is supported (requires secure context)
+     * @returns {boolean}
+     */
+    static isSupported() {
+        return typeof VideoDecoder !== 'undefined';
+    }
+
+    /**
+     * Check if secure context is available (needed for WebCodecs)
+     * @returns {boolean}
+     */
+    static isSecureContext() {
+        return window.isSecureContext === true;
+    }
+
+    /**
+     * Check if JMuxer fallback is available
+     * @returns {boolean}
+     */
+    static isJMuxerAvailable() {
+        return typeof JMuxer !== 'undefined';
+    }
+
+    /**
+     * Get supported codecs
+     * @returns {Object} Map of codec name to boolean
+     */
+    static async getSupportedCodecs() {
+        if (!RDVideo.isSupported()) {
+            // In fallback mode, only H.264 via JMuxer is supported
+            return {
+                vp9: false,
+                h264: RDVideo.isJMuxerAvailable(),
+                av1: false,
+                vp8: false,
+                h265: false
+            };
+        }
+
+        const codecs = {
+            vp9: 'vp09.00.10.08',
+            h264: 'avc1.42E01E',
+            av1: 'av01.0.01M.08',
+            vp8: 'vp8',
+            h265: 'hev1.1.6.L93.B0'
+        };
+
+        const result = {};
+        for (const [name, codec] of Object.entries(codecs)) {
+            try {
+                const support = await VideoDecoder.isConfigSupported({
+                    codec: codec,
+                    hardwareAcceleration: 'prefer-hardware'
+                });
+                result[name] = support.supported === true;
+            } catch {
+                result[name] = false;
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Initialize decoder for a specific codec.
+     * Uses WebCodecs if available, otherwise falls back to JMuxer for H.264.
+     * @param {string} codecName - vp9, h264, av1, vp8
+     */
+    async init(codecName) {
+        if (this.decoder || this._jmuxer) {
+            this.close();
+        }
+
+        // If WebCodecs not available, use JMuxer fallback for H.264
+        if (!RDVideo.isSupported()) {
+            if (codecName !== 'h264') {
+                console.warn('[RDVideo] WebCodecs unavailable and JMuxer only supports H.264, got:', codecName);
+                // Still initialize — frames will be dropped but won't crash
+            }
+
+            if (!RDVideo.isJMuxerAvailable()) {
+                console.error('[RDVideo] JMuxer not loaded. Cannot decode video in HTTP mode.');
+                throw new Error('JMuxer not available for H.264 fallback decoding');
+            }
+
+            console.log('[RDVideo] Using JMuxer (H.264 via MSE) fallback for', codecName);
+            this.fallbackMode = true;
+            this._initJMuxer();
+            this.currentCodec = codecName;
+            this.frameCount = 0;
+            this.droppedFrames = 0;
+            this.initialized = true;
+            return;
+        }
+
+        const codecMap = {
+            vp9: 'vp09.00.10.08',
+            h264: 'avc1.42E01E',
+            av1: 'av01.0.01M.08',
+            vp8: 'vp8',
+            h265: 'hev1.1.6.L93.B0'
+        };
+
+        const codecString = codecMap[codecName];
+        if (!codecString) {
+            throw new Error(`Unsupported codec: ${codecName}`);
+        }
+
+        // Verify codec is supported
+        const support = await VideoDecoder.isConfigSupported({
+            codec: codecString,
+            hardwareAcceleration: 'prefer-hardware'
+        });
+
+        if (!support.supported) {
+            throw new Error(`Codec ${codecName} not supported by browser`);
+        }
+
+        this.decoder = new VideoDecoder({
+            output: (frame) => this._handleDecodedFrame(frame),
+            error: (err) => this._handleError(err)
+        });
+
+        this.decoder.configure({
+            codec: codecString,
+            hardwareAcceleration: 'prefer-hardware',
+            optimizeForLatency: true
+        });
+
+        this.fallbackMode = false;
+        this.currentCodec = codecName;
+        this.frameCount = 0;
+        this.droppedFrames = 0;
+        this.initialized = true;
+    }
+
+    /**
+     * Create hidden video element and JMuxer instance for H.264 MSE decoding.
+     * JMuxer takes raw H.264 NALUs (Annex-B), wraps them in fMP4, and feeds to
+     * a <video> element via MSE. We then draw the video to canvas each frame.
+     */
+    _initJMuxer() {
+        // Create hidden video element
+        this._videoEl = document.createElement('video');
+        this._videoEl.id = 'rd-jmuxer-video';
+        this._videoEl.style.cssText = 'position:absolute;top:-9999px;left:-9999px;width:1px;height:1px;';
+        this._videoEl.muted = true;
+        this._videoEl.autoplay = true;
+        this._videoEl.playsInline = true;
+        document.body.appendChild(this._videoEl);
+
+        // Buffer for frames that arrive before JMuxer is ready
+        this._pendingFeeds = [];
+        this._jmuxerReady = false;
+
+        this._videoEl.addEventListener('error', (e) => {
+            const me = this._videoEl.error;
+            console.error('[RDVideo] Video element error: code=' + (me ? me.code : '?')
+                + ' message=' + (me ? me.message : e.type));
+        });
+
+        // Monitor stalled/waiting states for automatic recovery
+        this._videoEl.addEventListener('stalled', () => {
+            console.log('[RDVideo] Video stalled, recovering...');
+            this._recoverVideo();
+        });
+        this._videoEl.addEventListener('waiting', () => {
+            this._recoverVideo();
+        });
+        this._videoEl.addEventListener('ended', () => {
+            console.log('[RDVideo] Video ended unexpectedly, recovering...');
+            this._recoverVideo();
+        });
+
+        // Create JMuxer instance
+        this._jmuxer = new JMuxer({
+            node: this._videoEl,
+            mode: 'video',
+            flushingTime: 0,        // Flush immediately for low latency
+            fps: 30,
+            clearBuffer: true,      // Clear old MSE segments to prevent buffer buildup
+            debug: false,
+            onReady: () => {
+                console.log('[RDVideo] JMuxer ready, buffered frames:', this._pendingFeeds.length);
+                this._jmuxerReady = true;
+                // Replay any frames that arrived before ready
+                for (const data of this._pendingFeeds) {
+                    this._jmuxer.feed({ video: data });
+                    this.frameCount++;
+                    this._feedId++;
+                    this._feedTimestamps.push(performance.now());
+                }
+                this._pendingFeeds = [];
+                // Force play after feeding buffered data
+                this._tryPlay();
+                // Recover after MSE finishes processing initial data
+                setTimeout(() => this._recoverVideo(), 100);
+            },
+            onError: (err) => {
+                console.warn('[RDVideo] JMuxer error:', err);
+            }
+        });
+
+        // Start the video-to-canvas sync loop and health checker
+        this._startVideoSync();
+        this._startHealthCheck();
+    }
+
+    /**
+     * Attempt to play the hidden video element.
+     * If autoplay is blocked by browser policy, signal the UI so it can
+     * show a "click to start" overlay. When the user interacts, call retryPlay().
+     */
+    _tryPlay() {
+        if (!this._videoEl) return;
+        const playPromise = this._videoEl.play();
+        if (playPromise && playPromise.catch) {
+            playPromise.catch((err) => {
+                if (err.name === 'NotAllowedError') {
+                    if (!this._autoplayBlocked) {
+                        this._autoplayBlocked = true;
+                        console.warn('[RDVideo] Autoplay blocked by browser policy. User gesture required.');
+                        if (this.onAutoplayBlocked) {
+                            this.onAutoplayBlocked();
+                        }
+                    }
+                } else {
+                    console.warn('[RDVideo] play() failed:', err.message);
+                }
+            });
+        }
+    }
+
+    /**
+     * Retry play after a user gesture (e.g., clicking the canvas overlay).
+     * Called from the UI layer when user clicks the "click to start" overlay.
+     */
+    retryPlay() {
+        this._autoplayBlocked = false;
+        if (this._videoEl) {
+            this._videoEl.play().then(() => {
+                console.log('[RDVideo] Playback started after user gesture');
+            }).catch((err) => {
+                console.warn('[RDVideo] retryPlay failed:', err.message);
+            });
+        }
+        // Also resume AudioContext if it exists
+        if (window._rdAudioCtx && window._rdAudioCtx.state === 'suspended') {
+            window._rdAudioCtx.resume();
+        }
+    }
+
+    /**
+     * RAF loop that captures the <video> element content and emits as frames
+     * for the renderer to draw on the main canvas.
+     * Does NOT seek — seeking is handled by _recoverVideo() and health check.
+     */
+    _startVideoSync() {
+        let loggedState = false;
+        let lastRenderedFeedId = -1;
+        const tick = () => {
+            if (!this._videoEl || !this.fallbackMode) return;
+
+            const v = this._videoEl;
+            // Check if video has decodable data (readyState >= 2 = HAVE_CURRENT_DATA)
+            if (v.videoWidth > 0 && v.videoHeight > 0 && v.readyState >= 2) {
+                const vw = v.videoWidth;
+                const vh = v.videoHeight;
+
+                if (vw !== this.displayWidth || vh !== this.displayHeight) {
+                    this.displayWidth = vw;
+                    this.displayHeight = vh;
+                    console.log('[RDVideo] JMuxer resolution:', vw, 'x', vh);
+                }
+
+                // Always emit frames (needed for cursor overlay), mark genuinely new ones
+                if (this.onFrame) {
+                    const isNew = this._feedId !== lastRenderedFeedId;
+                    if (isNew) lastRenderedFeedId = this._feedId;
+                    const proxyFrame = {
+                        displayWidth: vw,
+                        displayHeight: vh,
+                        _source: v,
+                        _isNew: isNew,
+                        close: () => {}
+                    };
+                    this.onFrame(proxyFrame);
+                }
+                // No seeking here - health check handles buffer management
+            } else if (!loggedState && this._jmuxerReady) {
+                // Log once for diagnostics
+                console.log('[RDVideo] Sync waiting: videoWidth=' + v.videoWidth
+                    + ' readyState=' + v.readyState + ' paused=' + v.paused
+                    + ' currentTime=' + v.currentTime.toFixed(2));
+                loggedState = true;
+            }
+
+            this._syncRafId = requestAnimationFrame(tick);
+        };
+        this._syncRafId = requestAnimationFrame(tick);
+    }
+
+    /**
+     * Recover video element from stalled/waiting state.
+     * Seeks to the latest buffered data and ensures playback.
+     */
+    _recoverVideo() {
+        const v = this._videoEl;
+        if (!v || !v.buffered || v.buffered.length === 0) return;
+
+        const end = v.buffered.end(v.buffered.length - 1);
+        const start = v.buffered.start(0);
+
+        // If currentTime is outside buffered range, or far behind, seek to live edge
+        if (v.currentTime < start || v.currentTime > end + 0.5 || (end - v.currentTime) > 0.3) {
+            v.currentTime = Math.max(start, end - 0.01);
+        }
+
+        // Ensure video is playing
+        if (v.paused) {
+            this._tryPlay();
+        }
+    }
+
+    /**
+     * Periodic health check for MSE video element.
+     * Monitors buffer state, recovers from stalls, and logs diagnostics.
+     * Uses gentle playback rate adjustment instead of hard seeks to avoid jitter.
+     */
+    _startHealthCheck() {
+        this._healthInterval = setInterval(() => {
+            if (!this._videoEl || !this.fallbackMode) return;
+            const v = this._videoEl;
+
+            // Periodic diagnostics (every 5 seconds)
+            const now = performance.now();
+            if (!this._lastDiagTime || now - this._lastDiagTime > 5000) {
+                this._lastDiagTime = now;
+                let bufInfo = 'none';
+                if (v.buffered && v.buffered.length > 0) {
+                    bufInfo = v.buffered.start(0).toFixed(2) + '-' + v.buffered.end(v.buffered.length - 1).toFixed(2);
+                }
+                // Count recent FPS
+                while (this._feedTimestamps.length > 0 && this._feedTimestamps[0] < now - 1000) {
+                    this._feedTimestamps.shift();
+                }
+                console.log('[RDVideo] Health: frames=' + this.frameCount
+                    + ' fps=' + this._feedTimestamps.length
+                    + ' readyState=' + v.readyState
+                    + ' currentTime=' + v.currentTime.toFixed(2)
+                    + ' buffered=' + bufInfo
+                    + ' paused=' + v.paused
+                    + ' dropped=' + this.droppedFrames);
+            }
+
+            // Recovery: gently catch up to live edge if fallen behind
+            if (v.buffered && v.buffered.length > 0) {
+                const end = v.buffered.end(v.buffered.length - 1);
+                const latency = end - v.currentTime;
+
+                if (latency > 1.5) {
+                    // Very far behind — hard seek as last resort
+                    v.currentTime = end - 0.05;
+                    v.playbackRate = 1.0;
+                } else if (latency > 0.3) {
+                    // Slightly behind — speed up gently to catch up
+                    v.playbackRate = 1.05;
+                } else {
+                    // At live edge — normal speed
+                    v.playbackRate = 1.0;
+                }
+
+                // Resume if paused
+                if (v.paused && this.frameCount > 0) {
+                    this._tryPlay();
+                }
+
+                // If video appears stuck (readyState < 2 but we have buffer)
+                if (v.readyState < 2 && end > 0) {
+                    v.currentTime = end - 0.01;
+                    this._tryPlay();
+                }
+            }
+        }, 2000);
+    }
+
+    /**
+     * Feed an encoded frame to the decoder
+     * @param {Object} frameData - { data: Uint8Array, key: boolean, pts: number, codec: string }
+     */
+    async decode(frameData) {
+        if (!this.initialized) {
+            return;
+        }
+
+        // Switch codec if needed
+        if (frameData.codec && frameData.codec !== this.currentCodec) {
+            await this.init(frameData.codec);
+        }
+
+        // JMuxer fallback mode
+        if (this.fallbackMode) {
+            return this._decodeFallback(frameData);
+        }
+
+        if (!this.decoder) return;
+
+        // Check decoder state
+        if (this.decoder.state === 'closed') {
+            return;
+        }
+
+        try {
+            // WebCodecs expects timestamps in microseconds.
+            // Use monotonic frameCount * 33333µs (~30fps) for stable timing.
+            // Using pts directly with * 1000 would give 1ms intervals which overflows the decoder queue.
+            const timestamp = this.frameCount * 33333; // ~30fps in microseconds
+            const chunk = new EncodedVideoChunk({
+                type: frameData.key ? 'key' : 'delta',
+                timestamp: timestamp,
+                data: frameData.data
+            });
+
+            this.decoder.decode(chunk);
+        } catch (err) {
+            this.droppedFrames++;
+            if (this.onError) {
+                this.onError(err);
+            }
+        }
+    }
+
+    /**
+     * JMuxer fallback: feed H.264 NALUs to JMuxer for MSE decoding.
+     * RustDesk sends H.264 frames as EncodedVideoFrame.data which contains
+     * Annex-B formatted NAL units (with 00 00 00 01 start codes).
+     * @param {Object} frameData - { data: Uint8Array, key: boolean }
+     */
+    _decodeFallback(frameData) {
+        if (!frameData.data || frameData.data.length === 0) {
+            this.droppedFrames++;
+            return;
+        }
+
+        try {
+            // Ensure we have a proper Uint8Array (protobuf.js may return Buffer-like)
+            let videoData = frameData.data;
+            if (!(videoData instanceof Uint8Array) || videoData.buffer.byteLength !== videoData.length) {
+                videoData = new Uint8Array(videoData);
+            }
+
+            // Debug: log first frame details
+            if (this.frameCount < 1) {
+                const hex = Array.from(videoData.slice(0, 20)).map(b => b.toString(16).padStart(2, '0')).join(' ');
+                console.log('[RDVideo] H.264 feed: ' + videoData.length + ' bytes, key=' + frameData.key
+                    + ', first 20: ' + hex);
+            }
+
+            // If JMuxer not ready yet, buffer the frame and replay on ready
+            if (!this._jmuxerReady) {
+                this._pendingFeeds.push(videoData);
+                return;
+            }
+
+            this._jmuxer.feed({
+                video: videoData
+            });
+            this.frameCount++;
+            this._feedId++;
+            const now = performance.now();
+            this._feedTimestamps.push(now);
+            this._lastFeedTime = now;
+
+            // Ensure video is playing
+            if (this._videoEl) {
+                if (this._videoEl.paused) {
+                    this._tryPlay();
+                }
+                // Nudge to live edge after new data (only if behind)
+                if (this._videoEl.buffered && this._videoEl.buffered.length > 0) {
+                    const end = this._videoEl.buffered.end(this._videoEl.buffered.length - 1);
+                    if (end - this._videoEl.currentTime > 0.15) {
+                        this._videoEl.currentTime = end - 0.01;
+                    }
+                }
+            }
+        } catch (err) {
+            console.warn('[RDVideo] JMuxer feed error:', err);
+            this.droppedFrames++;
+            if (this.onError) {
+                this.onError(err);
+            }
+        }
+    }
+
+    /**
+     * Handle decoded video frame (WebCodecs path)
+     * @param {VideoFrame} frame
+     */
+    _handleDecodedFrame(frame) {
+        this.frameCount++;
+
+        // Track display dimensions
+        if (frame.displayWidth !== this.displayWidth || frame.displayHeight !== this.displayHeight) {
+            this.displayWidth = frame.displayWidth;
+            this.displayHeight = frame.displayHeight;
+        }
+
+        if (this.onFrame) {
+            this.onFrame(frame);
+        } else {
+            // Must close frame if not consumed
+            frame.close();
+        }
+    }
+
+    /**
+     * Handle decoder error
+     * @param {Error} err
+     */
+    _handleError(err) {
+        console.error('[RDVideo] Decoder error:', err);
+        if (this.onError) {
+            this.onError(err);
+        }
+    }
+
+    /**
+     * Flush pending frames
+     */
+    async flush() {
+        if (this.decoder && this.decoder.state !== 'closed') {
+            try {
+                await this.decoder.flush();
+            } catch {
+                // Ignore flush errors on closed decoder
+            }
+        }
+    }
+
+    /**
+     * Get decoder statistics
+     */
+    getStats() {
+        // Calculate actual video FPS from recent feed timestamps (last 1 second)
+        const now = performance.now();
+        while (this._feedTimestamps.length > 0 && this._feedTimestamps[0] < now - 1000) {
+            this._feedTimestamps.shift();
+        }
+        const videoFps = this._feedTimestamps.length;
+
+        return {
+            codec: this.currentCodec,
+            initialized: this.initialized,
+            frameCount: this.frameCount,
+            droppedFrames: this.droppedFrames,
+            displayWidth: this.displayWidth,
+            displayHeight: this.displayHeight,
+            queueSize: this.decoder ? this.decoder.decodeQueueSize : 0,
+            fallbackMode: this.fallbackMode,
+            videoFps: videoFps
+        };
+    }
+
+    /**
+     * Close the decoder and release resources
+     */
+    close() {
+        // Close WebCodecs decoder
+        if (this.decoder && this.decoder.state !== 'closed') {
+            try {
+                this.decoder.close();
+            } catch {
+                // Ignore close errors
+            }
+        }
+        this.decoder = null;
+
+        // Stop video sync loop
+        if (this._syncRafId) {
+            cancelAnimationFrame(this._syncRafId);
+            this._syncRafId = 0;
+        }
+
+        // Stop health check
+        if (this._healthInterval) {
+            clearInterval(this._healthInterval);
+            this._healthInterval = 0;
+        }
+
+        // Clear feed tracking
+        this._feedTimestamps = [];
+        this._feedId = 0;
+
+        // Destroy JMuxer
+        if (this._jmuxer) {
+            try {
+                this._jmuxer.destroy();
+            } catch {
+                // Ignore destroy errors
+            }
+            this._jmuxer = null;
+        }
+
+        // Remove hidden video element
+        if (this._videoEl) {
+            this._videoEl.pause();
+            this._videoEl.src = '';
+            if (this._videoEl.parentNode) {
+                this._videoEl.parentNode.removeChild(this._videoEl);
+            }
+            this._videoEl = null;
+        }
+
+        this._videoPlaying = false;
+        this.fallbackMode = false;
+        this.currentCodec = null;
+        this.initialized = false;
+    }
+}
+
+window.RDVideo = RDVideo;

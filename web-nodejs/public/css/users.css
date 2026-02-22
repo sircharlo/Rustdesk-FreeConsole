@@ -118,6 +118,11 @@
     color: var(--accent-purple);
 }
 
+.role-badge.operator {
+    background: var(--accent-orange-muted, rgba(249, 115, 22, 0.15));
+    color: var(--accent-orange, #f97316);
+}
+
 .role-badge.viewer {
     background: var(--accent-blue-muted);
     color: var(--accent-blue);
@@ -127,6 +132,29 @@
 .user-actions {
     display: flex;
     gap: var(--space-xs);
+}
+
+.user-actions .action-btn {
+    padding: var(--space-xs);
+    background: none;
+    border: none;
+    color: var(--text-secondary, #8b949e);
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.user-actions .action-btn:hover {
+    color: var(--text-primary, #e6edf3);
+    background: var(--bg-tertiary, #21262d);
+}
+
+.user-actions .action-btn.danger:hover {
+    color: var(--accent-red, #f85149);
+    background: var(--accent-red-muted, rgba(248, 81, 73, 0.1));
 }
 
 /* Empty State */

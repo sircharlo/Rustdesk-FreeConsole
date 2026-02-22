@@ -5,6 +5,98 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] - 2026-02-22
+
+### 🔒 Security Audit & Fixes
+
+Full security audit performed — 3 Critical, 5 High, 8 Medium, 6 Low findings. All Critical and High issues resolved.
+
+#### Critical Fixes
+- **CSRF Protection** — Double-submit cookie pattern using `csrf-csrf` package (new `middleware/csrf.js`)
+- **Cookie Name Fix** — Logout now correctly clears `betterdesk.sid` (was `connect.sid`)
+- **TOTP Dependency** — Added `otplib` to `package.json` for TOTP 2FA support
+
+#### High Fixes
+- **WebSocket Authentication** — Session cookie required for WebSocket upgrade (401 on unauthenticated connections)
+- **Session Fixation Prevention** — `req.session.regenerate()` after successful login
+- **Configurable Trust Proxy** — `TRUST_PROXY` environment variable (prevents IP spoofing)
+- **Body Size Limit** — Enforced in WAN middleware stack for Client API
+- **Timing-Safe Auth** — Pre-computed dummy bcrypt hash for non-existent users
+
+#### Medium/Low Fixes
+- Password minimum length increased from 6 to 8 characters
+- Input length validation (username/password max 128 chars)
+- Strict JSON-only content type in WAN middleware (`text/plain` removed)
+- `X-XSS-Protection` set to `0` (modern recommendation)
+- Invalid empty CORS header removed
+
+### ✨ New Features
+
+#### RustDesk Client API (WAN-facing)
+- Dedicated port 21121 for RustDesk desktop/mobile client authentication
+- 7-layer security: rate limiting, API key, IP whitelist, JWT auth, JSON-only, body size limit, audit logging
+- Full login flow: `/api/login`, `/api/logout`, `/api/currentUser`, `/api/login-options`
+- Heartbeat & sysinfo endpoints for client keep-alive
+- Address book sync (`/api/ab`, `/api/ab/personal`)
+
+#### TOTP Two-Factor Authentication
+- Time-based One-Time Password support via `otplib`
+- QR code generation for authenticator apps
+- TFA verification during login flow
+
+#### Operator Role
+- Separate admin/operator roles with different permissions
+- Operators can view devices but cannot modify system settings
+
+#### Desktop Connect Button
+- Connect to devices directly from browser using RustDesk URI handler (`rustdesk://`)
+
+#### SSL Certificate Configuration
+- New menu option **C** in both `betterdesk.sh` and `betterdesk.ps1`
+- Let's Encrypt (certbot) integration on Linux
+- Custom certificate support (PEM cert + key)
+- Self-signed certificate generation
+- Disable SSL option
+
+### 🗑️ Removed
+
+- **Flask console removed** — Node.js is now the only supported web console
+- `--flask` / `-Flask` flags show deprecation warning and install Node.js instead
+- `Install-FlaskConsole` function removed from `betterdesk.ps1`
+- Flask pip packages removed from dependency installation
+- Flask NSSM/systemd service blocks removed
+
+### 🖥️ Web Remote Desktop Client Fixes
+
+Major overhaul of the browser-based remote desktop client — fixes critical issues that caused 0-3 FPS, black screen, and broken keyboard input.
+
+#### Critical Fixes
+- **Missing `video_received` ack** — Server was throttling to 1-5 FPS because the web client never acknowledged received video frames (`client.js`)
+- **Autoplay blocked silently** — `play().catch(() => {})` swallowed browser autoplay errors causing a permanent black screen; added proper detection and "Click to Start" overlay (`video.js`, `remote.js`, `remote.css`)
+- **Wrong modifier key values** — Shift/Ctrl/Alt/Meta sent incorrect ControlKey enum values (1,2,4,8 instead of 29,4,1,23 from `message.proto`); every keyboard shortcut was broken (`input.js`)
+- **Audio Opus decoding** — Audio was treated as raw PCM instead of Opus; added `AudioDecoder` (WebCodecs) for proper Opus decoding with raw PCM fallback (`audio.js`)
+- **WebCodecs timestamp overflow** — Timestamps used `pts * 1000` (1ms intervals) overflowing the decoder queue; changed to monotonic `frameCount * 33333µs` at ~30fps (`video.js`)
+
+#### High Fixes
+- **O(n²) buffer concatenation** — Stream decoder created a new `Uint8Array` on every incoming chunk; replaced with pre-allocated growing buffer using `copyWithin()` (`protocol.js`)
+- **Aggressive video seeking** — Health check every 500ms hard-seeking at 0.5s latency caused visible jitter; changed to 2000ms interval with gentle `playbackRate = 1.05` catch-up (`video.js`)
+
+#### Low Fixes
+- **Mouse throttle** — Increased from 30Hz (33ms) to 60Hz (16ms) for smoother cursor movement (`input.js`)
+- **Cursor data field mismatch** — Renderer looked for `.data` but protobuf sends `.colors`; now supports both (`renderer.js`)
+- **Autoplay i18n** — Added `click_to_start`, `autoplay_blocked`, `start_playback` keys to EN and PL translations
+
+### 📝 Updated
+
+- `README.md` — Comprehensive overhaul for v2.3.0 (new architecture diagram, Client API docs, security section)
+- `betterdesk.sh` — v2.3.0 with Flask removal and SSL wizard
+- `betterdesk.ps1` — v2.3.0 with Flask removal and SSL configuration
+- `VERSION` — 2.3.0
+- `package.json` — Version 2.3.0, added `otplib` and `csrf-csrf` dependencies
+- `.github/copilot-instructions.md` — Updated project state documentation
+
+---
+
 ## [1.5.4] - 2026-02-02
 
 ### 🚀 Pre-Compiled v2.0.0 Binaries

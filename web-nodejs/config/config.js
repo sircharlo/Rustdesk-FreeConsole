@@ -7,6 +7,13 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 
+// Read version from package.json
+let pkgVersion = '2.0.0';
+try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+    pkgVersion = pkg.version || pkgVersion;
+} catch (e) { /* use default */ }
+
 // Environment detection
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const isProduction = NODE_ENV === 'production';
@@ -62,6 +69,18 @@ module.exports = {
     port: parseInt(process.env.PORT, 10) || 5000,
     host: process.env.HOST || '0.0.0.0',
     
+    // RustDesk Client API (dedicated WAN-facing port)
+    apiPort: parseInt(process.env.API_PORT, 10) || 21121,
+    apiEnabled: (process.env.API_ENABLED || 'true').toLowerCase() !== 'false',
+    
+    // HTTPS / SSL
+    httpsEnabled: (process.env.HTTPS_ENABLED || 'false').toLowerCase() === 'true',
+    httpsPort: parseInt(process.env.HTTPS_PORT, 10) || 5443,
+    sslCertPath: process.env.SSL_CERT_PATH || '',
+    sslKeyPath: process.env.SSL_KEY_PATH || '',
+    sslCaPath: process.env.SSL_CA_PATH || '',
+    httpRedirect: (process.env.HTTP_REDIRECT_HTTPS || 'true').toLowerCase() === 'true',
+    
     // Paths
     dataDir: DATA_DIR,
     keysPath: KEYS_PATH,
@@ -88,7 +107,15 @@ module.exports = {
     defaultLanguage: process.env.DEFAULT_LANGUAGE || 'en',
     langDir: path.join(__dirname, '..', 'lang'),
     
+    // WebSocket Proxy (for remote desktop web client)
+    wsProxy: {
+        hbbsHost: process.env.WS_HBBS_HOST || 'localhost',
+        hbbsPort: parseInt(process.env.WS_HBBS_PORT, 10) || 21116,
+        hbbrHost: process.env.WS_HBBR_HOST || 'localhost',
+        hbbrPort: parseInt(process.env.WS_HBBR_PORT, 10) || 21117
+    },
+    
     // App info
     appName: 'BetterDesk Console',
-    appVersion: '2.0.0'
+    appVersion: pkgVersion
 };

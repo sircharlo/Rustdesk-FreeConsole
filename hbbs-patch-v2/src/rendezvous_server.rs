@@ -336,7 +336,42 @@ impl RendezvousServer {
                         return Ok(());
                     }
                     let id = rk.id;
+                    let old_id = rk.old_id;
                     let ip = addr.ip().to_string();
+
+                    // =========================================================
+                    // ID Change flow — when client sends old_id with a new id
+                    // =========================================================
+                    if !old_id.is_empty() && old_id != id {
+                        log::info!("ID change request: {} -> {} from {}", old_id, id, ip);
+                        // Validate new ID format
+                        if id.len() < 6 || id.len() > 16 {
+                            // TODO: Use INVALID_ID_FORMAT when proto supports it
+                            log::warn!("Invalid ID format for change: {}", id);
+                            return send_rk_res(socket, addr, UUID_MISMATCH).await;
+                        }
+                        if !id.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+                            log::warn!("Invalid ID characters for change: {}", id);
+                            return send_rk_res(socket, addr, UUID_MISMATCH).await;
+                        }
+                        if !self.check_ip_blocker(&ip, &old_id).await {
+                            return send_rk_res(socket, addr, TOO_FREQUENT).await;
+                        }
+                        let result = self.pm.change_id(
+                            old_id, id, addr, rk.uuid, rk.pk, ip
+                        ).await;
+                        let mut msg_out = RendezvousMessage::new();
+                        msg_out.set_register_pk_response(RegisterPkResponse {
+                            result: result.into(),
+                            ..Default::default()
+                        });
+                        socket.send(&msg_out, addr).await?;
+                        return Ok(());
+                    }
+
+                    // =========================================================
+                    // Normal registration flow
+                    // =========================================================
                     if id.len() < 6 {
                         return send_rk_res(socket, addr, UUID_MISMATCH).await;
                     } else if !self.check_ip_blocker(&ip, &id).await {

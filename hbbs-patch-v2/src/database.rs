@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use hbb_common::{log, ResultType, tokio};
 use sqlx::{
-    sqlite::SqliteConnectOptions, ConnectOptions, Connection, Error as SqlxError, SqliteConnection,
+    sqlite::SqliteConnectOptions, ConnectOptions, Connection, Error as SqlxError, Row, SqliteConnection,
 };
 use std::{ops::DerefMut, str::FromStr, sync::Arc};
 use std::time::{Duration, Instant};
@@ -68,6 +68,7 @@ impl Database {
             url: url.to_owned(),
         };
         db.create_tables().await?;
+        db.ensure_columns().await?;
         Ok(db)
     }
 
@@ -93,6 +94,72 @@ impl Database {
         )
         .execute(self.pool.get().await?.deref_mut())
         .await?;
+        Ok(())
+    }
+
+    /// Ensure additional columns exist (safe migration for older databases)
+    async fn ensure_columns(&self) -> ResultType<()> {
+        let migrations = [
+            "ALTER TABLE peer ADD COLUMN previous_ids TEXT DEFAULT ''",
+            "ALTER TABLE peer ADD COLUMN id_changed_at TEXT DEFAULT ''",
+            "ALTER TABLE peer ADD COLUMN is_deleted INTEGER DEFAULT 0",
+            "ALTER TABLE peer ADD COLUMN is_banned INTEGER DEFAULT 0",
+            "ALTER TABLE peer ADD COLUMN last_online TEXT",
+        ];
+        for sql in &migrations {
+            // Ignore errors — column may already exist
+            let _ = sqlx::query(sql)
+                .execute(self.pool.get().await?.deref_mut())
+                .await;
+        }
+        log::debug!("Column migration check completed");
+        Ok(())
+    }
+
+    /// Check if a peer ID is available (not taken by any existing peer)
+    pub async fn is_id_available(&self, id: &str) -> ResultType<bool> {
+        let row = sqlx::query("SELECT 1 FROM peer WHERE id = ?")
+            .bind(id)
+            .fetch_optional(self.pool.get().await?.deref_mut())
+            .await?;
+        Ok(row.is_none())
+    }
+
+    /// Change peer ID in the database with history tracking
+    /// Updates id, previous_ids (appends old_id), and id_changed_at
+    pub async fn change_peer_id(&self, old_id: &str, new_id: &str) -> ResultType<()> {
+        let mut conn = self.pool.get().await?;
+
+        // Get current previous_ids for history tracking
+        let prev_row = sqlx::query("SELECT previous_ids FROM peer WHERE id = ?")
+            .bind(old_id)
+            .fetch_optional(conn.deref_mut())
+            .await?;
+
+        let prev_str = prev_row
+            .and_then(|r| r.try_get::<String, _>("previous_ids").ok())
+            .unwrap_or_default();
+
+        // Build updated history: parse existing JSON array and append old_id
+        let mut history: Vec<String> = if prev_str.is_empty() {
+            Vec::new()
+        } else {
+            serde_json::from_str(&prev_str).unwrap_or_default()
+        };
+        history.push(old_id.to_string());
+        let updated_history = serde_json::to_string(&history).unwrap_or_default();
+
+        // Perform the ID change
+        sqlx::query(
+            "UPDATE peer SET id = ?, previous_ids = ?, id_changed_at = datetime('now') WHERE id = ?"
+        )
+            .bind(new_id)
+            .bind(&updated_history)
+            .bind(old_id)
+            .execute(conn.deref_mut())
+            .await?;
+
+        log::info!("Database: ID changed {} -> {} (history: {})", old_id, new_id, updated_history);
         Ok(())
     }
 

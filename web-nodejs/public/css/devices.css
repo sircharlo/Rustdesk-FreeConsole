@@ -19,102 +19,30 @@
 .devices-layout {
     display: grid;
     grid-template-columns: 280px 1fr;
-    gap: var(--space-lg);
-    min-height: calc(100vh - 200px);
-    transition: grid-template-columns 0.3s ease;
-}
-
-.devices-layout.sidebar-collapsed {
-    grid-template-columns: 56px 1fr;
+    gap: 0;
+    min-height: calc(100vh - var(--navbar-height, 60px));
+    /* Stretch into parent padding so folders sidebar is flush */
+    margin: calc(-1 * var(--space-lg, 1.5rem)) 0 calc(-1 * var(--space-lg, 1.5rem)) calc(-1 * var(--space-lg, 1.5rem));
 }
 
 /* Folders Sidebar */
 .folders-sidebar {
     background: var(--bg-secondary, #161b22);
-    border: 1px solid var(--border-color, #30363d);
-    border-radius: var(--radius-lg, 12px);
+    border-right: 1px solid var(--border-color, #30363d);
+    border-radius: 0;
     padding: var(--space-md, 1rem);
     position: sticky;
-    top: var(--space-lg, 1.5rem);
-    max-height: calc(100vh - 140px);
+    top: var(--navbar-height, 60px);
+    height: calc(100vh - var(--navbar-height, 60px));
     display: flex;
     flex-direction: column;
-    transition: padding 0.3s ease, width 0.3s ease;
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
-/* Collapsed Sidebar State */
-.folders-sidebar.collapsed {
-    padding: var(--space-sm, 0.5rem);
-}
-
-.folders-sidebar.collapsed .sidebar-title,
-.folders-sidebar.collapsed .folder-name,
-.folders-sidebar.collapsed .folder-count,
-.folders-sidebar.collapsed .folder-actions,
-.folders-sidebar.collapsed .folders-hint .hint-text,
-.folders-sidebar.collapsed #add-folder-btn {
+/* Sidebar Toggle Button - hidden (folders always visible) */
+.folders-sidebar .sidebar-toggle {
     display: none;
-}
-
-.folders-sidebar.collapsed .folders-header {
-    justify-content: center;
-    border-bottom: none;
-    padding-bottom: var(--space-xs, 0.25rem);
-}
-
-.folders-sidebar.collapsed .folder-item {
-    justify-content: center;
-    padding: var(--space-sm, 0.5rem);
-}
-
-.folders-sidebar.collapsed .folder-item .folder-icon {
-    margin: 0;
-}
-
-.folders-sidebar.collapsed .folders-hint {
-    justify-content: center;
-    padding: var(--space-sm, 0.5rem) 0 0;
-}
-
-.folders-sidebar.collapsed .folders-hint .material-icons {
-    margin: 0;
-}
-
-.folders-sidebar.collapsed .sidebar-toggle .material-icons {
-    transform: rotate(180deg);
-}
-
-/* Sidebar Toggle Button */
-.sidebar-toggle {
-    order: -1;
-    margin-right: auto;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    padding: 0;
-    background: transparent !important;
-    border: 1px solid transparent;
-    border-radius: var(--radius-md, 8px);
-    color: var(--text-secondary, #8b949e);
-    cursor: pointer;
-    transition: all 0.15s ease;
-    position: relative;
-    z-index: 10;
-}
-
-.sidebar-toggle:hover {
-    background: var(--bg-hover, rgba(255,255,255,0.05)) !important;
-    color: var(--accent-blue, #58a6ff);
-    border-color: var(--border-color, #30363d);
-}
-
-.sidebar-toggle .material-icons {
-    transition: transform 0.3s ease;
-    font-size: 20px;
-    pointer-events: none;
 }
 
 .folders-header {
@@ -340,11 +268,6 @@
     transform: scale(1.15);
 }
 
-/* Main Content */
-.devices-main {
-    min-width: 0;
-}
-
 /* Drag Handle */
 .drag-handle-cell {
     width: 30px;
@@ -373,15 +296,29 @@ tr.dragging {
     min-width: 150px;
 }
 
+/* Devices Main - restore padding since layout ate parent padding */
+.devices-main {
+    padding: var(--space-lg, 1.5rem);
+    padding-left: var(--space-lg, 1.5rem);
+    min-width: 0;
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
     .devices-layout {
         grid-template-columns: 1fr;
+        margin: 0;
     }
     
     .folders-sidebar {
         position: static;
-        max-height: none;
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid var(--border-color, #30363d);
+    }
+    
+    .devices-main {
+        padding: var(--space-md, 1rem);
     }
 }
 
@@ -867,6 +804,14 @@ tr.dragging {
     background: rgba(34, 197, 94, 0.15);
 }
 
+.action-btn.connect-desktop {
+    color: var(--accent-purple, #a855f7);
+}
+
+.action-btn.connect-desktop:hover {
+    background: rgba(168, 85, 247, 0.15);
+}
+
 .action-btn.info {
     color: var(--accent-blue);
 }
@@ -978,6 +923,92 @@ tr.dragging {
 
 .delete-confirm-modal .countdown {
     font-weight: var(--font-weight-bold);
+}
+
+/* Column Visibility Dropdown */
+.column-visibility-dropdown {
+    position: relative;
+    display: inline-flex;
+}
+
+.column-visibility-dropdown .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs, 0.25rem);
+    padding: var(--space-xs, 0.25rem) var(--space-sm, 0.5rem);
+    font-size: var(--font-size-sm, 0.875rem);
+    background: var(--bg-tertiary, #21262d);
+    border: 1px solid var(--border-color, #30363d);
+    border-radius: var(--radius-md, 8px);
+    color: var(--text-secondary, #8b949e);
+    cursor: pointer;
+    white-space: nowrap;
+    height: 34px;
+}
+
+.column-visibility-dropdown .btn:hover {
+    background: var(--bg-elevated, #30363d);
+    color: var(--text-primary, #e6edf3);
+}
+
+.column-visibility-dropdown .btn .material-icons {
+    font-size: 18px;
+}
+
+.column-visibility-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: var(--space-xs, 0.25rem);
+    background: var(--bg-secondary, #161b22);
+    border: 1px solid var(--border-color, #30363d);
+    border-radius: var(--radius-md, 8px);
+    padding: var(--space-xs, 0.25rem) 0;
+    min-width: 180px;
+    z-index: 200;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.column-visibility-menu.show {
+    display: flex;
+    flex-direction: column;
+}
+
+.column-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm, 0.5rem);
+    padding: 6px var(--space-md, 1rem);
+    cursor: pointer;
+    font-size: var(--font-size-sm, 0.875rem);
+    color: var(--text-secondary, #8b949e);
+    transition: background 0.1s ease;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.column-toggle:hover {
+    background: var(--bg-hover, rgba(255,255,255,0.05));
+    color: var(--text-primary, #e6edf3);
+}
+
+.column-toggle input[type="checkbox"] {
+    width: 15px;
+    height: 15px;
+    accent-color: var(--accent-blue, #58a6ff);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.column-toggle span {
+    flex: 1;
+}
+
+/* Hidden column rule */
+th.column-hidden,
+td.column-hidden {
+    display: none !important;
 }
 
 @keyframes fadeIn {

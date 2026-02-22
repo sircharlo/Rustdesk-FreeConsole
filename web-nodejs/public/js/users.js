@@ -67,14 +67,14 @@
                 <td>
                     <div class="user-info">
                         <div class="user-avatar">
-                            <span class="material-icons">${user.role === 'admin' ? 'admin_panel_settings' : 'person'}</span>
+                            <span class="material-icons">${user.role === 'admin' ? 'admin_panel_settings' : user.role === 'operator' ? 'engineering' : 'person'}</span>
                         </div>
                         <span class="user-username">${Utils.escapeHtml(user.username)}</span>
                     </div>
                 </td>
                 <td>
                     <span class="role-badge ${user.role}">
-                        ${user.role === 'admin' ? _('users.role_admin') : _('users.role_viewer')}
+                        ${user.role === 'admin' ? _('users.role_admin') : user.role === 'operator' ? _('users.role_operator') : _('users.role_viewer')}
                     </span>
                 </td>
                 <td>${Utils.formatDate(user.created_at)}</td>

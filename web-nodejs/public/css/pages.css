@@ -364,3 +364,269 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* ==================== TOTP (2FA) Settings Styles ==================== */
+
+.totp-status {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+}
+
+.totp-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--radius-full);
+    font-weight: var(--font-weight-semibold);
+    font-size: var(--font-size-sm);
+    width: fit-content;
+    background: var(--accent-green-muted);
+    color: var(--accent-green);
+}
+
+.totp-status-badge.disabled {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+}
+
+.totp-status-badge .material-icons {
+    font-size: 18px;
+}
+
+.totp-status-desc {
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.totp-status-loading {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.totp-status-loading .spin {
+    animation: spin 1s linear infinite;
+}
+
+/* TOTP Setup */
+.totp-setup {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-lg);
+}
+
+.totp-setup-steps {
+    display: flex;
+    gap: var(--space-lg);
+    width: 100%;
+}
+
+.totp-step {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+.step-number {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--accent-blue);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+    flex-shrink: 0;
+}
+
+.totp-qr-container {
+    background: white;
+    padding: var(--space-md);
+    border-radius: var(--radius-lg);
+    border: 2px solid var(--border-primary);
+}
+
+.totp-qr-image {
+    width: 256px;
+    height: 256px;
+    display: block;
+}
+
+.totp-manual-key {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    background: var(--bg-tertiary);
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--radius-md);
+    width: 100%;
+    max-width: 400px;
+}
+
+.totp-manual-label {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.totp-secret-code {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    word-break: break-all;
+    flex: 1;
+}
+
+.totp-verify-form {
+    width: 100%;
+    max-width: 400px;
+}
+
+.totp-verify-input-group {
+    display: flex;
+    gap: var(--space-sm);
+    margin-top: var(--space-sm);
+}
+
+.totp-verify-input-group .form-input {
+    flex: 1;
+    text-align: center;
+    font-size: var(--font-size-lg);
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    letter-spacing: 0.3em;
+}
+
+.totp-cancel-btn {
+    margin-top: var(--space-sm);
+}
+
+/* Recovery Codes */
+.totp-recovery {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-lg);
+    text-align: center;
+}
+
+.totp-success-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.totp-success-icon {
+    font-size: 48px;
+    color: var(--accent-green);
+}
+
+.totp-success-header h3 {
+    font-size: var(--font-size-lg);
+    color: var(--text-primary);
+}
+
+.totp-recovery-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-sm);
+    background: var(--accent-yellow-muted);
+    border: 1px solid var(--accent-yellow);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+    text-align: left;
+    max-width: 500px;
+}
+
+.totp-recovery-warning .material-icons {
+    color: var(--accent-yellow);
+    flex-shrink: 0;
+}
+
+.totp-recovery-warning p {
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+}
+
+.totp-recovery-codes {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-sm);
+    max-width: 320px;
+}
+
+.recovery-code {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: var(--font-size-md);
+    background: var(--bg-tertiary);
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-primary);
+    text-align: center;
+}
+
+.totp-recovery-actions {
+    display: flex;
+    gap: var(--space-sm);
+}
+
+.totp-done-btn {
+    margin-top: var(--space-md);
+}
+
+/* Disable Confirmation */
+.totp-disable-confirm {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    max-width: 500px;
+}
+
+.totp-disable-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-sm);
+    background: var(--accent-red-muted);
+    border: 1px solid var(--accent-red);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+}
+
+.totp-disable-warning .material-icons {
+    color: var(--accent-red);
+    flex-shrink: 0;
+}
+
+.totp-disable-warning p {
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+}
+
+.totp-disable-actions {
+    display: flex;
+    gap: var(--space-sm);
+}
+
+@media (max-width: 768px) {
+    .totp-setup-steps {
+        flex-direction: column;
+        gap: var(--space-sm);
+    }
+    
+    .totp-recovery-codes {
+        grid-template-columns: 1fr;
+    }
+    
+    .totp-verify-input-group {
+        flex-direction: column;
+    }
+}

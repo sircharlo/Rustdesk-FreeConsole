@@ -68,7 +68,7 @@
                                 <span class="material-icons">tag</span>
                                 ${_('settings.version')}
                             </span>
-                            <span class="server-info-value">v2.0.0</span>
+                            <span class="server-info-value">v${appVersion}</span>
                         </div>
                         <div class="server-info-item">
                             <span class="server-info-label">
@@ -83,6 +83,25 @@
                                 ${_('settings.uptime')}
                             </span>
                             <span class="server-info-value" id="uptime">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Two-Factor Authentication Section -->
+            <div class="settings-section">
+                <div class="settings-section-header">
+                    <h2 class="settings-section-title">
+                        <span class="material-icons">security</span>
+                        ${_('settings.totp_title')}
+                    </h2>
+                    <p class="settings-section-desc">${_('settings.totp_desc')}</p>
+                </div>
+                <div class="settings-section-body">
+                    <div id="totp-status-container">
+                        <div class="totp-status-loading">
+                            <span class="material-icons spin">sync</span>
+                            ${_('common.loading')}
                         </div>
                     </div>
                 </div>

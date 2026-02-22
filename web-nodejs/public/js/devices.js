@@ -43,7 +43,7 @@
         initFolders();
         initDragDrop();
         attachFolderDropEvents();  // For static folders
-        initSidebarToggle();       // Collapsible sidebar
+        initColumnVisibility();    // Column show/hide toggle
         
         // Refresh handler
         window.addEventListener('app:refresh', () => {
@@ -162,7 +162,7 @@
                 <td class="drag-handle-cell">
                     <span class="drag-handle material-icons">drag_indicator</span>
                 </td>
-                <td>
+                <td data-column="id">
                     <div class="device-id">
                         <span class="device-id-text">${Utils.escapeHtml(device.id)}</span>
                         <button class="btn-icon-sm copy-btn" title="${_('actions.copy')}" data-copy="${Utils.escapeHtml(device.id)}">
@@ -170,20 +170,20 @@
                         </button>
                     </div>
                 </td>
-                <td>${Utils.escapeHtml(device.hostname || device.note || '-')}</td>
-                <td>
+                <td data-column="hostname">${Utils.escapeHtml(device.hostname || device.note || '-')}</td>
+                <td data-column="platform">
                     <div class="platform-icon">
                         <span class="material-icons">${Utils.getPlatformIcon(device.platform)}</span>
                         <span>${Utils.escapeHtml(device.platform || '-')}</span>
                     </div>
                 </td>
-                <td>
+                <td data-column="last_online">
                     <div class="last-seen">
                         <div class="last-seen-time">${Utils.formatDate(device.last_online)}</div>
                         <div class="last-seen-ago">${Utils.formatRelativeTime(device.last_online)}</div>
                     </div>
                 </td>
-                <td>
+                <td data-column="status">
                     ${device.banned 
                         ? `<span class="status-badge banned"><span class="status-dot"></span>${_('status.banned')}</span>`
                         : device.online 
@@ -191,10 +191,13 @@
                             : `<span class="status-badge offline"><span class="status-dot"></span>${_('status.offline')}</span>`
                     }
                 </td>
-                <td>
+                <td data-column="actions">
                     <div class="device-actions">
                         <button class="action-btn connect" title="${_('actions.connect')}" data-action="connect" data-id="${Utils.escapeHtml(device.id)}">
                             <span class="material-icons">link</span>
+                        </button>
+                        <button class="action-btn connect-desktop" title="${_('actions.connect_desktop')}" data-action="connect-desktop" data-id="${Utils.escapeHtml(device.id)}">
+                            <span class="material-icons">computer</span>
                         </button>
                         <button class="action-btn info" title="${_('actions.details')}" data-action="details" data-id="${Utils.escapeHtml(device.id)}">
                             <span class="material-icons">info</span>
@@ -210,6 +213,9 @@
                 </td>
             </tr>
         `).join('');
+        
+        // Re-apply column visibility to newly rendered rows
+        applyColumnVisibility();
         
         // Attach event listeners
         attachRowEventListeners();
@@ -258,6 +264,10 @@
                 connectToDevice(deviceId);
                 break;
                 
+            case 'connect-desktop':
+                connectDesktopClient(deviceId);
+                break;
+                
             case 'details':
                 showDeviceDetails(deviceId);
                 break;
@@ -281,11 +291,17 @@
     }
     
     /**
-     * Connect to device via rustdesk:// protocol
+     * Connect to device via web remote client
      */
     function connectToDevice(deviceId) {
-        const url = `rustdesk://${deviceId}`;
-        window.open(url, '_blank');
+        window.location.href = '/remote/' + encodeURIComponent(deviceId);
+    }
+
+    /**
+     * Connect to device via RustDesk desktop client (rustdesk:// protocol)
+     */
+    function connectDesktopClient(deviceId) {
+        window.open('rustdesk://' + encodeURIComponent(deviceId), '_blank');
     }
     
     /**
@@ -900,32 +916,89 @@
     }
     
     /**
-     * Initialize sidebar toggle (collapse/expand)
+     * Initialize column visibility toggle
      */
-    function initSidebarToggle() {
-        const toggleBtn = document.getElementById('sidebar-toggle');
-        const sidebar = document.getElementById('folders-sidebar');
-        const layout = document.querySelector('.devices-layout');
-        
-        if (!toggleBtn || !sidebar || !layout) return;
-        
-        // Prevent duplicate listeners
-        if (toggleBtn.dataset.initialized === 'true') return;
-        toggleBtn.dataset.initialized = 'true';
-        
-        // Restore saved state
-        const isCollapsed = localStorage.getItem('folders-sidebar-collapsed') === 'true';
-        if (isCollapsed) {
-            sidebar.classList.add('collapsed');
-            layout.classList.add('sidebar-collapsed');
+    function initColumnVisibility() {
+        const btn = document.getElementById('columns-btn');
+        const menu = document.getElementById('columns-menu');
+        if (!btn || !menu) return;
+
+        // Restore saved preferences
+        const saved = localStorage.getItem('devices-visible-columns');
+        if (saved) {
+            try {
+                const hidden = JSON.parse(saved);
+                menu.querySelectorAll('input[data-column]').forEach(cb => {
+                    cb.checked = !hidden.includes(cb.dataset.column);
+                });
+            } catch (e) { /* ignore parse errors */ }
         }
-        
-        toggleBtn.addEventListener('click', (e) => {
+
+        // Toggle dropdown on button click
+        btn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            const collapsed = sidebar.classList.toggle('collapsed');
-            layout.classList.toggle('sidebar-collapsed');
-            localStorage.setItem('folders-sidebar-collapsed', String(collapsed));
+            menu.classList.toggle('show');
+        });
+
+        // Close on outside click — use contains() to handle child elements
+        document.addEventListener('click', (e) => {
+            if (!btn.contains(e.target) && !menu.contains(e.target)) {
+                menu.classList.remove('show');
+            }
+        });
+
+        // Checkbox change — stop propagation so click doesn't bubble to document
+        menu.querySelectorAll('input[data-column]').forEach(cb => {
+            cb.addEventListener('change', (e) => {
+                e.stopPropagation();
+                saveColumnPreferences();
+                applyColumnVisibility();
+            });
+        });
+
+        // Prevent menu clicks from closing dropdown
+        menu.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+
+        // Apply initial state
+        applyColumnVisibility();
+    }
+
+    /**
+     * Save column visibility preferences to localStorage
+     */
+    function saveColumnPreferences() {
+        const menu = document.getElementById('columns-menu');
+        if (!menu) return;
+        const hidden = [];
+        menu.querySelectorAll('input[data-column]').forEach(cb => {
+            if (!cb.checked) hidden.push(cb.dataset.column);
+        });
+        localStorage.setItem('devices-visible-columns', JSON.stringify(hidden));
+    }
+
+    /**
+     * Apply column visibility to table headers and cells
+     */
+    function applyColumnVisibility() {
+        const menu = document.getElementById('columns-menu');
+        if (!menu) return;
+
+        const hiddenColumns = [];
+        menu.querySelectorAll('input[data-column]').forEach(cb => {
+            if (!cb.checked) hiddenColumns.push(cb.dataset.column);
+        });
+
+        // Apply to <th> elements
+        document.querySelectorAll('.devices-table th[data-column]').forEach(th => {
+            th.classList.toggle('column-hidden', hiddenColumns.includes(th.dataset.column));
+        });
+
+        // Apply to <td> elements
+        document.querySelectorAll('.devices-table td[data-column]').forEach(td => {
+            td.classList.toggle('column-hidden', hiddenColumns.includes(td.dataset.column));
         });
     }
     

@@ -9,9 +9,6 @@
             <!-- Folders Sidebar -->
             <aside class="folders-sidebar" id="folders-sidebar">
                 <div class="folders-header">
-                    <button class="btn-icon sidebar-toggle" id="sidebar-toggle" title="${_('folders.toggle_sidebar')}">
-                        <span class="material-icons">chevron_left</span>
-                    </button>
                     <h3 class="sidebar-title">${_('folders.title')}</h3>
                     <button class="btn-icon" id="add-folder-btn" title="${_('folders.create')}">
                         <span class="material-icons">create_new_folder</span>
@@ -73,6 +70,31 @@
                         >
                     </div>
                     
+                    <div class="column-visibility-dropdown">
+                        <button class="btn" id="columns-btn" title="${_('devices.toggle_columns')}">
+                            <span class="material-icons">view_column</span>
+                            ${_('devices.columns')}
+                        </button>
+                        <div class="column-visibility-menu" id="columns-menu">
+                            <label class="column-toggle">
+                                <input type="checkbox" data-column="platform" checked>
+                                <span>${_('devices.platform')}</span>
+                            </label>
+                            <label class="column-toggle">
+                                <input type="checkbox" data-column="last_online" checked>
+                                <span>${_('devices.last_seen')}</span>
+                            </label>
+                            <label class="column-toggle">
+                                <input type="checkbox" data-column="status" checked>
+                                <span>${_('devices.status')}</span>
+                            </label>
+                            <label class="column-toggle">
+                                <input type="checkbox" data-column="actions" checked>
+                                <span>${_('devices.actions')}</span>
+                            </label>
+                        </div>
+                    </div>
+                    
                     <div class="devices-filter-group">
                         <button class="filter-btn active" data-filter="all">${_('devices.filter_all')}</button>
                         <button class="filter-btn" data-filter="online">${_('devices.filter_online')}</button>
@@ -88,12 +110,12 @@
                             <thead>
                                 <tr>
                                     <th class="drag-handle-cell"></th>
-                                    <th class="sortable" data-sort="id">${_('devices.id')}</th>
-                                    <th class="sortable" data-sort="hostname">${_('devices.hostname')}</th>
-                                    <th class="sortable" data-sort="platform">${_('devices.platform')}</th>
-                                    <th class="sortable" data-sort="last_online">${_('devices.last_seen')}</th>
-                                    <th>${_('devices.status')}</th>
-                                    <th>${_('devices.actions')}</th>
+                                    <th class="sortable" data-sort="id" data-column="id">${_('devices.id')}</th>
+                                    <th class="sortable" data-sort="hostname" data-column="hostname">${_('devices.hostname')}</th>
+                                    <th class="sortable" data-sort="platform" data-column="platform">${_('devices.platform')}</th>
+                                    <th class="sortable" data-sort="last_online" data-column="last_online">${_('devices.last_seen')}</th>
+                                    <th data-column="status">${_('devices.status')}</th>
+                                    <th data-column="actions">${_('devices.actions')}</th>
                                 </tr>
                             </thead>
                             <tbody id="devices-tbody">

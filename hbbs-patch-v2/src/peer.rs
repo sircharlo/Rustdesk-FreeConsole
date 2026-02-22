@@ -19,6 +19,7 @@ lazy_static::lazy_static! {
     pub(crate) static ref IP_BLOCKER: Mutex<IpBlockMap> = Default::default();
     pub(crate) static ref USER_STATUS: RwLock<UserStatusMap> = Default::default();
     pub(crate) static ref IP_CHANGES: Mutex<IpChangesMap> = Default::default();
+    pub(crate) static ref ID_CHANGE_COOLDOWN: Mutex<HashMap<String, Instant>> = Default::default();
 }
 
 pub const IP_CHANGE_DUR: u64 = 180;
@@ -29,6 +30,7 @@ pub const IP_BLOCK_DUR: u64 = 60;
 // Status tracking constants
 const HEARTBEAT_TIMEOUT_SECS: u64 = 15;  // Mark offline after 15s without heartbeat (was 30s)
 const CLEANUP_INTERVAL_SECS: u64 = 60;   // Check for stale peers every 60s
+const ID_CHANGE_COOLDOWN_SECS: u64 = 300; // 5 minutes between ID changes per device
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub(crate) struct PeerInfo {
@@ -257,6 +259,114 @@ impl PeerMap {
         // Device just registered, mark as online
         self.db.set_online(&id).await;
         
+        register_pk_response::Result::OK
+    }
+
+    /// Handle ID change request from RegisterPk with old_id
+    /// Validates format, rate limit, UUID match, new ID availability
+    /// Updates database and in-memory peer map
+    pub(crate) async fn change_id(
+        &mut self,
+        old_id: String,
+        new_id: String,
+        addr: SocketAddr,
+        uuid: Bytes,
+        pk: Bytes,
+        ip: String,
+    ) -> register_pk_response::Result {
+        log::info!("change_id: {} -> {} from {}", old_id, new_id, ip);
+
+        // Rate limit check (per device, 5 min cooldown)
+        {
+            let mut cooldown = ID_CHANGE_COOLDOWN.lock().await;
+            if let Some(last) = cooldown.get(&old_id) {
+                if last.elapsed().as_secs() < ID_CHANGE_COOLDOWN_SECS {
+                    log::warn!("ID change rate limited for {}", old_id);
+                    return register_pk_response::Result::TOO_FREQUENT;
+                }
+            }
+        }
+
+        // Ban check
+        match self.db.is_device_banned(&old_id).await {
+            Ok(true) => {
+                log::warn!("ID change rejected for banned device {}", old_id);
+                return register_pk_response::Result::UUID_MISMATCH;
+            }
+            Ok(false) => {}
+            Err(e) => {
+                log::error!("Ban check failed for {}: {}", old_id, e);
+            }
+        }
+
+        // Verify old_id exists and UUID matches
+        match self.get(&old_id).await {
+            Some(peer) => {
+                let peer_data = peer.read().await;
+                if peer_data.uuid != uuid {
+                    log::warn!("UUID mismatch for ID change {} -> {}", old_id, new_id);
+                    return register_pk_response::Result::UUID_MISMATCH;
+                }
+            }
+            None => {
+                log::warn!("Peer {} not found for ID change", old_id);
+                return register_pk_response::Result::UUID_MISMATCH;
+            }
+        }
+
+        // Check new_id is available in database
+        match self.db.is_id_available(&new_id).await {
+            Ok(true) => {}
+            Ok(false) => {
+                // TODO: Use register_pk_response::Result::ID_EXISTS when proto supports it
+                log::info!("ID {} already exists, cannot change from {}", new_id, old_id);
+                return register_pk_response::Result::UUID_MISMATCH;
+            }
+            Err(e) => {
+                log::error!("Failed to check ID availability: {}", e);
+                return register_pk_response::Result::SERVER_ERROR;
+            }
+        }
+
+        // Also check memory map for the new_id
+        if self.is_in_memory(&new_id).await {
+            // TODO: Use register_pk_response::Result::ID_EXISTS when proto supports it
+            log::info!("ID {} exists in memory, cannot change from {}", new_id, old_id);
+            return register_pk_response::Result::UUID_MISMATCH;
+        }
+
+        // Perform database change
+        if let Err(e) = self.db.change_peer_id(&old_id, &new_id).await {
+            log::error!("Database ID change failed {} -> {}: {}", old_id, new_id, e);
+            return register_pk_response::Result::SERVER_ERROR;
+        }
+
+        // Update memory map: remove old_id entry, insert with new_id
+        {
+            let mut map = self.map.write().await;
+            if let Some(peer) = map.remove(&old_id) {
+                {
+                    let mut w = peer.write().await;
+                    w.socket_addr = addr;
+                    w.pk = pk;
+                    w.last_reg_time = Instant::now();
+                    w.last_heartbeat = Instant::now();
+                    w.info.ip = ip;
+                }
+                map.insert(new_id.clone(), peer);
+            }
+        }
+
+        // Update rate limit cooldown
+        {
+            let mut cooldown = ID_CHANGE_COOLDOWN.lock().await;
+            cooldown.insert(new_id.clone(), Instant::now());
+        }
+
+        // Mark new ID as online
+        self.db.set_online(&new_id).await;
+
+        log::info!("ID change successful: {} -> {}", old_id, new_id);
         register_pk_response::Result::OK
     }
 

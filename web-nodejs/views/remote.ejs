@@ -1,0 +1,212 @@
+<%- include('layouts/viewer', {
+    title: title || _('remote.title'),
+    pageScripts: ['remote'],
+    body: `
+
+<!-- Remote Desktop Viewer -->
+<div class="viewer-container" id="viewer-container">
+
+    <!-- Connection overlay (shown before/during connection) -->
+    <div class="viewer-overlay" id="connection-overlay">
+        <div class="overlay-card">
+            <div class="overlay-icon">
+                <span class="material-icons">connected_tv</span>
+            </div>
+            <h2 class="overlay-title">${_('remote.title')}</h2>
+            <p class="overlay-device-id">` + deviceId + `</p>
+            <p class="overlay-device-name" id="device-name">` + (device && device.hostname ? device.hostname : '') + `</p>
+            
+            <div class="overlay-status" id="connection-status">
+                <div class="spinner"></div>
+                <span id="status-text">${_('remote.connecting')}</span>
+            </div>
+            
+            <div class="overlay-actions" id="overlay-actions" style="display:none;">
+                <button class="btn btn-primary" id="btn-reconnect">
+                    <span class="material-icons">refresh</span>
+                    ${_('remote.reconnect')}
+                </button>
+                <a href="/devices" class="btn btn-secondary">
+                    <span class="material-icons">arrow_back</span>
+                    ${_('remote.back_to_devices')}
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Password modal -->
+    <div class="viewer-overlay" id="password-overlay" style="display:none;">
+        <div class="overlay-card">
+            <div class="overlay-icon">
+                <span class="material-icons">lock</span>
+            </div>
+            <h2 class="overlay-title">${_('remote.password_required')}</h2>
+            <p class="overlay-device-id">${_('remote.enter_password_for')} ` + deviceId + `</p>
+            
+            <div class="password-form" id="password-form">
+                <div class="form-group">
+                    <input type="password" class="form-input" id="device-password" 
+                           placeholder="${_('remote.password_placeholder')}" autocomplete="off">
+                </div>
+                <p class="login-error" id="login-error" style="display:none;"></p>
+                <button class="btn btn-primary btn-full" id="btn-authenticate">
+                    <span class="material-icons">login</span>
+                    ${_('remote.connect')}
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Canvas for remote display -->
+    <canvas id="remote-canvas" tabindex="0"></canvas>
+
+    <!-- Toolbar (auto-hide) -->
+    <div class="viewer-toolbar" id="viewer-toolbar">
+        <div class="toolbar-left">
+            <a href="/devices" class="toolbar-btn" title="${_('remote.back_to_devices')}">
+                <span class="material-icons">arrow_back</span>
+            </a>
+            <span class="toolbar-device-info">
+                <span class="toolbar-device-id" id="toolbar-device-id">` + deviceId + `</span>
+                <span class="toolbar-separator">|</span>
+                <span class="toolbar-status" id="toolbar-status">${_('remote.connecting')}</span>
+            </span>
+        </div>
+        
+        <div class="toolbar-center">
+            <span class="toolbar-stats" id="toolbar-stats"></span>
+        </div>
+        
+        <div class="toolbar-right">
+            <!-- Actions Menu -->
+            <div class="toolbar-dropdown">
+                <button class="toolbar-btn" id="btn-actions" title="${_('remote.actions')}">
+                    <span class="material-icons">flash_on</span>
+                </button>
+                <div class="toolbar-dropdown-menu" id="actions-menu">
+                    <button class="dropdown-item" id="btn-cad">
+                        <span class="material-icons">security</span> Ctrl+Alt+Del
+                    </button>
+                    <button class="dropdown-item" id="btn-lock">
+                        <span class="material-icons">lock</span> ${_('remote.lock_screen')}
+                    </button>
+                    <button class="dropdown-item" id="btn-restart-remote">
+                        <span class="material-icons">restart_alt</span> ${_('remote.restart_remote')}
+                    </button>
+                    <div class="dropdown-separator"></div>
+                    <button class="dropdown-item" id="btn-refresh-screen">
+                        <span class="material-icons">refresh</span> ${_('remote.refresh_screen')}
+                    </button>
+                    <button class="dropdown-item" id="btn-clipboard-paste">
+                        <span class="material-icons">content_paste</span> ${_('remote.clipboard_paste')}
+                    </button>
+                    <div class="dropdown-separator"></div>
+                    <button class="dropdown-item toggle-item" id="btn-block-input" data-active="false">
+                        <span class="material-icons">block</span> ${_('remote.block_input')}
+                    </button>
+                </div>
+            </div>
+
+            <!-- Display Menu -->
+            <div class="toolbar-dropdown">
+                <button class="toolbar-btn" id="btn-display" title="${_('remote.display_settings')}">
+                    <span class="material-icons">tune</span>
+                </button>
+                <div class="toolbar-dropdown-menu toolbar-dropdown-wide" id="display-menu">
+                    <div class="dropdown-label">${_('remote.image_quality')}</div>
+                    <button class="dropdown-item quality-item" data-quality="Best">
+                        <span class="material-icons">hd</span> ${_('remote.quality_best')}
+                    </button>
+                    <button class="dropdown-item quality-item active" data-quality="Balanced">
+                        <span class="material-icons">tune</span> ${_('remote.quality_balanced')}
+                    </button>
+                    <button class="dropdown-item quality-item" data-quality="Low">
+                        <span class="material-icons">speed</span> ${_('remote.quality_low')}
+                    </button>
+                    <div class="dropdown-separator"></div>
+                    <div class="dropdown-label">${_('remote.scale_mode')}</div>
+                    <button class="dropdown-item scale-item active" data-scale="fit">
+                        <span class="material-icons">fit_screen</span> ${_('remote.scale_fit')}
+                    </button>
+                    <button class="dropdown-item scale-item" data-scale="fill">
+                        <span class="material-icons">crop_free</span> ${_('remote.scale_fill')}
+                    </button>
+                    <button class="dropdown-item scale-item" data-scale="1:1">
+                        <span class="material-icons">filter_1</span> ${_('remote.scale_original')}
+                    </button>
+                    <button class="dropdown-item scale-item" data-scale="stretch">
+                        <span class="material-icons">open_in_full</span> ${_('remote.scale_stretch')}
+                    </button>
+                    <div class="dropdown-separator"></div>
+                    <button class="dropdown-item toggle-item" id="btn-show-cursor" data-active="true">
+                        <span class="material-icons">mouse</span> ${_('remote.show_cursor')}
+                    </button>
+                    <button class="dropdown-item toggle-item" id="btn-lock-session" data-active="false">
+                        <span class="material-icons">lock_clock</span> ${_('remote.lock_after_session')}
+                    </button>
+                    <button class="dropdown-item toggle-item" id="btn-privacy-mode" data-active="false">
+                        <span class="material-icons">visibility_off</span> ${_('remote.privacy_mode')}
+                    </button>
+                    <button class="dropdown-item toggle-item" id="btn-disable-clipboard" data-active="false">
+                        <span class="material-icons">content_paste_off</span> ${_('remote.disable_clipboard')}
+                    </button>
+                </div>
+            </div>
+
+            <!-- Audio -->
+            <button class="toolbar-btn" id="btn-audio" title="${_('remote.toggle_audio')}">
+                <span class="material-icons">volume_up</span>
+            </button>
+
+            <!-- Chat -->
+            <button class="toolbar-btn" id="btn-chat" title="${_('remote.chat')}">
+                <span class="material-icons">chat</span>
+            </button>
+
+            <!-- Recording -->
+            <button class="toolbar-btn" id="btn-record" title="${_('remote.record')}">
+                <span class="material-icons">fiber_manual_record</span>
+            </button>
+
+            <!-- View Only -->
+            <button class="toolbar-btn" id="btn-viewonly" title="${_('remote.view_only')}">
+                <span class="material-icons">visibility</span>
+            </button>
+
+            <!-- Pin Toolbar -->
+            <button class="toolbar-btn" id="btn-pin" title="${_('remote.pin_toolbar')}">
+                <span class="material-icons">push_pin</span>
+            </button>
+
+            <!-- Fullscreen -->
+            <button class="toolbar-btn" id="btn-fullscreen" title="${_('remote.fullscreen')}">
+                <span class="material-icons">fullscreen</span>
+            </button>
+
+            <!-- Disconnect -->
+            <button class="toolbar-btn toolbar-btn-danger" id="btn-disconnect" title="${_('remote.disconnect')}">
+                <span class="material-icons">power_settings_new</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Chat Panel -->
+    <div class="chat-panel" id="chat-panel" style="display:none;">
+        <div class="chat-header">
+            <span>${_('remote.chat')}</span>
+            <button class="chat-close" id="btn-chat-close">
+                <span class="material-icons">close</span>
+            </button>
+        </div>
+        <div class="chat-messages" id="chat-messages"></div>
+        <div class="chat-input-area">
+            <input type="text" class="chat-input" id="chat-input" placeholder="${_('remote.chat_placeholder')}" />
+            <button class="chat-send" id="btn-chat-send">
+                <span class="material-icons">send</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+`
+}) %>

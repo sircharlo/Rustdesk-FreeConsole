@@ -7,6 +7,7 @@ const router = express.Router();
 const db = require('../services/database');
 const hbbsApi = require('../services/hbbsApi');
 const keyService = require('../services/keyService');
+const config = require('../config/config');
 const { requireAuth } = require('../middleware/auth');
 
 /**
@@ -73,7 +74,7 @@ router.get('/api/server/status', requireAuth, async (req, res) => {
                     socket.destroy();
                     resolve({ status: 'stopped' });
                 });
-                socket.connect(21117, '127.0.0.1');
+                socket.connect(config.wsProxy.hbbrPort, config.wsProxy.hbbrHost);
             });
             hbbrStatus = hbbrCheck;
         } catch (e) {
@@ -85,7 +86,9 @@ router.get('/api/server/status', requireAuth, async (req, res) => {
             data: {
                 hbbs: hbbsHealth,
                 hbbr: hbbrStatus,
-                api_port: 21114
+                api_port: parseInt(new URL(config.hbbsApiUrl).port, 10) || 21114,
+                hbbs_port: config.wsProxy.hbbsPort,
+                hbbr_port: config.wsProxy.hbbrPort
             }
         });
     } catch (err) {

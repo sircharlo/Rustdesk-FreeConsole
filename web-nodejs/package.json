@@ -1,6 +1,6 @@
 {
   "name": "betterdesk-console",
-  "version": "2.0.0",
+  "version": "2.3.0",
   "description": "BetterDesk Console - Professional Web Management Panel for RustDesk Server",
   "main": "server.js",
   "scripts": {
@@ -16,18 +16,23 @@
   "author": "UNITRONIX",
   "license": "AGPL-3.0",
   "dependencies": {
-    "express": "^4.18.2",
-    "better-sqlite3": "^11.3.0",
-    "ejs": "^3.1.10",
-    "express-session": "^1.18.0",
-    "express-rate-limit": "^7.4.1",
-    "bcrypt": "^5.1.1",
     "axios": "^1.7.7",
-    "helmet": "^7.1.0",
+    "bcrypt": "^5.1.1",
+    "better-sqlite3": "^11.3.0",
     "cookie-parser": "^1.4.6",
     "csrf-csrf": "^3.0.6",
+    "ejs": "^3.1.10",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.4.1",
+    "express-session": "^1.18.0",
+    "helmet": "^7.1.0",
     "multer": "^1.4.5-lts.1",
-    "qrcode": "^1.5.4"
+    "otplib": "^12.0.1",
+    "protobufjs": "^8.0.0",
+    "qrcode": "^1.5.4",
+    "tweetnacl": "^1.0.3",
+    "tweetnacl-util": "^0.15.1",
+    "ws": "^8.19.0"
   },
   "engines": {
     "node": ">=18.0.0"

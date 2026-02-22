@@ -5,14 +5,13 @@
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![RustDesk](https://img.shields.io/badge/RustDesk-1.1.14-green.svg)
 ![Node.js](https://img.shields.io/badge/Node.js-18+-339933.svg)
-![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)
-![Version](https://img.shields.io/badge/version-2.2.0-brightgreen.svg)
-![Security](https://img.shields.io/badge/API-X--API--Key--Auth-green.svg)
-![Access](https://img.shields.io/badge/LAN-Accessible-blue.svg)
+![Version](https://img.shields.io/badge/version-2.3.0-brightgreen.svg)
+![Security](https://img.shields.io/badge/Security-TOTP%20%2B%20CSRF-green.svg)
+![Access](https://img.shields.io/badge/LAN%20%2B%20WAN-API-blue.svg)
 
-**A modern, feature-rich web management console for RustDesk with real-time device monitoring and bidirectional ban enforcement**
+**A modern, feature-rich web management console for RustDesk with real-time device monitoring, RustDesk Client API integration, and enterprise-grade security**
 
-[Features](#-features) • [Screenshots](#-screenshots) • [Installation](#-installation) • [Documentation](#-documentation) • [Contributing](#-contributing)
+[Features](#-features) • [Screenshots](#-screenshots) • [Installation](#-installation) • [Client API](#-rustdesk-client-api) • [Documentation](#-documentation) • [Contributing](#-contributing)
 
 </div>
 
@@ -43,7 +42,7 @@
 
 ## 🚀 Quick Start
 
-**BetterDesk 2.2** introduces Node.js web console (recommended) alongside the original Flask console.
+**BetterDesk 2.3** features a Node.js web console with RustDesk Client API, TOTP 2FA, and address book sync.
 
 ### Linux
 ```bash
@@ -51,14 +50,11 @@ git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
 cd Rustdesk-FreeConsole
 chmod +x betterdesk.sh
 
-# Interactive mode (choose console type)
+# Interactive mode
 sudo ./betterdesk.sh
 
-# Automatic with Node.js console (recommended)
-sudo ./betterdesk.sh --auto --nodejs
-
-# Automatic with Flask console (legacy)
-sudo ./betterdesk.sh --auto --flask
+# Automatic mode (recommended)
+sudo ./betterdesk.sh --auto
 ```
 
 ### Windows (PowerShell as Administrator)
@@ -66,14 +62,11 @@ sudo ./betterdesk.sh --auto --flask
 git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
 cd Rustdesk-FreeConsole
 
-# Interactive mode (choose console type)
+# Interactive mode
 .\betterdesk.ps1
 
-# Automatic with Node.js console (recommended)
-.\betterdesk.ps1 -Auto -NodeJs
-
-# Automatic with Flask console (legacy)
-.\betterdesk.ps1 -Auto -Flask
+# Automatic mode (recommended)
+.\betterdesk.ps1 -Auto
 ```
 
 ### Docker
@@ -85,7 +78,7 @@ chmod +x betterdesk-docker.sh
 ```
 
 **All scripts offer an interactive menu with options:**
-1. 🚀 Fresh Installation (Node.js or Flask console)
+1. 🚀 Fresh Installation
 2. ⬆️ Update  
 3. 🔧 Repair Installation
 4. ✅ Validate Installation
@@ -94,6 +87,7 @@ chmod +x betterdesk-docker.sh
 7. 🔨 Build Binaries
 8. 📊 Diagnostics
 9. 🗑️ Uninstall
+C. 🔒 Configure SSL Certificates
 S. ⚙️ Settings (path configuration)
 
 ---
@@ -282,75 +276,70 @@ See [Contributing Translations](docs/CONTRIBUTING_TRANSLATIONS.md) for detailed 
 ┌─────────────────────────────────────────────────────────┐
 │                   RustDesk Clients                      │
 │              (Desktop, Tablet, Web)                      │
-└──────────────────────┬──────────────────────────────────┘
-                       │ Heartbeat (~30-45s)
-                       ▼
-         ┌─────────────────────────────┐
-         │   Enhanced HBBS Server      │
-         │   (Port 21115-21119)        │
-         └──────────┬──────────────────┘
-                    │
-                    ▼
-         ┌─────────────────────────────┐
-         │   Arc<PeerMap>              │
-         │   (Shared Memory)           │
-         │   • In-memory peer storage  │
-         │   • last_reg_time tracking  │
-         └──────────┬──────────────────┘
-                    │
-         ┌──────────┴──────────┐
-         ▼                     ▼
-┌────────────────┐   ┌─────────────────┐
-│  HTTP API      │   │  SQLite DB      │
-│  (Port 21120)  │   │  (Persistence)  │
-│  (LAN Access)  │   │                 │
-└────────┬───────┘   └─────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────────┐
-│       Web Management Console            │
-│              (Port 5000)                │
-├─────────────────┬───────────────────────┤
-│  Node.js        │  Flask (Legacy)       │
-│  (Recommended)  │  (Python)             │
-│  Express.js     │  Jinja2 templates     │
-│  EJS templates  │                       │
-│  better-sqlite3 │                       │
-└─────────────────┴───────────────────────┘
+└───────────┬─────────────────────────────────┬────────────┘
+            │  Heartbeat (~30-45s)            │ Login / AB Sync
+            ▼                                 ▼
+ ┌────────────────────────────┐  ┌──────────────────────────┐
+ │   Enhanced HBBS Server     │  │  RustDesk Client API     │
+ │   (Port 21115-21119)       │  │  (Port 21121, WAN)       │
+ └────────────┬───────────────┘  │  7-Layer Security Stack  │
+              │                  └────────────┬─────────────┘
+              ▼                               │
+ ┌────────────────────────────┐               │
+ │   Arc<PeerMap>             │               │
+ │   (Shared Memory)          │               │
+ └───────────┬────────────────┘               │
+          ┌──┴──────────┐                     │
+          ▼             ▼                     │
+ ┌──────────────┐ ┌─────────────┐             │
+ │  HTTP API    │ │  SQLite DB  │             │
+ │  (Port 21120)│ │  (Persist.) │             │
+ └──────┬───────┘ └─────────────┘             │
+        │                                     │
+        ▼                                     ▼
+┌─────────────────────────────────────────────────┐
+│       Web Management Console                    │
+│     Node.js • Express • EJS                     │
+│         (Port 5000, LAN)                        │
+├─────────────┬────────────┬──────────────────────┤
+│ Auth + TOTP │ WebSocket  │ Address Book Sync    │
+│  (bcrypt)   │  Relay     │  (DB persistence)    │
+└─────────────┴────────────┴──────────────────────┘
 ```
 
 ### Key Components
 
 1. **Enhanced HBBS**: Modified RustDesk signal server with HTTP API
-2. **HTTP API**: Axum-based REST API for device queries
-3. **PeerMap**: Thread-safe in-memory peer storage (Arc<RwLock>)
-4. **Web Console**: Node.js (recommended) or Flask application with modern UI
-5. **SQLite Database**: Original RustDesk database (unchanged)
+2. **RustDesk Client API**: Dedicated WAN-facing API for RustDesk desktop client login, address book sync
+3. **HTTP API**: Axum-based REST API for device queries (LAN)
+4. **PeerMap**: Thread-safe in-memory peer storage (Arc<RwLock>)
+5. **Web Console**: Node.js application with modern UI, TOTP 2FA, CSRF protection
+6. **SQLite Database**: Original RustDesk database (unchanged) + auth database
 
-### Web Console Options
+### Web Console
 
-| Feature | Node.js (Recommended) | Flask (Legacy) |
-|---------|----------------------|----------------|
-| **Performance** | Faster, non-blocking | Good |
-| **Memory** | Lower | Higher |
-| **Dependencies** | npm packages | Python venv |
-| **Database** | better-sqlite3 | sqlite3 |
-| **Templates** | EJS | Jinja2 |
-| **Startup Time** | ~1 second | ~3 seconds |
+| Feature | Details |
+|---------|--------|
+| **Runtime** | Node.js 18+ (Express.js) |
+| **Templates** | EJS |
+| **Database** | better-sqlite3 |
+| **Auth** | bcrypt + TOTP 2FA |
+| **Security** | CSRF, Helmet, rate limiting |
+| **Client API** | RustDesk login + AB sync (port 21121) |
 
 ---
 
 ## 🚀 Installation
 
-### 📌 Interactive ALL-IN-ONE Scripts (v2.2.0 - Recommended)
+### 📌 Interactive ALL-IN-ONE Scripts (v2.3.0 - Recommended)
 
 | Platform | Script | Features |
 |----------|--------|----------|
-| **Linux** | `betterdesk.sh` | ✅ Interactive menu, Node.js/Flask choice, install, update, backup, diagnostics |
-| **Windows** | `betterdesk.ps1` | ✅ Interactive menu, Node.js/Flask choice, install, update, backup, diagnostics |
+| **Linux** | `betterdesk.sh` | ✅ Interactive menu, install, update, backup, diagnostics, SSL config |
+| **Windows** | `betterdesk.ps1` | ✅ Interactive menu, install, update, backup, diagnostics, SSL config |
 | **Docker** | `betterdesk-docker.sh` | ✅ Interactive menu, build images, manage containers |
 
-> **💡 New in v2.2.0**: Choose between Node.js (recommended) and Flask web console during installation!
+> **💡 New in v2.3.0**: RustDesk Client API (login/address book sync), TOTP 2FA, CSRF protection, SSL certificate configuration!
 
 ### 🐧 Linux (`betterdesk.sh`)
 
@@ -362,8 +351,8 @@ chmod +x betterdesk.sh
 # Interactive mode
 sudo ./betterdesk.sh
 
-# Automatic mode with Node.js (recommended)
-sudo ./betterdesk.sh --auto --nodejs
+# Automatic mode (recommended)
+sudo ./betterdesk.sh --auto
 ```
 
 ### 🪟 Windows (`betterdesk.ps1`)
@@ -375,8 +364,8 @@ cd Rustdesk-FreeConsole
 # Interactive mode (Run as Administrator)
 .\betterdesk.ps1
 
-# Automatic mode with Node.js (recommended)
-.\betterdesk.ps1 -Auto -NodeJs
+# Automatic mode (recommended)
+.\betterdesk.ps1 -Auto
 ```
 
 ### 🐳 Docker (`betterdesk-docker.sh`)
@@ -410,8 +399,7 @@ docker compose up -d
 - **Linux**: Ubuntu 20.04+, Debian 11+, CentOS 8+, Arch Linux
 - **Windows**: Windows 10+, Windows Server 2016+
 - **RustDesk**: Fresh RustDesk installation OR existing working HBBS (script auto-detects)
-- **Node.js Console**: Node.js 18+ (auto-installed by script)
-- **Flask Console**: Python 3.8+ (auto-installed by script)
+- **Node.js**: 18+ (auto-installed by script)
 - **No Compilation Required**: Uses precompiled binaries
 
 > **💡 Fresh Installation Support**: The script automatically detects if you have RustDesk installed and can perform fresh installations or updates accordingly. No need for separate installation procedures!
@@ -436,7 +424,7 @@ docker compose up -d
 - ✅ Detects existing RustDesk installation
 - ✅ Creates automatic backup
 - ✅ Installs BetterDesk enhanced binaries
-- ✅ Installs web console (Node.js or Flask)
+- ✅ Installs web console (Node.js)
 - ✅ Runs database migrations
 - ✅ Creates authentication tables and admin user
 - ✅ Configures system services (systemd/Windows services)
@@ -478,10 +466,10 @@ sudo systemctl restart rustdesksignal betterdesk
 
 The installers automatically select correct binaries for your platform:
 
-| Platform | Binaries | API Port |
-|----------|----------|----------|
-| **Linux x86_64** | `hbbs-patch-v2/hbbs-linux-x86_64`, `hbbr-linux-x86_64` | 21120 |
-| **Windows x86_64** | `hbbs-patch-v2/hbbs-windows-x86_64.exe`, `hbbr-windows-x86_64.exe` | 21114 |
+| Platform | Binaries | HBBS API Port | Client API Port |
+|----------|----------|---------------|------------------|
+| **Linux x86_64** | `hbbs-patch-v2/hbbs-linux-x86_64`, `hbbr-linux-x86_64` | 21120 | 21121 |
+| **Windows x86_64** | `hbbs-patch-v2/hbbs-windows-x86_64.exe`, `hbbr-windows-x86_64.exe` | 21114 | 21121 |
 
 > **Note**: Do not mix binaries between platforms!
 
@@ -778,11 +766,10 @@ The web console binds to `0.0.0.0:5000` for LAN access and includes:
 **Node.js Console**: Edit `.env` file:
 ```bash
 PORT=5000
-```
-
-**Flask Console**: Edit `app.py`:
-```python
-app.run(host='0.0.0.0', port=5000)
+API_PORT=21121
+HTTPS_ENABLED=false
+SSL_CERT_PATH=/path/to/cert.pem
+SSL_KEY_PATH=/path/to/key.pem
 ```
 
 ### Firewall Configuration
@@ -799,11 +786,74 @@ sudo ufw allow 21115/tcp
 sudo ufw allow 21116/tcp
 sudo ufw allow 21116/udp
 sudo ufw allow 21117/tcp
+
+# Allow RustDesk Client API (WAN - login/address book)
+sudo ufw allow 21121/tcp
 ```
 
 ---
 
-## 📚 API Documentation
+## 📱 RustDesk Client API
+
+BetterDesk v2.3.0 includes a dedicated **RustDesk Client API** that allows desktop clients to:
+- **Login/Logout** with username and password
+- **Sync address books** across devices
+- **Send heartbeats** and system information
+- **Query device groups** and user information
+
+### Configuration
+
+The Client API runs on a **dedicated WAN-facing port** (default `21121`), isolated from the admin panel (port `5000`).
+
+```bash
+# Environment variables
+API_PORT=21121          # Client API port (default: 21121)
+API_ENABLED=true        # Enable/disable Client API
+```
+
+### RustDesk Desktop Client Setup
+
+1. In the RustDesk client, go to **Settings** → **Network**
+2. Set **API Server** to `http://your-server-ip:21121`
+3. Go to **Settings** → **Account** → **Login**
+4. Enter your BetterDesk username and password
+
+> **Note**: Users with TOTP 2FA enabled must enter the verification code in the client's verification field.
+
+### Security
+
+The Client API is protected by a **7-layer security middleware stack**:
+
+| Layer | Protection |
+|-------|-----------|
+| 1. Request Timeout | 10s request / 15s headers timeout |
+| 2. Security Headers | No server fingerprinting |
+| 3. Request Logger | Full audit trail |
+| 4. Path Whitelist | Only known RustDesk endpoints |
+| 5. Global Rate Limit | 100 req/15min per IP |
+| 6. Login Rate Limit | 5 login attempts/15min per IP |
+| 7. Body Size Limit | 1KB per request (64KB for AB) |
+
+### Client API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/login` | POST | Authenticate user (returns access token) |
+| `/api/logout` | POST | Invalidate session |
+| `/api/currentUser` | GET | Get current user info |
+| `/api/heartbeat` | POST | Client heartbeat |
+| `/api/sysinfo` | POST | Report system information |
+| `/api/ab` | GET/POST | Address book (get/save) |
+| `/api/ab/personal` | GET/POST | Personal address book |
+| `/api/ab/tags` | GET | Address book tags |
+| `/api/users` | GET | User list |
+| `/api/peers` | GET | Peer/device list |
+| `/api/device-group` | GET | Device groups |
+| `/api/login-options` | GET | Available login options |
+
+---
+
+## 📚 API Documentation (HBBS)
 
 ### Base URL
 ```
@@ -911,21 +961,23 @@ BetterDeskConsole/
 ├── README.md                    # This file
 ├── LICENSE                      # MIT License
 ├── VERSION                      # Current version number
-├── betterdesk.sh                # Linux ALL-IN-ONE installer (v2.2.0)
-├── betterdesk.ps1               # Windows ALL-IN-ONE installer (v2.2.0)
+├── betterdesk.sh                # Linux ALL-IN-ONE installer (v2.3.0)
+├── betterdesk.ps1               # Windows ALL-IN-ONE installer (v2.3.0)
 ├── betterdesk-docker.sh         # Docker installer
 ├── docker-compose.yml           # Docker orchestration
 ├── screenshots/                 # UI screenshots
-├── web/                         # Flask web console (legacy)
+├── web/                         # Flask web console (legacy, deprecated)
 │   ├── app.py                   # Flask application
 │   ├── requirements.txt         # Python dependencies
 │   └── ...
-├── web-nodejs/                  # Node.js web console (recommended)
-│   ├── server.js                # Express application
+├── web-nodejs/                  # Node.js web console
+│   ├── server.js                # Express application (dual port: 5000 + 21121)
 │   ├── package.json             # npm dependencies
 │   ├── views/                   # EJS templates
 │   ├── public/                  # Static assets (CSS, JS)
-│   ├── routes/                  # API routes
+│   ├── routes/                  # API routes (panel + RustDesk Client API)
+│   ├── middleware/              # Security, CSRF, WAN, i18n, rate limiting
+│   ├── services/                # Auth, DB, WebSocket relay
 │   └── ...
 ├── hbbs-patch-v2/               # HBBS modifications (v2.x)
 │   ├── hbbs-linux-x86_64        # Pre-compiled Linux binary
@@ -991,10 +1043,14 @@ sudo systemctl status betterdesk.service
 - **[EJS](https://ejs.co/)**: Embedded JavaScript templating
 - **[better-sqlite3](https://github.com/WiseLibs/better-sqlite3)**: Fast SQLite3 driver
 - **[bcrypt](https://www.npmjs.com/package/bcrypt)**: Password hashing
+- **[otplib](https://www.npmjs.com/package/otplib)**: TOTP two-factor authentication
+- **[csrf-csrf](https://www.npmjs.com/package/csrf-csrf)**: CSRF protection
 - **[Helmet](https://helmetjs.github.io/)**: Security headers
 - **[express-rate-limit](https://www.npmjs.com/package/express-rate-limit)**: Rate limiting
 
 ### Web Console (Flask - Legacy)
+
+> **Note**: Flask console is no longer maintained. Use Node.js console for all new installations.
 
 - **[Flask](https://flask.palletsprojects.com/)**: Python web framework
 - **[Jinja2](https://jinja.palletsprojects.com/)**: Template engine

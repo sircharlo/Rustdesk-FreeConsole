@@ -17,33 +17,13 @@
     }
     
     /**
-     * Sidebar toggle functionality
+     * Sidebar functionality (mobile support)
      */
     function initSidebar() {
         const sidebar = document.getElementById('sidebar');
-        const toggle = document.getElementById('sidebar-toggle');
         const overlay = document.getElementById('sidebar-overlay');
-        const app = document.getElementById('app');
         
-        if (!sidebar || !toggle) return;
-        
-        // Load collapsed state from localStorage
-        const isCollapsed = localStorage.getItem('sidebar-collapsed') === 'true';
-        if (isCollapsed) {
-            app?.classList.add('sidebar-collapsed');
-        }
-        
-        toggle.addEventListener('click', () => {
-            // On mobile, toggle open class
-            if (window.innerWidth <= 1024) {
-                sidebar.classList.toggle('open');
-                return;
-            }
-            
-            // On desktop, toggle collapsed
-            app?.classList.toggle('sidebar-collapsed');
-            localStorage.setItem('sidebar-collapsed', app?.classList.contains('sidebar-collapsed'));
-        });
+        if (!sidebar) return;
         
         // Close sidebar on overlay click (mobile)
         overlay?.addEventListener('click', () => {

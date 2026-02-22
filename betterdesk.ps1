@@ -1,11 +1,11 @@
 #Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-    BetterDesk Console Manager v2.2.0 - All-in-One Interactive Tool for Windows
+    BetterDesk Console Manager v2.3.0 - All-in-One Interactive Tool for Windows
 
 .DESCRIPTION
     Features:
-      - Fresh installation (Flask or Node.js console)
+      - Fresh installation (Node.js web console)
       - Update existing installation
       - Repair/fix issues (enhanced with graceful shutdown)
       - Validate installation
@@ -18,8 +18,9 @@
       - Enhanced service management with health verification
       - Port conflict detection
       - Fixed ban system (device-specific, not IP-based)
-      - Node.js web console support (recommended)
-      - Migration from Flask to Node.js
+      - RustDesk Client API (login, address book sync)
+      - TOTP Two-Factor Authentication
+      - SSL/TLS certificate configuration
 
 .PARAMETER Auto
     Run installation in automatic mode (non-interactive)
@@ -28,17 +29,14 @@
     Skip SHA256 verification of binaries
 
 .PARAMETER NodeJs
-    Install Node.js web console (recommended)
-
-.PARAMETER Flask
-    Install Flask (Python) web console (legacy)
+    Install Node.js web console (default)
 
 .EXAMPLE
     .\betterdesk.ps1
     Interactive mode
 
 .EXAMPLE
-    .\betterdesk.ps1 -Auto -NodeJs
+    .\betterdesk.ps1 -Auto
     Automatic installation with Node.js console
 
 .EXAMPLE
@@ -50,14 +48,14 @@ param(
     [switch]$Auto,
     [switch]$SkipVerify,
     [switch]$NodeJs,
-    [switch]$Flask
+    [switch]$Flask  # Deprecated, kept for backward compatibility
 )
 
 #===============================================================================
 # Configuration
 #===============================================================================
 
-$script:VERSION = "2.2.1"
+$script:VERSION = "2.3.0"
 $script:ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 # Auto mode flags
@@ -65,9 +63,11 @@ $script:AUTO_MODE = $Auto
 $script:SKIP_VERIFY = $SkipVerify
 
 # Console type preference
-$script:PREFERRED_CONSOLE_TYPE = ""
-if ($NodeJs) { $script:PREFERRED_CONSOLE_TYPE = "nodejs" }
-if ($Flask) { $script:PREFERRED_CONSOLE_TYPE = "flask" }
+$script:PREFERRED_CONSOLE_TYPE = "nodejs"  # Always Node.js (Flask removed in v2.3.0)
+if ($Flask) { 
+    Write-Host "WARNING: Flask console is deprecated. Node.js will be installed instead." -ForegroundColor Yellow
+    $script:PREFERRED_CONSOLE_TYPE = "nodejs" 
+}
 
 # Binary checksums (SHA256) - v2.1.2
 $script:HBBS_WINDOWS_X86_64_SHA256 = "F74F65B909460BED6D363A6DF907BF0D9DB3224F82A1D5B61BD636DC362125AD"
@@ -109,7 +109,7 @@ $script:HBBR_RUNNING = $false
 $script:CONSOLE_RUNNING = $false
 $script:BINARIES_OK = $false
 $script:DATABASE_OK = $false
-$script:CONSOLE_TYPE = "none"  # none, flask, nodejs
+$script:CONSOLE_TYPE = "none"  # none, nodejs
 
 # Logging
 $script:LOG_FILE = "$env:TEMP\betterdesk_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
@@ -249,7 +249,8 @@ function Detect-Installation {
         if ((Test-Path "$script:CONSOLE_PATH\server.js") -or (Test-Path "$script:CONSOLE_PATH\package.json")) {
             $script:CONSOLE_TYPE = "nodejs"
         } elseif (Test-Path "$script:CONSOLE_PATH\app.py") {
-            $script:CONSOLE_TYPE = "flask"
+            $script:CONSOLE_TYPE = "nodejs"  # Legacy Flask, will be migrated
+            Print-Warning "Legacy Flask console detected. Will be migrated to Node.js on update."
         }
         
         if ($script:CONSOLE_TYPE -ne "none" -and $script:BINARIES_OK) {
@@ -316,11 +317,11 @@ function Auto-DetectPaths {
             $consoleFound = $true
             break
         }
-        # Check for Flask/Python console (app.py)
-        if ((Test-Path $path) -and (Test-Path "$path\app.py")) {
+        # Check for legacy Flask/Python console (app.py) - migrate to Node.js
+        if ((Test-Path $path) -and (Test-Path "$path\app.py") -and -not (Test-Path "$path\server.js")) {
             $script:CONSOLE_PATH = $path
-            $script:CONSOLE_TYPE = "flask"
-            Print-Success "Detected Flask Console: $script:CONSOLE_PATH"
+            $script:CONSOLE_TYPE = "nodejs"  # Will be migrated
+            Print-Warning "Legacy Flask console detected at $path. Will be migrated to Node.js."
             $consoleFound = $true
             break
         }
@@ -375,7 +376,6 @@ function Print-Status {
     if (Test-Path $script:CONSOLE_PATH) {
         $consoleTypeLabel = switch ($script:CONSOLE_TYPE) {
             "nodejs" { " (Node.js)" }
-            "flask" { " (Flask)" }
             default { "" }
         }
         Write-Host "  Web Console:  " -NoNewline; Write-Host "[OK]$consoleTypeLabel" -ForegroundColor Green
@@ -513,10 +513,10 @@ function Install-Dependencies {
         python -m ensurepip --upgrade
     }
     
-    # Install bcrypt for password hashing
+    # Install bcrypt for password hashing (used by reset-password fallback)
     Print-Step "Installing Python packages..."
     python -m pip install --quiet --upgrade pip
-    python -m pip install --quiet bcrypt flask flask-wtf flask-limiter requests markupsafe
+    python -m pip install --quiet bcrypt requests
     
     Print-Success "Dependencies installed"
     return $true
@@ -656,6 +656,14 @@ DEFAULT_ADMIN_PASSWORD=$nodejsAdminPassword
 
 # Session
 SESSION_SECRET=$sessionSecret
+
+# HTTPS (set to true and provide certificate paths to enable)
+HTTPS_ENABLED=false
+HTTPS_PORT=5443
+SSL_CERT_PATH=
+SSL_KEY_PATH=
+SSL_CA_PATH=
+HTTP_REDIRECT_HTTPS=true
 "@
         Set-Content -Path $envFile -Value $envContent
         Print-Info "Created .env configuration file"
@@ -675,44 +683,7 @@ SESSION_SECRET=$sessionSecret
     }
 }
 
-function Install-FlaskConsole {
-    Print-Step "Installing Flask (Python) Web Console..."
-    
-    # Create directory
-    if (-not (Test-Path $script:CONSOLE_PATH)) {
-        New-Item -ItemType Directory -Path $script:CONSOLE_PATH -Force | Out-Null
-    }
-    
-    # Copy web files
-    $webSource = Join-Path $script:ScriptDir "web"
-    if ((Test-Path $webSource) -and (Test-Path (Join-Path $webSource "app.py"))) {
-        Copy-Item -Path "$webSource\*" -Destination $script:CONSOLE_PATH -Recurse -Force
-    } else {
-        Print-Error "Flask web/ folder not found in project!"
-        return $false
-    }
-    
-    # Setup Python virtual environment
-    Print-Step "Configuring Python environment..."
-    
-    Push-Location $script:CONSOLE_PATH
-    try {
-        python -m venv venv
-        
-        # Install requirements
-        & "$script:CONSOLE_PATH\venv\Scripts\pip.exe" install --quiet --upgrade pip
-        & "$script:CONSOLE_PATH\venv\Scripts\pip.exe" install --quiet -r requirements.txt
-        
-        $script:CONSOLE_TYPE = "flask"
-        Print-Success "Flask Web Console installed"
-        return $true
-    } catch {
-        Print-Error "Failed to setup Python environment: $_"
-        return $false
-    } finally {
-        Pop-Location
-    }
-}
+# Install-FlaskConsole removed in v2.3.0 - Flask support deprecated
 
 function Migrate-Console {
     param(
@@ -755,66 +726,27 @@ function Migrate-Console {
 }
 
 function Install-Console {
-    # Determine which console type to install
-    $consoleChoice = $script:PREFERRED_CONSOLE_TYPE
+    # Always install Node.js console (Flask removed in v2.3.0)
+    Print-Info "Installing Node.js web console..."
     
-    # If not specified, ask user (unless in auto mode)
-    if ([string]::IsNullOrEmpty($consoleChoice)) {
-        if ($script:AUTO_MODE) {
-            # Default to Node.js in auto mode (recommended)
-            $consoleChoice = "nodejs"
-            Print-Info "Auto mode: Installing Node.js console (recommended)"
-        } else {
-            Write-Host ""
-            Write-Host "Select Web Console Type:" -ForegroundColor White
-            Write-Host ""
-            Write-Host "  1. Node.js (recommended) - faster, modern, better performance" -ForegroundColor Green
-            Write-Host "  2. Flask (Python) - legacy, original" -ForegroundColor Yellow
-            Write-Host ""
-            $choice = Read-Host "Choice [1]"
-            switch ($choice) {
-                "2" { $consoleChoice = "flask" }
-                "flask" { $consoleChoice = "flask" }
-                default { $consoleChoice = "nodejs" }
-            }
-        }
-    }
-    
-    # Check for existing console and offer migration
+    # Check for existing Flask console and migrate
     if (Test-Path $script:CONSOLE_PATH) {
-        $existingType = "unknown"
-        if ((Test-Path (Join-Path $script:CONSOLE_PATH "server.js")) -or (Test-Path (Join-Path $script:CONSOLE_PATH "package.json"))) {
-            $existingType = "nodejs"
-        } elseif (Test-Path (Join-Path $script:CONSOLE_PATH "app.py")) {
-            $existingType = "flask"
-        }
-        
-        if ($existingType -ne "unknown" -and $existingType -ne $consoleChoice) {
-            Print-Warning "Existing $existingType console detected at $script:CONSOLE_PATH"
+        if ((Test-Path (Join-Path $script:CONSOLE_PATH "app.py")) -and -not (Test-Path (Join-Path $script:CONSOLE_PATH "server.js"))) {
+            Print-Warning "Legacy Flask console detected at $($script:CONSOLE_PATH)"
             if (-not $script:AUTO_MODE) {
-                if (Confirm-Action "Migrate from $existingType to $consoleChoice?") {
-                    Migrate-Console -FromType $existingType -ToType $consoleChoice
+                if (Confirm-Action "Migrate from Flask to Node.js?") {
+                    Migrate-Console -FromType "flask" -ToType "nodejs"
                 } else {
-                    Print-Info "Keeping existing $existingType console"
-                    $script:CONSOLE_TYPE = $existingType
-                    return $true
+                    Print-Info "Flask is deprecated. Installing Node.js alongside..."
                 }
             } else {
-                Print-Info "Auto mode: Migrating from $existingType to $consoleChoice"
-                Migrate-Console -FromType $existingType -ToType $consoleChoice
+                Print-Info "Auto mode: Migrating from Flask to Node.js"
+                Migrate-Console -FromType "flask" -ToType "nodejs"
             }
         }
     }
     
-    # Install selected console type
-    switch ($consoleChoice) {
-        "nodejs" { return Install-NodeJsConsole }
-        "flask" { return Install-FlaskConsole }
-        default {
-            Print-Error "Unknown console type: $consoleChoice"
-            return $false
-        }
-    }
+    return Install-NodeJsConsole
 }
 
 function Install-Binaries {
@@ -962,20 +894,6 @@ function Setup-Services {
         & $nssm set $script:CONSOLE_SERVICE AppStdout "$script:CONSOLE_PATH\logs\console.log"
         & $nssm set $script:CONSOLE_SERVICE AppStderr "$script:CONSOLE_PATH\logs\console_error.log"
         Print-Info "Created Node.js console service"
-    } else {
-        # Flask console (default/fallback)
-        $pythonExe = Join-Path $script:CONSOLE_PATH "venv\Scripts\python.exe"
-        $appPy = Join-Path $script:CONSOLE_PATH "app.py"
-        
-        & $nssm install $script:CONSOLE_SERVICE $pythonExe $appPy
-        & $nssm set $script:CONSOLE_SERVICE AppDirectory $script:CONSOLE_PATH
-        & $nssm set $script:CONSOLE_SERVICE DisplayName "BetterDesk Web Console (Flask)"
-        & $nssm set $script:CONSOLE_SERVICE Description "BetterDesk Web Management Console - Flask"
-        & $nssm set $script:CONSOLE_SERVICE Start SERVICE_AUTO_START
-        & $nssm set $script:CONSOLE_SERVICE AppEnvironmentExtra "FLASK_ENV=production" "RUSTDESK_PATH=$script:RUSTDESK_PATH" "API_PORT=$script:API_PORT"
-        & $nssm set $script:CONSOLE_SERVICE AppStdout "$script:CONSOLE_PATH\logs\console.log"
-        & $nssm set $script:CONSOLE_SERVICE AppStderr "$script:CONSOLE_PATH\logs\console_error.log"
-        Print-Info "Created Flask console service"
     }
     
     # Create logs directories
@@ -1021,13 +939,6 @@ function Setup-ScheduledTasks {
         $consoleAction = New-ScheduledTaskAction -Execute $nodeExe -Argument $serverJs -WorkingDirectory $script:CONSOLE_PATH
         $consoleDesc = "BetterDesk Web Console (Node.js)"
         Print-Info "Creating Node.js console task"
-    } else {
-        # Flask console (default/fallback)
-        $pythonExe = Join-Path $script:CONSOLE_PATH "venv\Scripts\python.exe"
-        $appPy = Join-Path $script:CONSOLE_PATH "app.py"
-        $consoleAction = New-ScheduledTaskAction -Execute $pythonExe -Argument $appPy -WorkingDirectory $script:CONSOLE_PATH
-        $consoleDesc = "BetterDesk Web Console (Flask)"
-        Print-Info "Creating Flask console task"
     }
     
     $consoleTrigger = New-ScheduledTaskTrigger -AtStartup
@@ -1178,73 +1089,21 @@ function Create-AdminUser {
     if (Test-Path (Join-Path $script:CONSOLE_PATH "server.js")) {
         $currentConsoleType = "nodejs"
     } elseif (Test-Path (Join-Path $script:CONSOLE_PATH "app.py")) {
-        $currentConsoleType = "flask"
+        $currentConsoleType = "nodejs"  # Legacy Flask detected, treat as Node.js
+        Print-Warning "Legacy Flask console detected. Please migrate to Node.js."
     } else {
         Print-Warning "No console detected, skipping admin creation"
         return $null
     }
     
-    if ($currentConsoleType -eq "nodejs") {
-        # Node.js console - admin is created automatically on startup
-        # Read the password saved during Install-NodeJsConsole
-        $dataDir = Join-Path $script:CONSOLE_PATH "data"
-        $credsFile = Join-Path $dataDir ".admin_credentials"
-        
-        if (Test-Path $credsFile) {
-            $creds = Get-Content $credsFile -Raw
-            $adminPassword = ($creds -split ':')[1].Trim()
-            
-            Write-Host ""
-            Write-Host "============================================================" -ForegroundColor Green
-            Write-Host "             PANEL LOGIN CREDENTIALS                        " -ForegroundColor Green
-            Write-Host "============================================================" -ForegroundColor Green
-            Write-Host "  Login:    " -NoNewline; Write-Host "admin" -ForegroundColor White
-            Write-Host "  Password: " -NoNewline; Write-Host $adminPassword -ForegroundColor White
-            Write-Host "============================================================" -ForegroundColor Green
-            Write-Host ""
-            
-            # Also save to main RustDesk path for consistency
-            $mainCredsFile = Join-Path $script:RUSTDESK_PATH ".admin_credentials"
-            "admin:$adminPassword" | Out-File -FilePath $mainCredsFile -Encoding UTF8
-            
-            Print-Info "Credentials saved in: $mainCredsFile"
-            return $adminPassword
-        } else {
-            Print-Warning "No Node.js admin credentials found"
-            Print-Info "Default credentials: admin / admin"
-            Print-Info "Please change password after first login!"
-            return "admin"
-        }
-    } else {
-        # Flask console - create admin in db_v2.sqlite3
-        $adminPassword = Generate-RandomPassword
-        
-        $pythonScript = @"
-import sqlite3
-import bcrypt
-from datetime import datetime
-
-db_path = r'$($script:DB_PATH)'
-admin_password = '$adminPassword'
-
-conn = sqlite3.connect(db_path)
-cursor = conn.cursor()
-
-# Check if admin exists
-cursor.execute("SELECT id FROM users WHERE username='admin'")
-if cursor.fetchone():
-    print("Admin already exists")
-else:
-    password_hash = bcrypt.hashpw(admin_password.encode(), bcrypt.gensalt()).decode()
-    cursor.execute('''INSERT INTO users (username, password_hash, role, is_active, created_at)
-                      VALUES ('admin', ?, 'admin', 1, ?)''', (password_hash, datetime.now().isoformat()))
-    conn.commit()
-    print("Admin created")
-
-conn.close()
-"@
-        
-        $pythonScript | python
+    # Node.js console - admin is created automatically on startup
+    # Read the password saved during Install-NodeJsConsole
+    $dataDir = Join-Path $script:CONSOLE_PATH "data"
+    $credsFile = Join-Path $dataDir ".admin_credentials"
+    
+    if (Test-Path $credsFile) {
+        $creds = Get-Content $credsFile -Raw
+        $adminPassword = ($creds -split ':')[1].Trim()
         
         Write-Host ""
         Write-Host "============================================================" -ForegroundColor Green
@@ -1255,13 +1114,17 @@ conn.close()
         Write-Host "============================================================" -ForegroundColor Green
         Write-Host ""
         
-        # Save credentials
-        $credentialsFile = Join-Path $script:RUSTDESK_PATH ".admin_credentials"
-        "admin:$adminPassword" | Out-File -FilePath $credentialsFile -Encoding UTF8
+        # Also save to main RustDesk path for consistency
+        $mainCredsFile = Join-Path $script:RUSTDESK_PATH ".admin_credentials"
+        "admin:$adminPassword" | Out-File -FilePath $mainCredsFile -Encoding UTF8
         
-        Print-Info "Credentials saved in: $credentialsFile"
-        
+        Print-Info "Credentials saved in: $mainCredsFile"
         return $adminPassword
+    } else {
+        Print-Warning "No Node.js admin credentials found"
+        Print-Info "Default credentials: admin / admin"
+        Print-Info "Please change password after first login!"
+        return "admin"
     }
 }
 
@@ -1904,11 +1767,7 @@ function Do-ResetPassword {
     }
     
     Write-Host "Detected console type: " -NoNewline
-    if ($script:CONSOLE_TYPE -eq "nodejs") {
-        Write-Host "Node.js" -ForegroundColor Cyan
-    } else {
-        Write-Host "Flask/Python" -ForegroundColor Cyan
-    }
+    Write-Host "Node.js" -ForegroundColor Cyan
     Write-Host ""
     
     Write-Host "Select option:"
@@ -2016,41 +1875,6 @@ print("Password updated successfully")
                 Print-Warning "Python output: $output"
             }
         }
-    } else {
-        # Flask/Python console - update db_v2.sqlite3 users table
-        if (-not (Test-Path $script:DB_PATH)) {
-            Print-Error "Database not found: $script:DB_PATH"
-            Press-Enter
-            return
-        }
-        
-        $pythonScript = @"
-import sqlite3
-import bcrypt
-
-db_path = r'$($script:DB_PATH)'
-new_password = '$newPassword'
-
-conn = sqlite3.connect(db_path)
-cursor = conn.cursor()
-
-password_hash = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
-cursor.execute("UPDATE users SET password_hash = ? WHERE username = 'admin'", (password_hash,))
-
-if cursor.rowcount == 0:
-    cursor.execute('''INSERT INTO users (username, password_hash, role, is_active)
-                      VALUES ('admin', ?, 'admin', 1)''', (password_hash,))
-
-conn.commit()
-conn.close()
-print("Password updated successfully")
-"@
-        $output = $pythonScript | python 2>&1
-        if ($output -match "successfully") {
-            $success = $true
-        } else {
-            Print-Warning "Python output: $output"
-        }
     }
     
     Write-Host ""
@@ -2067,7 +1891,7 @@ print("Password updated successfully")
         "admin:$newPassword" | Out-File -FilePath $credentialsFile -Encoding UTF8
     } else {
         Print-Error "Failed to reset password!"
-        Print-Info "Make sure Python with bcrypt is installed, or Node.js for Node.js console"
+        Print-Info "Make sure Node.js is installed and the console is set up correctly"
     }
     
     Press-Enter
@@ -2383,6 +2207,130 @@ function Do-Build {
 }
 
 #===============================================================================
+# SSL Certificate Configuration
+#===============================================================================
+
+function Do-ConfigureSSL {
+    Print-Header
+    Write-Host "========== SSL CERTIFICATE CONFIGURATION ==========" -ForegroundColor White
+    Write-Host ""
+    
+    $envFile = Join-Path $script:CONSOLE_PATH ".env"
+    if (-not (Test-Path $envFile)) {
+        Print-Error "Node.js console .env not found at $envFile"
+        Print-Info "Please install BetterDesk first (option 1)"
+        Press-Enter
+        return
+    }
+    
+    Write-Host "  Configure SSL/TLS certificates for BetterDesk Console." -ForegroundColor White
+    Write-Host "  This enables HTTPS for the admin panel and Client API." -ForegroundColor White
+    Write-Host ""
+    Write-Host "  1. Custom certificate (provide cert + key files)" -ForegroundColor Green
+    Write-Host "  2. Self-signed certificate (for testing only)" -ForegroundColor Green
+    Write-Host "  3. Disable SSL (revert to HTTP)" -ForegroundColor Red
+    Write-Host ""
+    
+    $sslChoice = Read-Host "Choice [1]"
+    if ([string]::IsNullOrEmpty($sslChoice)) { $sslChoice = "1" }
+    
+    $envContent = Get-Content $envFile -Raw
+    
+    switch ($sslChoice) {
+        "1" {
+            # Custom certificate
+            Write-Host ""
+            $certPath = Read-Host "Path to certificate file (PEM)"
+            $keyPath = Read-Host "Path to private key file (PEM)"
+            $caPath = Read-Host "Path to CA bundle (optional, press Enter to skip)"
+            
+            if (-not (Test-Path $certPath)) {
+                Print-Error "Certificate file not found: $certPath"
+                Press-Enter
+                return
+            }
+            if (-not (Test-Path $keyPath)) {
+                Print-Error "Key file not found: $keyPath"
+                Press-Enter
+                return
+            }
+            
+            $envContent = $envContent -replace 'HTTPS_ENABLED=.*', 'HTTPS_ENABLED=true'
+            $envContent = $envContent -replace 'SSL_CERT_PATH=.*', "SSL_CERT_PATH=$certPath"
+            $envContent = $envContent -replace 'SSL_KEY_PATH=.*', "SSL_KEY_PATH=$keyPath"
+            if (-not [string]::IsNullOrEmpty($caPath) -and (Test-Path $caPath)) {
+                $envContent = $envContent -replace 'SSL_CA_PATH=.*', "SSL_CA_PATH=$caPath"
+            }
+            $envContent = $envContent -replace 'HTTP_REDIRECT_HTTPS=.*', 'HTTP_REDIRECT_HTTPS=true'
+            
+            Set-Content $envFile -Value $envContent -NoNewline
+            Print-Success "Custom SSL certificate configured"
+        }
+        "2" {
+            # Self-signed
+            $sslDir = Join-Path $script:CONSOLE_PATH "ssl"
+            New-Item -ItemType Directory -Path $sslDir -Force | Out-Null
+            
+            $certPath = Join-Path $sslDir "selfsigned.crt"
+            $keyPath = Join-Path $sslDir "selfsigned.key"
+            
+            Print-Step "Generating self-signed certificate..."
+            
+            # Use openssl if available, otherwise PowerShell
+            $openssl = Get-Command openssl -ErrorAction SilentlyContinue
+            if ($openssl) {
+                & openssl req -x509 -nodes -days 365 -newkey rsa:2048 `
+                    -keyout $keyPath -out $certPath `
+                    -subj "/CN=localhost/O=BetterDesk/C=PL" 2>&1 | Out-Null
+            } else {
+                # PowerShell self-signed cert
+                $cert = New-SelfSignedCertificate -DnsName "localhost" -CertStoreLocation "cert:\LocalMachine\My" -NotAfter (Get-Date).AddYears(1)
+                $certBytes = $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Pfx)
+                [System.IO.File]::WriteAllBytes((Join-Path $sslDir "selfsigned.pfx"), $certBytes)
+                Print-Warning "Generated PFX certificate. For PEM format, install OpenSSL."
+            }
+            
+            $envContent = $envContent -replace 'HTTPS_ENABLED=.*', 'HTTPS_ENABLED=true'
+            $envContent = $envContent -replace 'SSL_CERT_PATH=.*', "SSL_CERT_PATH=$certPath"
+            $envContent = $envContent -replace 'SSL_KEY_PATH=.*', "SSL_KEY_PATH=$keyPath"
+            $envContent = $envContent -replace 'HTTP_REDIRECT_HTTPS=.*', 'HTTP_REDIRECT_HTTPS=true'
+            
+            Set-Content $envFile -Value $envContent -NoNewline
+            Print-Success "Self-signed certificate generated"
+            Print-Warning "Browsers will show security warning. Use a real certificate for production."
+        }
+        "3" {
+            # Disable SSL
+            $envContent = $envContent -replace 'HTTPS_ENABLED=.*', 'HTTPS_ENABLED=false'
+            $envContent = $envContent -replace 'SSL_CERT_PATH=.*', 'SSL_CERT_PATH='
+            $envContent = $envContent -replace 'SSL_KEY_PATH=.*', 'SSL_KEY_PATH='
+            $envContent = $envContent -replace 'HTTP_REDIRECT_HTTPS=.*', 'HTTP_REDIRECT_HTTPS=false'
+            
+            Set-Content $envFile -Value $envContent -NoNewline
+            Print-Success "SSL disabled. Running in HTTP mode."
+        }
+        default {
+            Print-Warning "Invalid option"
+            Press-Enter
+            return
+        }
+    }
+    
+    Write-Host ""
+    if (Confirm-Action "Restart BetterDesk to apply changes?") {
+        $serviceName = $script:CONSOLE_SERVICE
+        if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
+            Restart-Service -Name $serviceName -Force -ErrorAction SilentlyContinue
+            Print-Success "BetterDesk restarted"
+        } else {
+            Print-Warning "Service not found. Please restart manually."
+        }
+    }
+    
+    Press-Enter
+}
+
+#===============================================================================
 # Main Menu
 #===============================================================================
 
@@ -2402,6 +2350,7 @@ function Show-Menu {
     Write-Host "  8. DIAGNOSTICS"
     Write-Host "  9. UNINSTALL"
     Write-Host ""
+    Write-Host "  C. Configure SSL certificates"
     Write-Host "  S. Settings (paths)"
     Write-Host "  0. Exit"
     Write-Host ""
@@ -2435,6 +2384,8 @@ function Main {
             "7" { Do-Build }
             "8" { Do-Diagnostics }
             "9" { Do-Uninstall }
+            "C" { Do-ConfigureSSL }
+            "c" { Do-ConfigureSSL }
             "S" { Configure-Paths }
             "s" { Configure-Paths }
             "0" {

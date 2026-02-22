@@ -110,9 +110,18 @@
             updateServerStatus('hbbs-status', status.hbbs);
             updateServerStatus('hbbr-status', status.hbbr);
             
+            // Populate port values from server response
             if (status.api_port) {
                 const apiPortEl = document.getElementById('api-port');
                 if (apiPortEl) apiPortEl.textContent = status.api_port;
+            }
+            if (status.hbbs_port) {
+                const hbbsPortEl = document.getElementById('hbbs-port');
+                if (hbbsPortEl) hbbsPortEl.textContent = status.hbbs_port;
+            }
+            if (status.hbbr_port) {
+                const hbbrPortEl = document.getElementById('hbbr-port');
+                if (hbbrPortEl) hbbrPortEl.textContent = status.hbbr_port;
             }
             
         } catch (error) {
