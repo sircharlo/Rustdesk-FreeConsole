@@ -26,21 +26,21 @@
 
 | Platforma | Plik | Wersja | Status | Data |
 |-----------|------|--------|--------|------|
-| Linux x86_64 | `hbbs-patch-v2/hbbs-linux-x86_64` | v2.1.2 | ✅ Przetestowana | 2026-02-13 |
-| Linux x86_64 | `hbbs-patch-v2/hbbr-linux-x86_64` | v2.1.2 | ✅ Przetestowana | 2026-02-13 |
-| Windows x86_64 | `hbbs-patch-v2/hbbs-windows-x86_64.exe` | v2.1.2 | ✅ Przetestowana | 2026-02-13 |
-| Windows x86_64 | `hbbs-patch-v2/hbbr-windows-x86_64.exe` | v2.1.2 | ✅ Przetestowana | 2026-02-13 |
+| Linux x86_64 | `hbbs-patch-v2/hbbs-linux-x86_64` | v2.1.3 | ✅ Przetestowana | 2026-02-23 |
+| Linux x86_64 | `hbbs-patch-v2/hbbr-linux-x86_64` | v2.1.3 | ✅ Przetestowana | 2026-02-23 |
+| Windows x86_64 | `hbbs-patch-v2/hbbs-windows-x86_64.exe` | v2.1.3 | ✅ Przetestowana | 2026-02-23 |
+| Windows x86_64 | `hbbs-patch-v2/hbbr-windows-x86_64.exe` | v2.1.3 | ✅ Przetestowana | 2026-02-23 |
 
 ### Sumy Kontrolne SHA256
 
 ```
 Linux:
-  hbbs: 2B6C475A449ECBA3786D0DB46CBF4E038EDB74FC3497F9A45791ADDD5A28834C
-  hbbr: 8E7492CB1695B3D812CA13ABAC9A31E4DEA95B50497128D8E128DA39FDAC243D
+  hbbs: E7946CDE57CEF1AB1FC3D8669AA0FBD7DC3BBCE0233B8071D981ED430B1F4328
+  hbbr: AD10925081B39A0A44C4460928935CF61D4F5335DC34A11E6942CC21E17B7B05
 
 Windows:
-  hbbs: F74F65B909460BED6D363A6DF907BF0D9DB3224F82A1D5B61BD636DC362125AD
-  hbbr: 1C3CE3F7900D30A0DD3E48B0998E566F09338C71F0C27422D7E0057049A16F3F
+  hbbs: B790FA44CAC7482A057ED322412F6D178FB33F3B05327BFA753416E9879BD62F
+  hbbr: 368C71E8D3AEF4C5C65177FBBBB99EA045661697A89CB7C2A703759C575E8E9F
 ```
 
 ---

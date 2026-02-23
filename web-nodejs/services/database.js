@@ -142,7 +142,7 @@ function initAuthTables(db) {
         }
     }
 
-    // Access tokens table for RustDesk client API (port 21114)
+    // Access tokens table for RustDesk client API (port 21121)
     db.exec(`
         CREATE TABLE IF NOT EXISTS access_tokens (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

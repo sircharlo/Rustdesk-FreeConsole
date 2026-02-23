@@ -7,6 +7,29 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 
+// ===== Load .env file as fallback (for Windows NSSM compatibility) =====
+// On Linux, systemd uses EnvironmentFile to load .env; on Windows (NSSM) there
+// is no such mechanism, so we parse .env manually here.  Existing env vars
+// (set by NSSM AppEnvironmentExtra or the OS) are never overridden.
+const _envFile = path.join(__dirname, '..', '.env');
+if (fs.existsSync(_envFile)) {
+    try {
+        const _lines = fs.readFileSync(_envFile, 'utf8').split(/\r?\n/);
+        for (const _line of _lines) {
+            const _trimmed = _line.trim();
+            if (!_trimmed || _trimmed.startsWith('#')) continue;
+            const _eq = _trimmed.indexOf('=');
+            if (_eq > 0) {
+                const _key = _trimmed.substring(0, _eq).trim();
+                const _val = _trimmed.substring(_eq + 1).trim();
+                if (!process.env[_key]) {
+                    process.env[_key] = _val;
+                }
+            }
+        }
+    } catch (_e) { /* .env read failed — continue with existing env vars */ }
+}
+
 // Read version from package.json
 let pkgVersion = '2.0.0';
 try {
@@ -14,15 +37,16 @@ try {
     pkgVersion = pkg.version || pkgVersion;
 } catch (e) { /* use default */ }
 
-// Environment detection
+// Environment / platform detection
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const isProduction = NODE_ENV === 'production';
 const isDocker = fs.existsSync('/.dockerenv') || process.env.DOCKER === 'true';
+const isWindows = process.platform === 'win32';
 
 // Base paths
 // Support multiple env var names for compatibility with different install scripts
 const DATA_DIR = process.env.DATA_DIR || (isDocker ? '/app/data' : path.join(__dirname, '..', 'data'));
-const KEYS_PATH = process.env.KEYS_PATH || process.env.RUSTDESK_DIR || process.env.RUSTDESK_PATH || (isDocker ? '/opt/rustdesk' : '/opt/rustdesk');
+const KEYS_PATH = process.env.KEYS_PATH || process.env.RUSTDESK_DIR || process.env.RUSTDESK_PATH || (isDocker ? '/opt/rustdesk' : (isWindows ? 'C:\\BetterDesk' : '/opt/rustdesk'));
 const RUSTDESK_DIR = KEYS_PATH;
 
 // Database path

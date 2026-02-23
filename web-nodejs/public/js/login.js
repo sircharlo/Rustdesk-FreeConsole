@@ -57,7 +57,17 @@
                     body: JSON.stringify({ username, password, remember })
                 });
                 
-                const data = await response.json();
+                // Safely parse response — server may return HTML on CSRF/middleware errors
+                let data;
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    data = await response.json();
+                } else {
+                    const text = await response.text();
+                    try { data = JSON.parse(text); } catch (e) {
+                        throw new Error(_('auth.login_failed'));
+                    }
+                }
                 
                 if (!response.ok) {
                     throw new Error(data.error || data.message || _('auth.login_failed'));
@@ -118,7 +128,17 @@
                     body: JSON.stringify(body)
                 });
                 
-                const data = await response.json();
+                // Safely parse response
+                let data;
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    data = await response.json();
+                } else {
+                    const text = await response.text();
+                    try { data = JSON.parse(text); } catch (e) {
+                        throw new Error(_('auth.totp_invalid_code'));
+                    }
+                }
                 
                 if (!response.ok) {
                     throw new Error(data.error || _('auth.totp_invalid_code'));

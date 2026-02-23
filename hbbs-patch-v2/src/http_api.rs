@@ -18,7 +18,19 @@ use std::sync::Arc;
 use std::fs;
 use std::time::Instant;
 
-const API_KEY_FILE: &str = "/opt/rustdesk/.api_key";
+/// Get the API key file path.
+/// Priority: 1) API_KEY_FILE env var  2) CWD-relative on Windows  3) /opt/rustdesk/.api_key on Linux
+fn get_api_key_path() -> String {
+    if let Ok(p) = std::env::var("API_KEY_FILE") {
+        return p;
+    }
+    if cfg!(target_os = "windows") {
+        // On Windows, use working directory (set to RUSTDESK_PATH by NSSM/ScheduledTask)
+        ".api_key".to_string()
+    } else {
+        "/opt/rustdesk/.api_key".to_string()
+    }
+}
 
 #[derive(Clone)]
 pub struct ApiState {
@@ -372,10 +384,12 @@ async fn change_peer_id(
 }
 
 fn load_or_generate_api_key() -> String {
-    if let Ok(key) = fs::read_to_string(API_KEY_FILE) {
+    let api_key_file = get_api_key_path();
+    
+    if let Ok(key) = fs::read_to_string(&api_key_file) {
         let key = key.trim().to_string();
         if !key.is_empty() {
-            hbb_common::log::info!("API: Loaded API key from {}", API_KEY_FILE);
+            hbb_common::log::info!("API: Loaded API key from {}", api_key_file);
             return key;
         }
     }
@@ -390,21 +404,21 @@ fn load_or_generate_api_key() -> String {
         })
         .collect();
     
-    if let Some(parent) = std::path::Path::new(API_KEY_FILE).parent() {
+    if let Some(parent) = std::path::Path::new(&api_key_file).parent() {
         let _ = fs::create_dir_all(parent);
     }
     
-    if let Err(e) = fs::write(API_KEY_FILE, &key) {
+    if let Err(e) = fs::write(&api_key_file, &key) {
         hbb_common::log::warn!("API: Could not save API key: {}", e);
     } else {
-        hbb_common::log::info!("API: Generated new API key saved to {}", API_KEY_FILE);
+        hbb_common::log::info!("API: Generated new API key saved to {}", api_key_file);
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            if let Ok(metadata) = fs::metadata(API_KEY_FILE) {
+            if let Ok(metadata) = fs::metadata(&api_key_file) {
                 let mut perms = metadata.permissions();
                 perms.set_mode(0o600);
-                let _ = fs::set_permissions(API_KEY_FILE, perms);
+                let _ = fs::set_permissions(&api_key_file, perms);
             }
         }
     }

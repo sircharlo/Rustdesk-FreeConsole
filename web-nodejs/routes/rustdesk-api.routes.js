@@ -2,7 +2,7 @@
  * BetterDesk Console - RustDesk Client API Routes
  * 
  * RustDesk-compatible login/logout/currentUser endpoints.
- * Runs on a dedicated port (default 21114) for WAN access.
+ * Runs on a dedicated port (default 21121) for WAN access.
  * 
  * Protocol Reference:
  *   POST /api/login         - Authenticate (username+password or TFA code)

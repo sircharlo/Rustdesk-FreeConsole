@@ -104,6 +104,17 @@ async function getServerInfo() {
 async function syncOnlineStatus(db) {
     try {
         const onlinePeers = await getOnlinePeers();
+        
+        // If API returned empty AND health check fails, skip reset
+        // This prevents marking all devices offline when HBBS is unreachable
+        if (onlinePeers.length === 0) {
+            const health = await getHealth();
+            if (health.status !== 'running') {
+                console.warn('HBBS API unreachable - skipping status sync to preserve current state');
+                return { synced: 0, skipped: true, reason: 'api_unreachable' };
+            }
+        }
+        
         const onlineIds = new Set(onlinePeers.map(p => p.id));
         
         // Reset all to offline

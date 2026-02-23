@@ -69,9 +69,9 @@ if ($Flask) {
     $script:PREFERRED_CONSOLE_TYPE = "nodejs" 
 }
 
-# Binary checksums (SHA256) - v2.1.2
-$script:HBBS_WINDOWS_X86_64_SHA256 = "F74F65B909460BED6D363A6DF907BF0D9DB3224F82A1D5B61BD636DC362125AD"
-$script:HBBR_WINDOWS_X86_64_SHA256 = "1C3CE3F7900D30A0DD3E48B0998E566F09338C71F0C27422D7E0057049A16F3F"
+# Binary checksums (SHA256) - v2.1.3
+$script:HBBS_WINDOWS_X86_64_SHA256 = "B790FA44CAC7482A057ED322412F6D178FB33F3B05327BFA753416E9879BD62F"
+$script:HBBR_WINDOWS_X86_64_SHA256 = "368C71E8D3AEF4C5C65177FBBBB99EA045661697A89CB7C2A703759C575E8E9F"
 
 # Default paths
 $script:RUSTDESK_PATH = if ($env:RUSTDESK_PATH) { $env:RUSTDESK_PATH } else { "C:\BetterDesk" }
@@ -890,7 +890,7 @@ function Setup-Services {
         & $nssm set $script:CONSOLE_SERVICE DisplayName "BetterDesk Web Console (Node.js)"
         & $nssm set $script:CONSOLE_SERVICE Description "BetterDesk Web Management Console - Node.js"
         & $nssm set $script:CONSOLE_SERVICE Start SERVICE_AUTO_START
-        & $nssm set $script:CONSOLE_SERVICE AppEnvironmentExtra "NODE_ENV=production" "RUSTDESK_PATH=$script:RUSTDESK_PATH" "API_PORT=$script:API_PORT" "PORT=5000"
+        & $nssm set $script:CONSOLE_SERVICE AppEnvironmentExtra "NODE_ENV=production" "RUSTDESK_DIR=$script:RUSTDESK_PATH" "RUSTDESK_PATH=$script:RUSTDESK_PATH" "KEYS_PATH=$script:RUSTDESK_PATH" "DATA_DIR=$script:CONSOLE_PATH\data" "DB_PATH=$script:RUSTDESK_PATH\db_v2.sqlite3" "API_KEY_PATH=$script:RUSTDESK_PATH\.api_key" "HBBS_API_URL=http://localhost:$($script:API_PORT)/api" "PORT=5000"
         & $nssm set $script:CONSOLE_SERVICE AppStdout "$script:CONSOLE_PATH\logs\console.log"
         & $nssm set $script:CONSOLE_SERVICE AppStderr "$script:CONSOLE_PATH\logs\console_error.log"
         Print-Info "Created Node.js console service"
@@ -1332,6 +1332,11 @@ function Do-Install {
     Setup-Services
     Run-Migrations
     $adminPassword = Create-AdminUser
+    
+    # Configure firewall rules
+    Print-Step "Configuring Windows Firewall rules..."
+    Configure-Firewall | Out-Null
+    
     Start-Services
     
     Write-Host ""
@@ -1656,16 +1661,56 @@ function Do-Validate {
     Write-Host "Checking ports..." -ForegroundColor White
     Write-Host ""
     
-    $ports = @(21114, 21115, 21116, 21117, 5000)
-    foreach ($port in $ports) {
-        Write-Host "  Port ${port}: " -NoNewline
-        $connection = Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue
-        if ($connection) {
-            Write-Host "[OK] Listening" -ForegroundColor Green
+    $ports = @(
+        @{Port=21114; Desc="HBBS API"; Expected="hbbs"},
+        @{Port=21115; Desc="NAT Test"; Expected="hbbs"},
+        @{Port=21116; Desc="ID Server"; Expected="hbbs"},
+        @{Port=21117; Desc="Relay"; Expected="hbbr"},
+        @{Port=5000;  Desc="Web Console"; Expected="node"},
+        @{Port=21121; Desc="Client API"; Expected="node"}
+    )
+    foreach ($p in $ports) {
+        $status = Check-PortStatus -Port $p.Port -Protocol "TCP" -ExpectedService $p.Expected
+        Write-Host "  Port $($p.Port) ($($p.Desc)): " -NoNewline
+        if ($status.Listening) {
+            if ($status.Conflict) {
+                Write-Host "[!] CONFLICT - $($status.ProcessName) (PID $($status.PID))" -ForegroundColor Red
+                $errors++
+            } else {
+                Write-Host "[OK] $($status.ProcessName)" -ForegroundColor Green
+            }
         } else {
             Write-Host "[!] Not listening" -ForegroundColor Yellow
             $warnings++
         }
+    }
+    
+    # Check firewall
+    Write-Host ""
+    Write-Host "Checking firewall..." -ForegroundColor White
+    Write-Host ""
+    
+    $firewallProfile = Get-NetFirewallProfile -ErrorAction SilentlyContinue
+    $activeProfiles = $firewallProfile | Where-Object { $_.Enabled -eq $true }
+    if ($activeProfiles) {
+        $fwPorts = @(21114, 21115, 21116, 21117, 5000, 21121)
+        $fwMissing = 0
+        foreach ($fwPort in $fwPorts) {
+            $rules = Get-NetFirewallRule -Direction Inbound -Enabled True -ErrorAction SilentlyContinue | 
+                Where-Object { $_.Action -eq 'Allow' } |
+                Get-NetFirewallPortFilter -ErrorAction SilentlyContinue | 
+                Where-Object { $_.LocalPort -eq $fwPort }
+            if (-not $rules) { $fwMissing++ }
+        }
+        if ($fwMissing -gt 0) {
+            Write-Host "  Firewall: $fwMissing rule(s) missing" -ForegroundColor Yellow
+            Write-Host "  Use DIAGNOSTICS > F to auto-configure" -ForegroundColor Yellow
+            $warnings += $fwMissing
+        } else {
+            Write-Host "  Firewall: All rules configured" -ForegroundColor Green
+        }
+    } else {
+        Write-Host "  Firewall: Disabled" -ForegroundColor Green
     }
     
     # Summary
@@ -1901,6 +1946,150 @@ print("Password updated successfully")
 # Diagnostics Function
 #===============================================================================
 
+function Check-PortStatus {
+    param(
+        [int]$Port,
+        [string]$Protocol = "TCP",
+        [string]$ExpectedService = ""
+    )
+    
+    $result = @{
+        Port = $Port
+        Protocol = $Protocol
+        Listening = $false
+        ProcessName = ""
+        PID = 0
+        Conflict = $false
+    }
+    
+    if ($Protocol -eq "TCP") {
+        $conn = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+    } else {
+        $conn = Get-NetUDPEndpoint -LocalPort $Port -ErrorAction SilentlyContinue
+    }
+    
+    if ($conn) {
+        $result.Listening = $true
+        $result.PID = $conn[0].OwningProcess
+        try {
+            $proc = Get-Process -Id $result.PID -ErrorAction SilentlyContinue
+            $result.ProcessName = $proc.ProcessName
+        } catch { }
+        
+        if ($ExpectedService -and $result.ProcessName -and 
+            $result.ProcessName -notmatch $ExpectedService) {
+            $result.Conflict = $true
+        }
+    }
+    
+    return $result
+}
+
+function Check-FirewallRules {
+    Write-Host ""
+    Write-Host "=== Windows Firewall ===" -ForegroundColor White
+    Write-Host ""
+    
+    $firewallProfile = Get-NetFirewallProfile -ErrorAction SilentlyContinue
+    if (-not $firewallProfile) {
+        Print-Warning "  Unable to query Windows Firewall"
+        return
+    }
+    
+    $activeProfiles = $firewallProfile | Where-Object { $_.Enabled -eq $true }
+    if ($activeProfiles) {
+        $profileNames = ($activeProfiles | ForEach-Object { $_.Name }) -join ", "
+        Write-Host "  Firewall active: $profileNames" -ForegroundColor Yellow
+    } else {
+        Write-Host "  Firewall: Disabled" -ForegroundColor Green
+        return
+    }
+    
+    # Check for BetterDesk firewall rules
+    $requiredPorts = @(
+        @{Port=21115; Proto="TCP";  Name="NAT Test"},
+        @{Port=21116; Proto="TCP";  Name="ID Server TCP"},
+        @{Port=21116; Proto="UDP";  Name="ID Server UDP"},
+        @{Port=21117; Proto="TCP";  Name="Relay Server"},
+        @{Port=21114; Proto="TCP";  Name="HBBS API"},
+        @{Port=5000;  Proto="TCP";  Name="Web Console"},
+        @{Port=21121; Proto="TCP";  Name="Client API"}
+    )
+    
+    $missingRules = @()
+    
+    foreach ($p in $requiredPorts) {
+        $rules = Get-NetFirewallRule -Direction Inbound -Enabled True -ErrorAction SilentlyContinue | 
+            Where-Object { $_.Action -eq 'Allow' } |
+            Get-NetFirewallPortFilter -ErrorAction SilentlyContinue | 
+            Where-Object { $_.LocalPort -eq $p.Port -and ($_.Protocol -eq $p.Proto -or $_.Protocol -eq 'Any') }
+        
+        if ($rules) {
+            Write-Host "  Port $($p.Port)/$($p.Proto) ($($p.Name)): " -NoNewline
+            Write-Host "ALLOWED" -ForegroundColor Green
+        } else {
+            Write-Host "  Port $($p.Port)/$($p.Proto) ($($p.Name)): " -NoNewline
+            Write-Host "NO RULE" -ForegroundColor Red
+            $missingRules += $p
+        }
+    }
+    
+    return $missingRules
+}
+
+function Configure-Firewall {
+    param([array]$MissingRules = @())
+    
+    if ($MissingRules.Count -eq 0) {
+        # Check all required ports
+        $requiredPorts = @(
+            @{Port=21115; Proto="TCP";  Name="BetterDesk NAT Test"},
+            @{Port=21116; Proto="TCP";  Name="BetterDesk ID Server TCP"},
+            @{Port=21116; Proto="UDP";  Name="BetterDesk ID Server UDP"},
+            @{Port=21117; Proto="TCP";  Name="BetterDesk Relay Server"},
+            @{Port=21114; Proto="TCP";  Name="BetterDesk HBBS API"},
+            @{Port=5000;  Proto="TCP";  Name="BetterDesk Web Console"},
+            @{Port=21121; Proto="TCP";  Name="BetterDesk Client API"}
+        )
+        
+        foreach ($p in $requiredPorts) {
+            $rules = Get-NetFirewallRule -Direction Inbound -Enabled True -ErrorAction SilentlyContinue | 
+                Where-Object { $_.Action -eq 'Allow' } |
+                Get-NetFirewallPortFilter -ErrorAction SilentlyContinue | 
+                Where-Object { $_.LocalPort -eq $p.Port -and ($_.Protocol -eq $p.Proto -or $_.Protocol -eq 'Any') }
+            
+            if (-not $rules) {
+                $MissingRules += $p
+            }
+        }
+    }
+    
+    if ($MissingRules.Count -eq 0) {
+        Print-Success "All firewall rules are already configured"
+        return $true
+    }
+    
+    Print-Info "Creating $($MissingRules.Count) missing firewall rules..."
+    $created = 0
+    
+    foreach ($p in $MissingRules) {
+        $ruleName = "BetterDesk - $($p.Name)"
+        try {
+            New-NetFirewallRule -DisplayName $ruleName `
+                -Direction Inbound -Action Allow `
+                -Protocol $p.Proto -LocalPort $p.Port `
+                -Profile Any -ErrorAction Stop | Out-Null
+            Print-Success "  Created rule: $ruleName (port $($p.Port)/$($p.Proto))"
+            $created++
+        } catch {
+            Print-Error "  Failed to create rule: $ruleName - $($_.Exception.Message)"
+        }
+    }
+    
+    Print-Info "$created/$($MissingRules.Count) firewall rules created"
+    return ($created -eq $MissingRules.Count)
+}
+
 function Do-Diagnostics {
     Print-Header
     Write-Host "========== DIAGNOSTICS ==========" -ForegroundColor White
@@ -1971,22 +2160,129 @@ conn.close()
         Write-Host "  Database does not exist"
     }
     
+    # --- Port diagnostics ---
     Write-Host ""
-    Write-Host "=== Network Connections ===" -ForegroundColor White
+    Write-Host "=== Port Diagnostics ===" -ForegroundColor White
     Write-Host ""
     
-    $portsToCheck = @(21114, 21115, 21116, 21117, 5000)
-    foreach ($port in $portsToCheck) {
-        $conn = Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue
-        if ($conn) {
-            Write-Host "  Port ${port}: Listening (PID: $($conn[0].OwningProcess))" -ForegroundColor Green
+    $portDefs = @(
+        @{Port=21114; Proto="TCP"; Expected="hbbs"; Desc="HBBS API"},
+        @{Port=21115; Proto="TCP"; Expected="hbbs"; Desc="NAT Test"},
+        @{Port=21116; Proto="TCP"; Expected="hbbs"; Desc="ID Server (TCP)"},
+        @{Port=21116; Proto="UDP"; Expected="hbbs"; Desc="ID Server (UDP)"},
+        @{Port=21117; Proto="TCP"; Expected="hbbr"; Desc="Relay Server"},
+        @{Port=5000;  Proto="TCP"; Expected="node"; Desc="Web Console"},
+        @{Port=21121; Proto="TCP"; Expected="node"; Desc="Client API (WAN)"}
+    )
+    
+    $portIssues = 0
+    foreach ($pd in $portDefs) {
+        $status = Check-PortStatus -Port $pd.Port -Protocol $pd.Proto -ExpectedService $pd.Expected
+        
+        $label = "  Port $($pd.Port)/$($pd.Proto) ($($pd.Desc)):"
+        
+        if ($status.Listening) {
+            if ($status.Conflict) {
+                Write-Host "$label " -NoNewline
+                Write-Host "CONFLICT - used by $($status.ProcessName) (PID $($status.PID))" -ForegroundColor Red
+                $portIssues++
+            } else {
+                Write-Host "$label " -NoNewline
+                Write-Host "OK - $($status.ProcessName) (PID $($status.PID))" -ForegroundColor Green
+            }
+        } else {
+            Write-Host "$label " -NoNewline
+            Write-Host "NOT LISTENING" -ForegroundColor Yellow
         }
     }
     
-    Write-Host ""
-    Write-Host "Diagnostics log saved: $script:LOG_FILE" -ForegroundColor Cyan
+    if ($portIssues -gt 0) {
+        Write-Host ""
+        Print-Warning "$portIssues port conflict(s) detected!"
+        Write-Host "  Tip: Stop conflicting processes or change ports in configuration" -ForegroundColor Yellow
+        Write-Host "  Common fix: Ensure no other app uses ports 21114-21117, 5000, 21121" -ForegroundColor Yellow
+    }
     
-    Press-Enter
+    # --- Firewall diagnostics ---
+    $missingRules = Check-FirewallRules
+    
+    if ($missingRules -and $missingRules.Count -gt 0) {
+        Write-Host ""
+        Print-Warning "$($missingRules.Count) firewall rule(s) missing!"
+        Write-Host "  Use option 'F' from diagnostics menu to auto-configure firewall" -ForegroundColor Yellow
+    }
+    
+    # --- API connectivity test ---
+    Write-Host ""
+    Write-Host "=== API Connectivity ===" -ForegroundColor White
+    Write-Host ""
+    
+    $apiUrl = "http://127.0.0.1:$($script:API_PORT)/api/server-info"
+    try {
+        $response = Invoke-WebRequest -Uri $apiUrl -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
+        Write-Host "  HBBS API ($($script:API_PORT)): " -NoNewline
+        Write-Host "OK (HTTP $($response.StatusCode))" -ForegroundColor Green
+    } catch {
+        Write-Host "  HBBS API ($($script:API_PORT)): " -NoNewline
+        Write-Host "UNREACHABLE" -ForegroundColor Red
+    }
+    
+    $consoleUrl = "http://127.0.0.1:5000/api/health"
+    try {
+        $response = Invoke-WebRequest -Uri $consoleUrl -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
+        Write-Host "  Web Console (5000):   " -NoNewline
+        Write-Host "OK (HTTP $($response.StatusCode))" -ForegroundColor Green
+    } catch {
+        Write-Host "  Web Console (5000):   " -NoNewline
+        Write-Host "UNREACHABLE" -ForegroundColor Red
+    }
+    
+    # --- Diagnostics sub-menu ---
+    Write-Host ""
+    Write-Host "============================================================" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  F. Configure firewall rules (auto-create missing rules)"
+    Write-Host "  P. Test port connectivity from outside (requires internet)"
+    Write-Host "  0. Back to main menu"
+    Write-Host ""
+    
+    $subChoice = Read-Host "  Select option"
+    
+    switch ($subChoice) {
+        "F" {
+            Write-Host ""
+            Configure-Firewall -MissingRules $missingRules
+            Press-Enter
+        }
+        "P" {
+            Write-Host ""
+            Write-Host "=== External Port Test ===" -ForegroundColor White
+            Write-Host ""
+            $serverIP = Get-PublicIP
+            Print-Info "Public IP: $serverIP"
+            Print-Info "Testing external port accessibility... (this may take a moment)"
+            Write-Host ""
+            
+            foreach ($port in @(21115, 21116, 21117)) {
+                Write-Host "  Port ${port}: " -NoNewline
+                try {
+                    $tcp = New-Object System.Net.Sockets.TcpClient
+                    $result = $tcp.BeginConnect($serverIP, $port, $null, $null)
+                    $success = $result.AsyncWaitHandle.WaitOne(3000)
+                    if ($success -and $tcp.Connected) {
+                        Write-Host "REACHABLE" -ForegroundColor Green
+                    } else {
+                        Write-Host "BLOCKED/UNREACHABLE" -ForegroundColor Red
+                    }
+                    $tcp.Close()
+                } catch {
+                    Write-Host "BLOCKED/UNREACHABLE" -ForegroundColor Red
+                }
+            }
+            Press-Enter
+        }
+        default { return }
+    }
 }
 
 #===============================================================================

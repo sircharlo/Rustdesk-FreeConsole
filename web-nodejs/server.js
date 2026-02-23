@@ -21,6 +21,8 @@ const { initI18n } = require('./middleware/i18n');
 const { apiLimiter } = require('./middleware/rateLimiter');
 const { csrfTokenProvider, doubleCsrfProtection } = require('./middleware/csrf');
 const authService = require('./services/authService');
+const hbbsApi = require('./services/hbbsApi');
+const db = require('./services/database');
 const { initWsProxy } = require('./services/wsRelay');
 const routes = require('./routes');
 const rustdeskApiRoutes = require('./routes/rustdesk-api.routes');
@@ -100,8 +102,12 @@ app.use('/', routes);
 
 // CSRF token mismatch
 app.use((err, req, res, next) => {
-    if (err.code === 'EBADCSRFTOKEN' || err.message?.includes('csrf')) {
+    if (err.code === 'EBADCSRFTOKEN' || err.message?.includes('csrf') || err.message?.includes('CSRF')) {
         res.status(403);
+        // Always return JSON for API routes (fetch sends Accept: */*)
+        if (req.path.startsWith('/api/') || (req.headers['content-type'] && req.headers['content-type'].includes('application/json'))) {
+            return res.json({ success: false, error: 'Invalid CSRF token. Please refresh the page and try again.' });
+        }
         if (req.accepts('html')) {
             return res.render('errors/500', {
                 title: 'Forbidden',
@@ -136,6 +142,14 @@ app.use((err, req, res, next) => {
     console.error('Server error:', err);
     
     res.status(err.status || 500);
+    
+    // Always return JSON for API routes
+    if (req.path.startsWith('/api/') || (req.headers['content-type'] && req.headers['content-type'].includes('application/json'))) {
+        return res.json({
+            success: false,
+            error: config.isProduction ? 'Internal Server Error' : err.message
+        });
+    }
     
     if (req.accepts('html')) {
         res.render('errors/500', {
@@ -267,10 +281,33 @@ async function startServer() {
             authService.cleanupHousekeeping();
         }, 60 * 60 * 1000); // Every hour
         
+        // ============ Periodic Online Status Sync ============
+        const syncInterval = parseInt(process.env.STATUS_SYNC_INTERVAL, 10) || 15; // seconds
+        const statusSyncInterval = setInterval(async () => {
+            try {
+                await hbbsApi.syncOnlineStatus(db.getDb());
+            } catch (err) {
+                // Silent fail - don't crash the server
+            }
+        }, syncInterval * 1000);
+        
+        // Initial sync on startup (after short delay for HBBS to be ready)
+        setTimeout(async () => {
+            try {
+                const result = await hbbsApi.syncOnlineStatus(db.getDb());
+                if (result.synced > 0) {
+                    console.log(`Initial status sync: ${result.synced} device(s) online`);
+                }
+            } catch (err) {
+                // Silent fail
+            }
+        }, 5000);
+        
         // Graceful shutdown
         const shutdown = (signal) => {
             console.log(`\n${signal} received. Shutting down gracefully...`);
             clearInterval(housekeepingInterval);
+            clearInterval(statusSyncInterval);
             
             const closePromises = [new Promise(r => server.close(r))];
             if (apiServer) {
@@ -345,9 +382,11 @@ function startRustDeskApiServer() {
     apiServerInstance.on('error', (err) => {
         if (err.code === 'EADDRINUSE') {
             console.error(`  ║   API Port:  ${config.apiPort} FAILED (port in use)`.padEnd(53) + '║');
-            console.error(`  ║   Hint: Set API_PORT env var to use different port`.padEnd(53) + '║');
+            console.error(`  ║   Hint: Check if hbbs uses the same port, or`.padEnd(53) + '║');
+            console.error(`  ║   set API_PORT env var (default: 21121)`.padEnd(53) + '║');
             console.log('  ║                                                  ║');
             console.error(`WARNING: RustDesk Client API could not start on port ${config.apiPort}`);
+            console.error('Likely cause: hbbs API is on the same port. Client API default is 21121.');
             console.error('The admin panel continues to run normally on port ' + config.port);
             return; // Don't crash — let the panel continue running
         }

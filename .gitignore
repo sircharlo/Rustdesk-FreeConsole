@@ -125,6 +125,13 @@ htmlcov/
 # Experimental/Dev-only (not ready for production)
 dev_modules/betterdesk-builder/
 
+# BetterDesk Go server (separate project, not ready for release)
+betterdesk-server/
+.github/go-server-context.md
+
+# RustDesk server build source (only compiled binaries are shipped)
+rustdesk-server-1.1.14/
+
 # Node.js
 node_modules/
 package-lock.json
