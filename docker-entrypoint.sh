@@ -63,18 +63,21 @@ if [ -z "$DEFAULT_ADMIN_PASSWORD" ] ; then
     fi
     export DEFAULT_ADMIN_PASSWORD="$RAND_PASS"
     
-    echo "🔐 GENERATED ADMIN PASSWORD:"
+    echo "🔐 GENERATED ADMIN PASSWORD (hidden for security)"
     echo "========================================"
     echo "   Username: ${DEFAULT_ADMIN_USERNAME:-admin}"
-    echo "   Password: $RAND_PASS"
-    echo "========================================"
-    echo "⚠️  IMPORTANT: Change this password after first login!"
+    echo "   The initial password has been written to:"
+    echo "     $DATA_DIR/admin_credentials.txt"
+    echo "⚠️  IMPORTANT: Retrieve the password from this file and change it after first login!"
     echo ""
     
-    # Save to file as a backup
-    echo "Admin credentials generated on $(date)" > "$DATA_DIR/admin_credentials.txt"
-    echo "Username: ${DEFAULT_ADMIN_USERNAME:-admin}" >> "$DATA_DIR/admin_credentials.txt"
-    echo "Password: $RAND_PASS" >> "$DATA_DIR/admin_credentials.txt"
+    # Save to file as a backup (restricted access)
+    CREDENTIALS_FILE="$DATA_DIR/admin_credentials.txt"
+    : > "$CREDENTIALS_FILE"
+    chmod 600 "$CREDENTIALS_FILE" 2>/dev/null || true
+    echo "Admin credentials generated on $(date)" >> "$CREDENTIALS_FILE"
+    echo "Username: ${DEFAULT_ADMIN_USERNAME:-admin}" >> "$CREDENTIALS_FILE"
+    echo "Password: $RAND_PASS" >> "$CREDENTIALS_FILE"
 fi
 
 # Start Node.js application
