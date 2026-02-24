@@ -540,7 +540,7 @@ main() {
     echo "     sudo ./install-improved.sh"
     echo ""
     echo "  3. Or manually start the servers:"
-    echo "     ./hbbs-linux-x86_64 -k _ --api-port 21114 &"
+    echo "     ./hbbs-linux-x86_64 -k _ --api-port 21120 &"
     echo "     ./hbbr-linux-x86_64 &"
     echo ""
 }

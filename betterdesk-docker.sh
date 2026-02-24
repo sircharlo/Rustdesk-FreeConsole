@@ -442,7 +442,7 @@ services:
       dockerfile: Dockerfile.hbbs
     pull_policy: never
     ports:
-      - "21114:21114"
+      - "21120:21120"
       - "21115:21115"
       - "21116:21116"
       - "21116:21116/udp"
@@ -756,12 +756,12 @@ cursor = conn.cursor()
 
 columns_to_add = [
     ('status', 'INTEGER DEFAULT 0'),
-    ('last_online', 'TEXT'),
+    ('last_online', 'DATETIME DEFAULT NULL'),
     ('is_deleted', 'INTEGER DEFAULT 0'),
-    ('deleted_at', 'TEXT'),
-    ('updated_at', 'TEXT'),
-    ('note', 'TEXT'),
-    ('previous_ids', 'TEXT'),
+    ('deleted_at', 'DATETIME DEFAULT NULL'),
+    ('updated_at', 'DATETIME DEFAULT NULL'),
+    ('note', 'TEXT DEFAULT '''),
+    ('previous_ids', 'TEXT DEFAULT '''),
     ('id_changed_at', 'TEXT'),
 ]
 
@@ -888,7 +888,7 @@ do_validate() {
     echo -e "${WHITE}Checking ports...${NC}"
     echo ""
     
-    for port in 21114 21115 21116 21117 5000; do
+    for port in 21120 21115 21116 21117 5000; do
         echo -n "  Port $port: "
         if ss -tlnp 2>/dev/null | grep -q ":$port " || netstat -tlnp 2>/dev/null | grep -q ":$port "; then
             echo -e "${GREEN}● Listening${NC}"

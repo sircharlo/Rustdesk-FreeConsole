@@ -14,7 +14,7 @@ use hbbs::{common::*, *};
 mod http_api;
 
 const RMEM: usize = 0;
-const API_PORT: u16 = 21114;
+const API_PORT: u16 = 21120;
 
 fn main() -> ResultType<()> {
     let _logger = Logger::try_with_env_or_str("info")?

@@ -1,54 +1,51 @@
-# Multi-stage Dockerfile for BetterDesk Console
-FROM python:3.11-slim as base
+# Multi-stage Dockerfile for BetterDesk Console (Node.js)
+FROM node:18-slim AS base
 
 # Set working directory
 WORKDIR /app
 
 # Install system dependencies with DNS fallback for systems with resolver issues
-# This fixes "Temporary failure resolving 'deb.debian.org'" on some systems (e.g., AlmaLinux)
-# Skip DNS modification on Oracle Cloud VMs (oraclevcn) and read-only resolv.conf
 RUN if [ -w /etc/resolv.conf ] && ! grep -q "oraclevcn" /etc/resolv.conf 2>/dev/null; then \
-        echo "nameserver 8.8.8.8" >> /etc/resolv.conf; \
-        echo "nameserver 1.1.1.1" >> /etc/resolv.conf; \
-    fi && \
-    apt-get update && apt-get install -y \
-    sqlite3 \
-    curl \
-    bash \
-    && rm -rf /var/lib/apt/lists/*
+  echo "nameserver 8.8.8.8" >> /etc/resolv.conf; \
+  echo "nameserver 1.1.1.1" >> /etc/resolv.conf; \
+  fi && \
+  apt-get update && apt-get install -y \
+  sqlite3 \
+  curl \
+  bash \
+  && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
-COPY web/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Node.js dependencies
+COPY web-nodejs/package.json ./
+RUN npm install --omit=dev
 
 # Copy application files
-COPY web/ .
+COPY web-nodejs/ .
 
 # Copy startup script
 COPY docker-entrypoint.sh /app/
-RUN chmod +x /app/docker-entrypoint.sh
-
-# Create necessary directories
-RUN mkdir -p /app/data /app/static /app/templates
-
-# Set proper permissions
-RUN chmod +x app.py
+# Create necessary directories and set proper permissions
+RUN mkdir -p /app/data && \
+  chmod +x /app/docker-entrypoint.sh server.js
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-  CMD curl -f http://localhost:5000/health || exit 1
+  CMD curl -f http://localhost:5000/ || exit 1
 
-# Expose port
-EXPOSE 5000
+# Expose ports
+# 5000 - Web Panel
+# 21121 - RustDesk Client API (dedicated)
+EXPOSE 5000 21121
 
 # Environment variables
-ENV PYTHONPATH=/app
-ENV FLASK_APP=app.py
-ENV FLASK_ENV=production
+ENV NODE_ENV=production
+ENV PORT=5000
 
-# Create non-root user for security
-RUN adduser --disabled-password --gecos '' betterdesk && \
-    chown -R betterdesk:betterdesk /app
+# Rename existing node user/group (UID/GID 1000) to betterdesk
+RUN usermod -l betterdesk node && \
+  groupmod -n betterdesk node && \
+  usermod -d /home/betterdesk -m betterdesk && \
+  chown -R betterdesk:betterdesk /app
 
 USER betterdesk
 

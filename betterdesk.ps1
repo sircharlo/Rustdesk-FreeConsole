@@ -80,7 +80,7 @@ $script:BACKUP_DIR = if ($env:BACKUP_DIR) { $env:BACKUP_DIR } else { "C:\BetterD
 $script:DB_PATH = "$script:RUSTDESK_PATH\db_v2.sqlite3"
 
 # API configuration
-$script:API_PORT = if ($env:API_PORT) { $env:API_PORT } else { "21114" }
+$script:API_PORT = if ($env:API_PORT) { $env:API_PORT } else { "21120" }
 
 # Common installation paths to search
 $script:COMMON_RUSTDESK_PATHS = @(
@@ -202,11 +202,13 @@ function Get-PublicIP {
     try {
         $ip = (Invoke-WebRequest -Uri "https://ifconfig.me/ip" -UseBasicParsing -TimeoutSec 10).Content.Trim()
         return $ip
-    } catch {
+    }
+    catch {
         try {
             $ip = (Invoke-WebRequest -Uri "https://icanhazip.com" -UseBasicParsing -TimeoutSec 10).Content.Trim()
             return $ip
-        } catch {
+        }
+        catch {
             return "127.0.0.1"
         }
     }
@@ -248,7 +250,8 @@ function Detect-Installation {
     if (Test-Path $script:CONSOLE_PATH) {
         if ((Test-Path "$script:CONSOLE_PATH\server.js") -or (Test-Path "$script:CONSOLE_PATH\package.json")) {
             $script:CONSOLE_TYPE = "nodejs"
-        } elseif (Test-Path "$script:CONSOLE_PATH\app.py") {
+        }
+        elseif (Test-Path "$script:CONSOLE_PATH\app.py") {
             $script:CONSOLE_TYPE = "nodejs"  # Legacy Flask, will be migrated
             Print-Warning "Legacy Flask console detected. Will be migrated to Node.js on update."
         }
@@ -357,19 +360,21 @@ function Print-Status {
     
     switch ($script:INSTALL_STATUS) {
         "complete" { Write-Host "  Status:       " -NoNewline; Write-Host "[OK] Installed" -ForegroundColor Green }
-        "partial"  { Write-Host "  Status:       " -NoNewline; Write-Host "[!] Partial installation" -ForegroundColor Yellow }
-        "none"     { Write-Host "  Status:       " -NoNewline; Write-Host "[X] Not installed" -ForegroundColor Red }
+        "partial" { Write-Host "  Status:       " -NoNewline; Write-Host "[!] Partial installation" -ForegroundColor Yellow }
+        "none" { Write-Host "  Status:       " -NoNewline; Write-Host "[X] Not installed" -ForegroundColor Red }
     }
     
     if ($script:BINARIES_OK) {
         Write-Host "  Binaries:     " -NoNewline; Write-Host "[OK]" -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "  Binaries:     " -NoNewline; Write-Host "[X] Not found" -ForegroundColor Red
     }
     
     if ($script:DATABASE_OK) {
         Write-Host "  Database:     " -NoNewline; Write-Host "[OK]" -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "  Database:     " -NoNewline; Write-Host "[X] Not found" -ForegroundColor Red
     }
     
@@ -379,7 +384,8 @@ function Print-Status {
             default { "" }
         }
         Write-Host "  Web Console:  " -NoNewline; Write-Host "[OK]$consoleTypeLabel" -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "  Web Console:  " -NoNewline; Write-Host "[X] Not found" -ForegroundColor Red
     }
     
@@ -389,19 +395,22 @@ function Print-Status {
     
     if ($script:HBBS_RUNNING) {
         Write-Host "  HBBS (Signal): " -NoNewline; Write-Host "* Active" -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "  HBBS (Signal): " -NoNewline; Write-Host "o Inactive" -ForegroundColor Red
     }
     
     if ($script:HBBR_RUNNING) {
         Write-Host "  HBBR (Relay):  " -NoNewline; Write-Host "* Active" -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "  HBBR (Relay):  " -NoNewline; Write-Host "o Inactive" -ForegroundColor Red
     }
     
     if ($script:CONSOLE_RUNNING) {
         Write-Host "  Web Console:   " -NoNewline; Write-Host "* Active" -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "  Web Console:   " -NoNewline; Write-Host "o Inactive" -ForegroundColor Red
     }
     
@@ -431,7 +440,8 @@ function Verify-BinaryChecksum {
     if ($actualHash -eq $ExpectedHash.ToUpper()) {
         Print-Success "$fileName`: SHA256 OK"
         return $true
-    } else {
+    }
+    else {
         Print-Error "$fileName`: SHA256 MISMATCH!"
         Print-Error "  Expected: $ExpectedHash"
         Print-Error "  Got:      $actualHash"
@@ -473,10 +483,12 @@ function Verify-Binaries {
             if (-not (Confirm-Action "Continue anyway?")) {
                 return $false
             }
-        } else {
+        }
+        else {
             return $false
         }
-    } else {
+    }
+    else {
         Print-Success "All binaries verified"
     }
     
@@ -508,7 +520,8 @@ function Install-Dependencies {
     try {
         $null = python -m pip --version 2>&1
         Print-Success "pip is available"
-    } catch {
+    }
+    catch {
         Print-Warning "pip not found, attempting to install..."
         python -m ensurepip --upgrade
     }
@@ -536,7 +549,8 @@ function Install-NodeJs {
         if ([int]$nodeVersion -ge 18) {
             Print-Success "Node.js v$(node --version) already installed"
             return $true
-        } else {
+        }
+        else {
             Print-Warning "Node.js version $nodeVersion is too old (need 18+). Upgrading..."
         }
     }
@@ -553,7 +567,8 @@ function Install-NodeJs {
             $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
             Print-Success "Node.js installed via winget"
             return $true
-        } catch {
+        }
+        catch {
             Print-Warning "winget installation failed, trying alternative method..."
         }
     }
@@ -568,7 +583,8 @@ function Install-NodeJs {
             $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
             Print-Success "Node.js installed via Chocolatey"
             return $true
-        } catch {
+        }
+        catch {
             Print-Warning "Chocolatey installation failed..."
         }
     }
@@ -602,10 +618,12 @@ function Install-NodeJsConsole {
     if (Test-Path (Join-Path $webNodejsPath "server.js")) {
         $sourceFolder = $webNodejsPath
         Print-Info "Found Node.js console in web-nodejs/"
-    } elseif (Test-Path (Join-Path $webPath "server.js")) {
+    }
+    elseif (Test-Path (Join-Path $webPath "server.js")) {
         $sourceFolder = $webPath
         Print-Info "Found Node.js console in web/"
-    } else {
+    }
+    else {
         Print-Error "Node.js web console not found!"
         Print-Info "Expected: $webNodejsPath\server.js or $webPath\server.js"
         return $false
@@ -631,7 +649,7 @@ function Install-NodeJsConsole {
         
         # Create .env file (always update to ensure correct paths)
         $envFile = Join-Path $script:CONSOLE_PATH ".env"
-        $sessionSecret = -join ((65..90) + (97..122) + (48..57) | Get-Random -Count 64 | ForEach-Object {[char]$_})
+        $sessionSecret = -join ((65..90) + (97..122) + (48..57) | Get-Random -Count 64 | ForEach-Object { [char]$_ })
         $envContent = @"
 # BetterDesk Node.js Console Configuration
 PORT=5000
@@ -675,10 +693,12 @@ HTTP_REDIRECT_HTTPS=true
         $script:CONSOLE_TYPE = "nodejs"
         Print-Success "Node.js Web Console installed"
         return $true
-    } catch {
+    }
+    catch {
         Print-Error "Failed to install npm dependencies: $_"
         return $false
-    } finally {
+    }
+    finally {
         Pop-Location
     }
 }
@@ -736,10 +756,12 @@ function Install-Console {
             if (-not $script:AUTO_MODE) {
                 if (Confirm-Action "Migrate from Flask to Node.js?") {
                     Migrate-Console -FromType "flask" -ToType "nodejs"
-                } else {
+                }
+                else {
                     Print-Info "Flask is deprecated. Installing Node.js alongside..."
                 }
-            } else {
+            }
+            else {
                 Print-Info "Auto mode: Migrating from Flask to Node.js"
                 Migrate-Console -FromType "flask" -ToType "nodejs"
             }
@@ -764,7 +786,8 @@ function Install-Binaries {
     if (Test-Path $hbbsPatchPath) {
         $binSource = Join-Path $script:ScriptDir "hbbs-patch-v2"
         Print-Info "Found binaries in hbbs-patch-v2/"
-    } else {
+    }
+    else {
         Print-Error "BetterDesk binaries not found!"
         Print-Info "Expected: $hbbsPatchPath"
         Print-Info "Run 'Build binaries' option or download prebuilt files."
@@ -798,7 +821,8 @@ function Install-Binaries {
             try {
                 $stream = [System.IO.File]::Open($file, 'Open', 'ReadWrite', 'None')
                 $stream.Close()
-            } catch {
+            }
+            catch {
                 Print-Warning "File $file is still locked, waiting..."
                 Start-Sleep -Seconds 3
                 Get-Process -Name ($file -replace '.*\\(.*)\.exe', '$1') -ErrorAction SilentlyContinue | Stop-Process -Force
@@ -832,7 +856,8 @@ function Setup-Services {
         $nssmLocalPath = Join-Path $script:ScriptDir "tools\nssm.exe"
         if (Test-Path $nssmLocalPath) {
             $nssmPath = $nssmLocalPath
-        } else {
+        }
+        else {
             Print-Warning "NSSM not found. Services will be created as scheduled tasks."
             Print-Info "For proper Windows services, install NSSM from https://nssm.cc"
             
@@ -984,12 +1009,12 @@ cursor.execute('''
         status INTEGER DEFAULT 0,
         note VARCHAR(300),
         info TEXT NOT NULL,
-        last_online TEXT,
+        last_online DATETIME DEFAULT NULL,
         is_deleted INTEGER DEFAULT 0,
-        deleted_at TEXT,
-        updated_at TEXT,
-        previous_ids TEXT,
-        id_changed_at TEXT,
+        deleted_at DATETIME DEFAULT NULL,
+        updated_at DATETIME DEFAULT NULL,
+        previous_ids TEXT DEFAULT '',
+        id_changed_at DATETIME DEFAULT NULL,
         is_banned INTEGER DEFAULT 0
     )
 ''')
@@ -1050,13 +1075,13 @@ cursor.execute('CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_log(time
 # Add missing columns to peer table
 columns_to_add = [
     ('status', 'INTEGER DEFAULT 0'),
-    ('last_online', 'TEXT'),
+    ('last_online', 'DATETIME DEFAULT NULL'),
     ('is_deleted', 'INTEGER DEFAULT 0'),
-    ('deleted_at', 'TEXT'),
-    ('updated_at', 'TEXT'),
-    ('note', 'TEXT'),
-    ('previous_ids', 'TEXT'),
-    ('id_changed_at', 'TEXT'),
+    ('deleted_at', 'DATETIME DEFAULT NULL'),
+    ('updated_at', 'DATETIME DEFAULT NULL'),
+    ('note', 'TEXT DEFAULT '''),
+    ('previous_ids', 'TEXT DEFAULT '''),
+    ('id_changed_at', 'DATETIME DEFAULT NULL'),
     ('is_banned', 'INTEGER DEFAULT 0'),
 ]
 
@@ -1088,10 +1113,12 @@ function Create-AdminUser {
     $currentConsoleType = ""
     if (Test-Path (Join-Path $script:CONSOLE_PATH "server.js")) {
         $currentConsoleType = "nodejs"
-    } elseif (Test-Path (Join-Path $script:CONSOLE_PATH "app.py")) {
+    }
+    elseif (Test-Path (Join-Path $script:CONSOLE_PATH "app.py")) {
         $currentConsoleType = "nodejs"  # Legacy Flask detected, treat as Node.js
         Print-Warning "Legacy Flask console detected. Please migrate to Node.js."
-    } else {
+    }
+    else {
         Print-Warning "No console detected, skipping admin creation"
         return $null
     }
@@ -1120,7 +1147,8 @@ function Create-AdminUser {
         
         Print-Info "Credentials saved in: $mainCredsFile"
         return $adminPassword
-    } else {
+    }
+    else {
         Print-Warning "No Node.js admin credentials found"
         Print-Info "Default credentials: admin / admin"
         Print-Info "Please change password after first login!"
@@ -1138,7 +1166,8 @@ function Start-Services {
         Start-Service -Name $script:HBBS_SERVICE -ErrorAction SilentlyContinue
         Start-Service -Name $script:HBBR_SERVICE -ErrorAction SilentlyContinue
         Start-Service -Name $script:CONSOLE_SERVICE -ErrorAction SilentlyContinue
-    } else {
+    }
+    else {
         # Start scheduled tasks
         Start-ScheduledTask -TaskName $script:HBBS_SERVICE -ErrorAction SilentlyContinue
         Start-ScheduledTask -TaskName $script:HBBR_SERVICE -ErrorAction SilentlyContinue
@@ -1151,7 +1180,8 @@ function Start-Services {
     
     if ($script:HBBS_RUNNING -and $script:HBBR_RUNNING) {
         Print-Success "All services started"
-    } else {
+    }
+    else {
         Print-Warning "Some services may not be working properly"
         Print-Info "Check logs in: $script:RUSTDESK_PATH\logs\"
     }
@@ -1203,8 +1233,8 @@ function Test-ServiceHealth {
     
     # Check if process is running  
     $processName = if ($ServiceName -match "Signal") { "hbbs" } 
-                   elseif ($ServiceName -match "Relay") { "hbbr" }
-                   else { "python" }
+    elseif ($ServiceName -match "Relay") { "hbbr" }
+    else { "python" }
     
     $process = Get-Process -Name $processName -ErrorAction SilentlyContinue
     
@@ -1259,7 +1289,8 @@ function Start-ServicesWithVerification {
     
     if ($serviceExists) {
         Start-Service -Name $script:HBBS_SERVICE -ErrorAction SilentlyContinue
-    } else {
+    }
+    else {
         Start-ScheduledTask -TaskName $script:HBBS_SERVICE -ErrorAction SilentlyContinue
     }
     
@@ -1275,7 +1306,8 @@ function Start-ServicesWithVerification {
     Print-Info "Starting $($script:HBBR_SERVICE)..."
     if ($serviceExists) {
         Start-Service -Name $script:HBBR_SERVICE -ErrorAction SilentlyContinue
-    } else {
+    }
+    else {
         Start-ScheduledTask -TaskName $script:HBBR_SERVICE -ErrorAction SilentlyContinue
     }
     
@@ -1291,7 +1323,8 @@ function Start-ServicesWithVerification {
     Print-Info "Starting $($script:CONSOLE_SERVICE)..."
     if ($serviceExists) {
         Start-Service -Name $script:CONSOLE_SERVICE -ErrorAction SilentlyContinue
-    } else {
+    }
+    else {
         Start-ScheduledTask -TaskName $script:CONSOLE_SERVICE -ErrorAction SilentlyContinue
     }
     
@@ -1480,7 +1513,8 @@ function Repair-Binaries {
             $stream = [System.IO.File]::Open("$script:RUSTDESK_PATH\hbbs.exe", 'Open', 'ReadWrite', 'None')
             $stream.Close()
         }
-    } catch {
+    }
+    catch {
         $hbbsLocked = $true
         Print-Warning "hbbs.exe is still locked, killing stale processes..."
         Get-Process -Name "hbbs" -ErrorAction SilentlyContinue | Stop-Process -Force
@@ -1492,7 +1526,8 @@ function Repair-Binaries {
             $stream = [System.IO.File]::Open("$script:RUSTDESK_PATH\hbbr.exe", 'Open', 'ReadWrite', 'None')
             $stream.Close()
         }
-    } catch {
+    }
+    catch {
         $hbbrLocked = $true
         Print-Warning "hbbr.exe is still locked, killing stale processes..."
         Get-Process -Name "hbbr" -ErrorAction SilentlyContinue | Stop-Process -Force
@@ -1575,7 +1610,8 @@ function Do-Validate {
     Write-Host "  RustDesk directory ($script:RUSTDESK_PATH): " -NoNewline
     if (Test-Path $script:RUSTDESK_PATH) {
         Write-Host "[OK]" -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "[X] Not found" -ForegroundColor Red
         $errors++
     }
@@ -1583,7 +1619,8 @@ function Do-Validate {
     Write-Host "  Console directory ($script:CONSOLE_PATH): " -NoNewline
     if (Test-Path $script:CONSOLE_PATH) {
         Write-Host "[OK]" -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "[X] Not found" -ForegroundColor Red
         $errors++
     }
@@ -1592,7 +1629,8 @@ function Do-Validate {
     Write-Host "  HBBS binary: " -NoNewline
     if (Test-Path (Join-Path $script:RUSTDESK_PATH "hbbs.exe")) {
         Write-Host "[OK]" -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "[X] Not found" -ForegroundColor Red
         $errors++
     }
@@ -1600,7 +1638,8 @@ function Do-Validate {
     Write-Host "  HBBR binary: " -NoNewline
     if (Test-Path (Join-Path $script:RUSTDESK_PATH "hbbr.exe")) {
         Write-Host "[OK]" -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "[X] Not found" -ForegroundColor Red
         $errors++
     }
@@ -1609,7 +1648,8 @@ function Do-Validate {
     Write-Host "  Database: " -NoNewline
     if (Test-Path $script:DB_PATH) {
         Write-Host "[OK]" -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "[X] Not found" -ForegroundColor Red
         $errors++
     }
@@ -1619,7 +1659,8 @@ function Do-Validate {
     $pubKeyPath = Join-Path $script:RUSTDESK_PATH "id_ed25519.pub"
     if (Test-Path $pubKeyPath) {
         Write-Host "[OK]" -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "[!] Will be generated on first start" -ForegroundColor Yellow
         $warnings++
     }
@@ -1636,20 +1677,24 @@ function Do-Validate {
         if ($svc) {
             if ($svc.Status -eq 'Running') {
                 Write-Host "[OK] Running" -ForegroundColor Green
-            } else {
+            }
+            else {
                 Write-Host "[!] Not running ($($svc.Status))" -ForegroundColor Yellow
                 $warnings++
             }
-        } else {
+        }
+        else {
             $task = Get-ScheduledTask -TaskName $service -ErrorAction SilentlyContinue
             if ($task) {
                 if ($task.State -eq 'Running') {
                     Write-Host "[OK] Running (task)" -ForegroundColor Green
-                } else {
+                }
+                else {
                     Write-Host "[!] Task exists but not running" -ForegroundColor Yellow
                     $warnings++
                 }
-            } else {
+            }
+            else {
                 Write-Host "[X] Not found" -ForegroundColor Red
                 $errors++
             }
@@ -1662,12 +1707,12 @@ function Do-Validate {
     Write-Host ""
     
     $ports = @(
-        @{Port=21114; Desc="HBBS API"; Expected="hbbs"},
-        @{Port=21115; Desc="NAT Test"; Expected="hbbs"},
-        @{Port=21116; Desc="ID Server"; Expected="hbbs"},
-        @{Port=21117; Desc="Relay"; Expected="hbbr"},
-        @{Port=5000;  Desc="Web Console"; Expected="node"},
-        @{Port=21121; Desc="Client API"; Expected="node"}
+        @{Port = 21115; Desc = "NAT Test"; Expected = "hbbs" },
+        @{Port = 21116; Desc = "ID Server"; Expected = "hbbs" },
+        @{Port = 21117; Desc = "Relay"; Expected = "hbbr" },
+        @{Port = 5000; Desc = "Web Console"; Expected = "node" },
+        @{Port = 21120; Desc = "HBBS API"; Expected = "hbbs" },
+        @{Port = 21121; Desc = "Client API"; Expected = "node" }
     )
     foreach ($p in $ports) {
         $status = Check-PortStatus -Port $p.Port -Protocol "TCP" -ExpectedService $p.Expected
@@ -1676,10 +1721,12 @@ function Do-Validate {
             if ($status.Conflict) {
                 Write-Host "[!] CONFLICT - $($status.ProcessName) (PID $($status.PID))" -ForegroundColor Red
                 $errors++
-            } else {
+            }
+            else {
                 Write-Host "[OK] $($status.ProcessName)" -ForegroundColor Green
             }
-        } else {
+        }
+        else {
             Write-Host "[!] Not listening" -ForegroundColor Yellow
             $warnings++
         }
@@ -1693,23 +1740,25 @@ function Do-Validate {
     $firewallProfile = Get-NetFirewallProfile -ErrorAction SilentlyContinue
     $activeProfiles = $firewallProfile | Where-Object { $_.Enabled -eq $true }
     if ($activeProfiles) {
-        $fwPorts = @(21114, 21115, 21116, 21117, 5000, 21121)
+        $fwPorts = @(21120, 21115, 21116, 21117, 5000, 21121)
         $fwMissing = 0
         foreach ($fwPort in $fwPorts) {
             $rules = Get-NetFirewallRule -Direction Inbound -Enabled True -ErrorAction SilentlyContinue | 
-                Where-Object { $_.Action -eq 'Allow' } |
-                Get-NetFirewallPortFilter -ErrorAction SilentlyContinue | 
-                Where-Object { $_.LocalPort -eq $fwPort }
+            Where-Object { $_.Action -eq 'Allow' } |
+            Get-NetFirewallPortFilter -ErrorAction SilentlyContinue | 
+            Where-Object { $_.LocalPort -eq $fwPort }
             if (-not $rules) { $fwMissing++ }
         }
         if ($fwMissing -gt 0) {
             Write-Host "  Firewall: $fwMissing rule(s) missing" -ForegroundColor Yellow
             Write-Host "  Use DIAGNOSTICS > F to auto-configure" -ForegroundColor Yellow
             $warnings += $fwMissing
-        } else {
+        }
+        else {
             Write-Host "  Firewall: All rules configured" -ForegroundColor Green
         }
-    } else {
+    }
+    else {
         Write-Host "  Firewall: Disabled" -ForegroundColor Green
     }
     
@@ -1719,9 +1768,11 @@ function Do-Validate {
     
     if ($errors -eq 0 -and $warnings -eq 0) {
         Write-Host "[OK] Installation correct - no problems found" -ForegroundColor Green
-    } elseif ($errors -eq 0) {
+    }
+    elseif ($errors -eq 0) {
         Write-Host "[!] Found $warnings warning(s)" -ForegroundColor Yellow
-    } else {
+    }
+    else {
         Write-Host "[X] Found $errors error(s) and $warnings warning(s)" -ForegroundColor Red
         Write-Host "Use 'REPAIR INSTALLATION' option to fix problems" -ForegroundColor Cyan
     }
@@ -1868,7 +1919,8 @@ function Do-ResetPassword {
                     if ($LASTEXITCODE -eq 0) {
                         $success = $true
                     }
-                } finally {
+                }
+                finally {
                     Pop-Location
                 }
             }
@@ -1916,7 +1968,8 @@ print("Password updated successfully")
             $output = $pythonScript | python 2>&1
             if ($output -match "successfully") {
                 $success = $true
-            } else {
+            }
+            else {
                 Print-Warning "Python output: $output"
             }
         }
@@ -1934,7 +1987,8 @@ print("Password updated successfully")
         # Save credentials
         $credentialsFile = Join-Path $script:RUSTDESK_PATH ".admin_credentials"
         "admin:$newPassword" | Out-File -FilePath $credentialsFile -Encoding UTF8
-    } else {
+    }
+    else {
         Print-Error "Failed to reset password!"
         Print-Info "Make sure Node.js is installed and the console is set up correctly"
     }
@@ -1954,17 +2008,18 @@ function Check-PortStatus {
     )
     
     $result = @{
-        Port = $Port
-        Protocol = $Protocol
-        Listening = $false
+        Port        = $Port
+        Protocol    = $Protocol
+        Listening   = $false
         ProcessName = ""
-        PID = 0
-        Conflict = $false
+        PID         = 0
+        Conflict    = $false
     }
     
     if ($Protocol -eq "TCP") {
         $conn = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
-    } else {
+    }
+    else {
         $conn = Get-NetUDPEndpoint -LocalPort $Port -ErrorAction SilentlyContinue
     }
     
@@ -1974,7 +2029,8 @@ function Check-PortStatus {
         try {
             $proc = Get-Process -Id $result.PID -ErrorAction SilentlyContinue
             $result.ProcessName = $proc.ProcessName
-        } catch { }
+        }
+        catch { }
         
         if ($ExpectedService -and $result.ProcessName -and 
             $result.ProcessName -notmatch $ExpectedService) {
@@ -2000,34 +2056,36 @@ function Check-FirewallRules {
     if ($activeProfiles) {
         $profileNames = ($activeProfiles | ForEach-Object { $_.Name }) -join ", "
         Write-Host "  Firewall active: $profileNames" -ForegroundColor Yellow
-    } else {
+    }
+    else {
         Write-Host "  Firewall: Disabled" -ForegroundColor Green
         return
     }
     
     # Check for BetterDesk firewall rules
     $requiredPorts = @(
-        @{Port=21115; Proto="TCP";  Name="NAT Test"},
-        @{Port=21116; Proto="TCP";  Name="ID Server TCP"},
-        @{Port=21116; Proto="UDP";  Name="ID Server UDP"},
-        @{Port=21117; Proto="TCP";  Name="Relay Server"},
-        @{Port=21114; Proto="TCP";  Name="HBBS API"},
-        @{Port=5000;  Proto="TCP";  Name="Web Console"},
-        @{Port=21121; Proto="TCP";  Name="Client API"}
+        @{Port = 21115; Proto = "TCP"; Name = "NAT Test" },
+        @{Port = 21116; Proto = "TCP"; Name = "ID Server TCP" },
+        @{Port = 21116; Proto = "UDP"; Name = "ID Server UDP" },
+        @{Port = 21117; Proto = "TCP"; Name = "Relay Server" },
+        @{Port = 5000; Proto = "TCP"; Name = "Web Console" },
+        @{Port = 21120; Proto = "TCP"; Name = "HBBS API" },
+        @{Port = 21121; Proto = "TCP"; Name = "Client API" }
     )
     
     $missingRules = @()
     
     foreach ($p in $requiredPorts) {
         $rules = Get-NetFirewallRule -Direction Inbound -Enabled True -ErrorAction SilentlyContinue | 
-            Where-Object { $_.Action -eq 'Allow' } |
-            Get-NetFirewallPortFilter -ErrorAction SilentlyContinue | 
-            Where-Object { $_.LocalPort -eq $p.Port -and ($_.Protocol -eq $p.Proto -or $_.Protocol -eq 'Any') }
+        Where-Object { $_.Action -eq 'Allow' } |
+        Get-NetFirewallPortFilter -ErrorAction SilentlyContinue | 
+        Where-Object { $_.LocalPort -eq $p.Port -and ($_.Protocol -eq $p.Proto -or $_.Protocol -eq 'Any') }
         
         if ($rules) {
             Write-Host "  Port $($p.Port)/$($p.Proto) ($($p.Name)): " -NoNewline
             Write-Host "ALLOWED" -ForegroundColor Green
-        } else {
+        }
+        else {
             Write-Host "  Port $($p.Port)/$($p.Proto) ($($p.Name)): " -NoNewline
             Write-Host "NO RULE" -ForegroundColor Red
             $missingRules += $p
@@ -2043,20 +2101,20 @@ function Configure-Firewall {
     if ($MissingRules.Count -eq 0) {
         # Check all required ports
         $requiredPorts = @(
-            @{Port=21115; Proto="TCP";  Name="BetterDesk NAT Test"},
-            @{Port=21116; Proto="TCP";  Name="BetterDesk ID Server TCP"},
-            @{Port=21116; Proto="UDP";  Name="BetterDesk ID Server UDP"},
-            @{Port=21117; Proto="TCP";  Name="BetterDesk Relay Server"},
-            @{Port=21114; Proto="TCP";  Name="BetterDesk HBBS API"},
-            @{Port=5000;  Proto="TCP";  Name="BetterDesk Web Console"},
-            @{Port=21121; Proto="TCP";  Name="BetterDesk Client API"}
+            @{Port = 21115; Proto = "TCP"; Name = "BetterDesk NAT Test" },
+            @{Port = 21116; Proto = "TCP"; Name = "BetterDesk ID Server TCP" },
+            @{Port = 21116; Proto = "UDP"; Name = "BetterDesk ID Server UDP" },
+            @{Port = 21117; Proto = "TCP"; Name = "BetterDesk Relay Server" },
+            @{Port = 5000; Proto = "TCP"; Name = "BetterDesk Web Console" },
+            @{Port = 21120; Proto = "TCP"; Name = "BetterDesk HBBS API" },
+            @{Port = 21121; Proto = "TCP"; Name = "BetterDesk Client API" }
         )
         
         foreach ($p in $requiredPorts) {
             $rules = Get-NetFirewallRule -Direction Inbound -Enabled True -ErrorAction SilentlyContinue | 
-                Where-Object { $_.Action -eq 'Allow' } |
-                Get-NetFirewallPortFilter -ErrorAction SilentlyContinue | 
-                Where-Object { $_.LocalPort -eq $p.Port -and ($_.Protocol -eq $p.Proto -or $_.Protocol -eq 'Any') }
+            Where-Object { $_.Action -eq 'Allow' } |
+            Get-NetFirewallPortFilter -ErrorAction SilentlyContinue | 
+            Where-Object { $_.LocalPort -eq $p.Port -and ($_.Protocol -eq $p.Proto -or $_.Protocol -eq 'Any') }
             
             if (-not $rules) {
                 $MissingRules += $p
@@ -2081,7 +2139,8 @@ function Configure-Firewall {
                 -Profile Any -ErrorAction Stop | Out-Null
             Print-Success "  Created rule: $ruleName (port $($p.Port)/$($p.Proto))"
             $created++
-        } catch {
+        }
+        catch {
             Print-Error "  Failed to create rule: $ruleName - $($_.Exception.Message)"
         }
     }
@@ -2105,14 +2164,16 @@ function Do-Diagnostics {
     $hbbsProc = Get-Process -Name "hbbs" -ErrorAction SilentlyContinue
     if ($hbbsProc) {
         Write-Host "  HBBS: PID $($hbbsProc.Id), Memory $('{0:N0}' -f ($hbbsProc.WorkingSet64/1MB)) MB" -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "  HBBS: Not running" -ForegroundColor Red
     }
     
     $hbbrProc = Get-Process -Name "hbbr" -ErrorAction SilentlyContinue
     if ($hbbrProc) {
         Write-Host "  HBBR: PID $($hbbrProc.Id), Memory $('{0:N0}' -f ($hbbrProc.WorkingSet64/1MB)) MB" -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "  HBBR: Not running" -ForegroundColor Red
     }
     
@@ -2156,7 +2217,8 @@ except:
 conn.close()
 "@
         $pythonScript | python
-    } else {
+    }
+    else {
         Write-Host "  Database does not exist"
     }
     
@@ -2166,13 +2228,13 @@ conn.close()
     Write-Host ""
     
     $portDefs = @(
-        @{Port=21114; Proto="TCP"; Expected="hbbs"; Desc="HBBS API"},
-        @{Port=21115; Proto="TCP"; Expected="hbbs"; Desc="NAT Test"},
-        @{Port=21116; Proto="TCP"; Expected="hbbs"; Desc="ID Server (TCP)"},
-        @{Port=21116; Proto="UDP"; Expected="hbbs"; Desc="ID Server (UDP)"},
-        @{Port=21117; Proto="TCP"; Expected="hbbr"; Desc="Relay Server"},
-        @{Port=5000;  Proto="TCP"; Expected="node"; Desc="Web Console"},
-        @{Port=21121; Proto="TCP"; Expected="node"; Desc="Client API (WAN)"}
+        @{Port = 21120; Proto = "TCP"; Expected = "hbbs"; Desc = "HBBS API" },
+        @{Port = 21115; Proto = "TCP"; Expected = "hbbs"; Desc = "NAT Test" },
+        @{Port = 21116; Proto = "TCP"; Expected = "hbbs"; Desc = "ID Server (TCP)" },
+        @{Port = 21116; Proto = "UDP"; Expected = "hbbs"; Desc = "ID Server (UDP)" },
+        @{Port = 21117; Proto = "TCP"; Expected = "hbbr"; Desc = "Relay Server" },
+        @{Port = 5000; Proto = "TCP"; Expected = "node"; Desc = "Web Console" },
+        @{Port = 21121; Proto = "TCP"; Expected = "node"; Desc = "Client API (WAN)" }
     )
     
     $portIssues = 0
@@ -2186,11 +2248,13 @@ conn.close()
                 Write-Host "$label " -NoNewline
                 Write-Host "CONFLICT - used by $($status.ProcessName) (PID $($status.PID))" -ForegroundColor Red
                 $portIssues++
-            } else {
+            }
+            else {
                 Write-Host "$label " -NoNewline
                 Write-Host "OK - $($status.ProcessName) (PID $($status.PID))" -ForegroundColor Green
             }
-        } else {
+        }
+        else {
             Write-Host "$label " -NoNewline
             Write-Host "NOT LISTENING" -ForegroundColor Yellow
         }
@@ -2200,7 +2264,7 @@ conn.close()
         Write-Host ""
         Print-Warning "$portIssues port conflict(s) detected!"
         Write-Host "  Tip: Stop conflicting processes or change ports in configuration" -ForegroundColor Yellow
-        Write-Host "  Common fix: Ensure no other app uses ports 21114-21117, 5000, 21121" -ForegroundColor Yellow
+        Write-Host "  Common fix: Ensure no other app uses ports 21115-21117, 5000, 21120-21121" -ForegroundColor Yellow
     }
     
     # --- Firewall diagnostics ---
@@ -2222,7 +2286,8 @@ conn.close()
         $response = Invoke-WebRequest -Uri $apiUrl -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
         Write-Host "  HBBS API ($($script:API_PORT)): " -NoNewline
         Write-Host "OK (HTTP $($response.StatusCode))" -ForegroundColor Green
-    } catch {
+    }
+    catch {
         Write-Host "  HBBS API ($($script:API_PORT)): " -NoNewline
         Write-Host "UNREACHABLE" -ForegroundColor Red
     }
@@ -2232,7 +2297,8 @@ conn.close()
         $response = Invoke-WebRequest -Uri $consoleUrl -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
         Write-Host "  Web Console (5000):   " -NoNewline
         Write-Host "OK (HTTP $($response.StatusCode))" -ForegroundColor Green
-    } catch {
+    }
+    catch {
         Write-Host "  Web Console (5000):   " -NoNewline
         Write-Host "UNREACHABLE" -ForegroundColor Red
     }
@@ -2271,11 +2337,13 @@ conn.close()
                     $success = $result.AsyncWaitHandle.WaitOne(3000)
                     if ($success -and $tcp.Connected) {
                         Write-Host "REACHABLE" -ForegroundColor Green
-                    } else {
+                    }
+                    else {
                         Write-Host "BLOCKED/UNREACHABLE" -ForegroundColor Red
                     }
                     $tcp.Close()
-                } catch {
+                }
+                catch {
                     Write-Host "BLOCKED/UNREACHABLE" -ForegroundColor Red
                 }
             }
@@ -2378,7 +2446,8 @@ function Configure-Paths {
                     $script:RUSTDESK_PATH = $newPath
                     $script:DB_PATH = "$script:RUSTDESK_PATH\db_v2.sqlite3"
                     Print-Success "RustDesk path set to: $script:RUSTDESK_PATH"
-                } else {
+                }
+                else {
                     Print-Warning "Directory does not exist: $newPath"
                     if (Confirm-Action "Create this directory?") {
                         New-Item -ItemType Directory -Path $newPath -Force | Out-Null
@@ -2398,7 +2467,8 @@ function Configure-Paths {
                 if (Test-Path $newPath) {
                     $script:CONSOLE_PATH = $newPath
                     Print-Success "Console path set to: $script:CONSOLE_PATH"
-                } else {
+                }
+                else {
                     Print-Warning "Directory does not exist: $newPath"
                     if (Confirm-Action "Create this directory?") {
                         New-Item -ItemType Directory -Path $newPath -Force | Out-Null
@@ -2472,7 +2542,8 @@ function Do-Build {
             Copy-Item -Path "$srcDir\database.rs" -Destination "src\database.rs" -Force
             Copy-Item -Path "$srcDir\peer.rs" -Destination "src\peer.rs" -Force -ErrorAction SilentlyContinue
             Copy-Item -Path "$srcDir\rendezvous_server.rs" -Destination "src\rendezvous_server.rs" -Force -ErrorAction SilentlyContinue
-        } else {
+        }
+        else {
             Print-Error "Source modifications not found: $srcDir"
             return
         }
@@ -2489,7 +2560,8 @@ function Do-Build {
         Print-Success "Compilation completed!"
         Print-Info "Binaries saved in: $outputDir"
         
-    } finally {
+    }
+    finally {
         Pop-Location
         Remove-Item -Path $buildDir -Recurse -Force -ErrorAction SilentlyContinue
     }
@@ -2578,7 +2650,8 @@ function Do-ConfigureSSL {
                 & openssl req -x509 -nodes -days 365 -newkey rsa:2048 `
                     -keyout $keyPath -out $certPath `
                     -subj "/CN=localhost/O=BetterDesk/C=PL" 2>&1 | Out-Null
-            } else {
+            }
+            else {
                 # PowerShell self-signed cert
                 $cert = New-SelfSignedCertificate -DnsName "localhost" -CertStoreLocation "cert:\LocalMachine\My" -NotAfter (Get-Date).AddYears(1)
                 $certBytes = $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Pfx)
@@ -2618,7 +2691,8 @@ function Do-ConfigureSSL {
         if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
             Restart-Service -Name $serviceName -Force -ErrorAction SilentlyContinue
             Print-Success "BetterDesk restarted"
-        } else {
+        }
+        else {
             Print-Warning "Service not found. Please restart manually."
         }
     }

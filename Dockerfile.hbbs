@@ -3,21 +3,21 @@
 # Based on busybox (minimal) with BetterDesk binaries from hbbs-patch-v2/
 
 # Build minimal image with shell support
-FROM busybox:musl
+FROM ubuntu:24.04
 
-# Create necessary directories
-RUN mkdir -p /root /usr/local/bin /opt/rustdesk
+# Create necessary directories and install netcat
+RUN mkdir -p /root /usr/local/bin /opt/rustdesk && \
+    apt-get update && apt-get install -y netcat-openbsd && \
+    rm -rf /var/lib/apt/lists/*
 
 # Copy BetterDesk enhanced binaries from local build
 # These binaries include HTTP API and extended peer tracking
 COPY hbbs-patch-v2/hbbs-linux-x86_64 /usr/local/bin/hbbs-betterdesk
 COPY hbbs-patch-v2/hbbr-linux-x86_64 /usr/local/bin/hbbr-betterdesk
 
-# Make binaries executable
-RUN chmod +x /usr/local/bin/hbbs-betterdesk /usr/local/bin/hbbr-betterdesk
-
-# Create symlinks for convenience
-RUN ln -s /usr/local/bin/hbbs-betterdesk /usr/bin/hbbs && \
+# Make binaries executable and create symlinks
+RUN chmod +x /usr/local/bin/hbbs-betterdesk /usr/local/bin/hbbr-betterdesk && \
+    ln -s /usr/local/bin/hbbs-betterdesk /usr/bin/hbbs && \
     ln -s /usr/local/bin/hbbr-betterdesk /usr/bin/hbbr
 
 # Set working directory and environment
@@ -28,8 +28,8 @@ ENV HOME=/root
 # 21115 - NAT type test
 # 21116/tcp - TCP hole punching  
 # 21116/udp - ID registration and heartbeat
-# 21114 - HTTP API (BetterDesk)
-EXPOSE 21115 21116/tcp 21116/udp 21114
+# 21120 - HTTP API (BetterDesk)
+EXPOSE 21115 21116/tcp 21116/udp 21120
 
 # Default command - use BetterDesk enhanced hbbs with API
-CMD ["/usr/local/bin/hbbs-betterdesk", "-k", "_", "--api-port", "21114"]
+CMD ["/usr/local/bin/hbbs-betterdesk", "-k", "_", "--api-port", "21120"]

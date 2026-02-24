@@ -3,8 +3,6 @@
 # IMPORTANT: Images must be built locally - do NOT try to pull from Docker Hub!
 # Use: docker compose build && docker compose up -d
 
-version: '3.8'
-
 services:
   # RustDesk HBBS (Signal Server) with BetterDesk API
   # Built from Dockerfile.hbbs with BetterDesk enhanced binaries
@@ -16,20 +14,21 @@ services:
     pull_policy: never
     container_name: betterdesk-hbbs
     hostname: betterdesk-hbbs
-    # BetterDesk binary with HTTP API enabled on port 21114
-    command: ["/usr/local/bin/hbbs-betterdesk", "-k", "_", "--api-port", "21114"]
-    ports:
-      - "21115:21115"           # TCP hole punching
-      - "21116:21116/tcp"       # TCP relay
-      - "21116:21116/udp"       # UDP hole punching
-      - "21114:21114"           # HTTP API (BetterDesk)
+    # BetterDesk binary with HTTP API enabled on port 21120
+    # Uses bash wrapper to ensure API key from env var is written to file with correct perms
+    command: >
+      bash -c "echo \"$${HBBS_API_KEY}\" > /opt/rustdesk/.api_key && 
+      chmod 644 /opt/rustdesk/.api_key && 
+      /usr/local/bin/hbbs-betterdesk -k _ --api-port 21120"
     volumes:
-      - rustdesk-data:/root     # RustDesk data persistence
+      - rustdesk-data:/root             # RustDesk data persistence (DB, keys)
+      - rustdesk-data:/opt/rustdesk     # API key path (binary writes .api_key here)
     environment:
       - ALWAYS_USE_RELAY=N
       - ENCRYPTED_ONLY=1
-    networks:
-      - betterdesk-net
+      - RUST_LOG=info,hbbs=trace        # Trace-level logging to debug set_online
+      - HBBS_API_KEY=CHANGE_ME
+    network_mode: host
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "21116"]
@@ -50,12 +49,9 @@ services:
     hostname: betterdesk-hbbr
     # BetterDesk relay binary
     command: ["/usr/local/bin/hbbr-betterdesk", "-k", "_"]
-    ports:
-      - "21117:21117"           # Relay port
     volumes:
       - rustdesk-data:/root     # Shared data with HBBS
-    networks:
-      - betterdesk-net
+    network_mode: host
     restart: unless-stopped
     depends_on:
       hbbs:
@@ -70,24 +66,23 @@ services:
     pull_policy: never
     container_name: betterdesk-console
     hostname: betterdesk-console
-    ports:
-      - "5000:5000"             # Web console port
+    user: "1000:1000"
     volumes:
-      - rustdesk-data:/opt/rustdesk:ro    # Read-only access to RustDesk data
+      - rustdesk-data:/opt/rustdesk       # Read-write access to RustDesk data
       - console-data:/app/data            # Console-specific data
     environment:
       - DB_PATH=/opt/rustdesk/db_v2.sqlite3
       - API_KEY_PATH=/opt/rustdesk/.api_key
       - PUB_KEY_PATH=/opt/rustdesk/id_ed25519.pub
-      - HBBS_API_URL=http://hbbs:21114/api
-      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-$(openssl rand -hex 32)}
-      - FLASK_ENV=production
+      - HBBS_API_URL=http://localhost:21120/api
+      - HBBS_API_KEY=CHANGE_ME
+      #- SESSION_SECRET=${SESSION_SECRET:-}
+      #- NODE_ENV=production
+      - API_PORT=21121
       # Optional: Set custom admin credentials (remove to use auto-generated)
-      # - ADMIN_USERNAME=admin
-      # - ADMIN_PASSWORD=YourSecurePassword123
-      # - SKIP_AUTO_MIGRATION=false
-    networks:
-      - betterdesk-net
+      #- DEFAULT_ADMIN_USERNAME=admin
+      #- DEFAULT_ADMIN_PASSWORD=YourSecurePassword123
+    network_mode: host
     restart: unless-stopped
     depends_on:
       - hbbs
@@ -108,8 +103,7 @@ services:
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - ./ssl:/etc/nginx/ssl:ro
-    networks:
-      - betterdesk-net
+    network_mode: host
     restart: unless-stopped
     depends_on:
       - betterdesk-console
@@ -126,13 +120,10 @@ volumes:
   
   console-data:
     driver: local
-
-networks:
-  betterdesk-net:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.28.0.0/16
+    driver_opts:
+      type: none
+      o: bind
+      device: ${RUSTDESK_DATA_PATH:-./data}/console
 
 # Security Notice:
 # - Watchtower has been removed (archived project - security risk)

@@ -228,7 +228,7 @@ if [ "$HBBS_TYPE" = "original" ]; then
         echo -e "   ${BLUE}sudo chmod +x '$CURRENT_HBBS'${NC}"
         echo ""
         echo "3. Start hbbs WITH the --api-port flag:"
-        echo -e "   ${BLUE}cd $RUSTDESK_DIR && sudo ./hbbs -k _ --api-port 21114 &${NC}"
+        echo -e "   ${BLUE}cd $RUSTDESK_DIR && sudo ./hbbs -k _ --api-port 21120 &${NC}"
         echo ""
     else
         echo "2. Download BetterDesk enhanced binaries:"
@@ -241,7 +241,7 @@ if [ "$HBBS_TYPE" = "original" ]; then
         echo -e "   ${BLUE}sudo chmod +x $RUSTDESK_DIR/hbbs $RUSTDESK_DIR/hbbr${NC}"
         echo ""
         echo "4. Start hbbs WITH the --api-port flag:"
-        echo -e "   ${BLUE}cd $RUSTDESK_DIR && sudo ./hbbs -k _ --api-port 21114 &${NC}"
+        echo -e "   ${BLUE}cd $RUSTDESK_DIR && sudo ./hbbs -k _ --api-port 21120 &${NC}"
         echo ""
     fi
     
@@ -286,7 +286,7 @@ if [ "$HBBS_TYPE" = "original" ]; then
             echo "Now start the servers:"
             echo ""
             echo "  cd $RUSTDESK_DIR"
-            echo "  sudo ./hbbs -k _ --api-port 21114 &"
+            echo "  sudo ./hbbs -k _ --api-port 21120 &"
             echo "  sudo ./hbbr &"
             echo ""
             echo "Or create systemd services (recommended):"

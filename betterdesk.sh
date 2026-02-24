@@ -1482,12 +1482,12 @@ cursor = conn.cursor()
 # Ensure peer table has required columns
 columns_to_add = [
     ('status', 'INTEGER DEFAULT 0'),
-    ('last_online', 'TEXT'),
+    ('last_online', 'DATETIME DEFAULT NULL'),
     ('is_deleted', 'INTEGER DEFAULT 0'),
-    ('deleted_at', 'TEXT'),
-    ('updated_at', 'TEXT'),
-    ('note', 'TEXT'),
-    ('previous_ids', 'TEXT'),
+    ('deleted_at', 'DATETIME DEFAULT NULL'),
+    ('updated_at', 'DATETIME DEFAULT NULL'),
+    ('note', 'TEXT DEFAULT '''),
+    ('previous_ids', 'TEXT DEFAULT '''),
     ('id_changed_at', 'TEXT'),
 ]
 
@@ -1679,7 +1679,7 @@ do_validate() {
     echo -e "${WHITE}Checking ports...${NC}"
     echo ""
     
-    for port in 21114 21115 21116 21117 5000 21121; do
+    for port in 21120 21115 21116 21117 5000 21121; do
         echo -n "  Port $port: "
         if ss -tlnp 2>/dev/null | grep -q ":$port " || netstat -tlnp 2>/dev/null | grep -q ":$port "; then
             local pname=$(ss -tlnp 2>/dev/null | grep ":$port " | grep -oP 'users:\(\("\K[^"]+' 2>/dev/null | head -1)
@@ -1988,7 +1988,7 @@ do_build() {
 #===============================================================================
 
 configure_firewall_rules() {
-    local required_ports="21114 21115 21116 21117 5000 21121"
+    local required_ports="21120 21115 21116 21117 5000 21121"
     local created=0
     local total=0
     
@@ -2113,7 +2113,7 @@ do_diagnostics() {
     
     local port_issues=0
     local port_defs=(
-        "21114:TCP:hbbs:HBBS API"
+        "21120:TCP:hbbs:HBBS API"
         "21115:TCP:hbbs:NAT Test"
         "21116:TCP:hbbs:ID Server (TCP)"
         "21116:UDP:hbbs:ID Server (UDP)"
@@ -2171,7 +2171,7 @@ do_diagnostics() {
     
     local fw_type="none"
     local missing_rules=0
-    local required_ports="21114 21115 21116 21117 5000 21121"
+    local required_ports="21120 21115 21116 21117 5000 21121"
     
     if command -v ufw &>/dev/null && ufw status 2>/dev/null | grep -q "active"; then
         fw_type="ufw"
@@ -2234,7 +2234,7 @@ do_diagnostics() {
     echo -e "${WHITE}${BOLD}═══ API connectivity ═══${NC}"
     echo ""
     
-    local api_port="${API_PORT:-21114}"
+    local api_port="${API_PORT:-21120}"
     
     printf "  HBBS API (%s):     " "$api_port"
     if curl -sfo /dev/null --connect-timeout 3 "http://127.0.0.1:${api_port}/api/server-info" 2>/dev/null; then

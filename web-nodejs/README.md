@@ -55,7 +55,7 @@ docker run -d -p 5000:5000 \
 | `DB_PATH` | `/opt/rustdesk/db_v2.sqlite3` | Path to SQLite database |
 | `KEYS_PATH` | `/opt/rustdesk` | Path to key files directory |
 | `SESSION_SECRET` | auto-generated | Session cookie secret |
-| `HBBS_API_URL` | `http://127.0.0.1:21114` | HBBS API endpoint |
+| `HBBS_API_URL` | `http://127.0.0.1:21120` | HBBS API endpoint |
 | `DEFAULT_LANG` | `en` | Default language code |
 
 ## Project Structure

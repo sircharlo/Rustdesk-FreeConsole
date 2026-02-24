@@ -3,7 +3,7 @@
 # Based on busybox (minimal) with BetterDesk binaries from hbbs-patch-v2/
 
 # Build minimal image with shell support
-FROM busybox:musl
+FROM ubuntu:24.04
 
 # Create necessary directories
 RUN mkdir -p /root /usr/local/bin /opt/rustdesk
@@ -12,11 +12,9 @@ RUN mkdir -p /root /usr/local/bin /opt/rustdesk
 COPY hbbs-patch-v2/hbbr-linux-x86_64 /usr/local/bin/hbbr-betterdesk
 COPY hbbs-patch-v2/hbbs-linux-x86_64 /usr/local/bin/hbbs-betterdesk
 
-# Make binaries executable
-RUN chmod +x /usr/local/bin/hbbr-betterdesk /usr/local/bin/hbbs-betterdesk
-
-# Create symlinks for convenience
-RUN ln -s /usr/local/bin/hbbr-betterdesk /usr/bin/hbbr && \
+# Make binaries executable and create symlinks
+RUN chmod +x /usr/local/bin/hbbr-betterdesk /usr/local/bin/hbbs-betterdesk && \
+    ln -s /usr/local/bin/hbbr-betterdesk /usr/bin/hbbr && \
     ln -s /usr/local/bin/hbbs-betterdesk /usr/bin/hbbs
 
 # Set working directory and environment

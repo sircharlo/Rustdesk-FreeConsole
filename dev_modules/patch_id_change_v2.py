@@ -31,14 +31,16 @@ def patch_file(path, patches):
     original = content
     for i, (old, new) in enumerate(patches):
         if old not in content:
-            print(f"  ERROR: Patch {i+1} - target text not found!")
+            print(f"  ERROR: Patch {i + 1} - target text not found!")
             print(f"  Looking for: {repr(old[:80])}...")
             return False
         count = content.count(old)
         if count > 1:
-            print(f"  WARNING: Patch {i+1} - found {count} matches, replacing first only")
+            print(
+                f"  WARNING: Patch {i + 1} - found {count} matches, replacing first only"
+            )
         content = content.replace(old, new, 1)
-        print(f"  Patch {i+1}: OK")
+        print(f"  Patch {i + 1}: OK")
 
     if DRY_RUN:
         print(f"  [DRY RUN] Would write {len(content)} bytes")
@@ -77,12 +79,12 @@ def patch_database():
         # 1. Add Row import to sqlx
         (
             "use sqlx::{\n    sqlite::SqliteConnectOptions, ConnectOptions, Connection, Error as SqlxError, SqliteConnection,\n};",
-            "use sqlx::{\n    sqlite::SqliteConnectOptions, ConnectOptions, Connection, Error as SqlxError, Row, SqliteConnection,\n};"
+            "use sqlx::{\n    sqlite::SqliteConnectOptions, ConnectOptions, Connection, Error as SqlxError, Row, SqliteConnection,\n};",
         ),
         # 2. Add ensure_columns() call after create_tables()
         (
             "        db.create_tables().await?;\n        Ok(db)",
-            "        db.create_tables().await?;\n        db.ensure_columns().await?;\n        Ok(db)"
+            "        db.create_tables().await?;\n        db.ensure_columns().await?;\n        Ok(db)",
         ),
         # 3. Add new methods before test module
         (
@@ -95,7 +97,7 @@ def patch_database():
             "ALTER TABLE peer ADD COLUMN id_changed_at TEXT DEFAULT ''",
             "ALTER TABLE peer ADD COLUMN is_deleted INTEGER DEFAULT 0",
             "ALTER TABLE peer ADD COLUMN is_banned INTEGER DEFAULT 0",
-            "ALTER TABLE peer ADD COLUMN last_online TEXT",
+            "ALTER TABLE peer ADD COLUMN last_online DATETIME DEFAULT NULL",
         ];
         for sql in &migrations {
             // Ignore errors - column may already exist
@@ -169,7 +171,7 @@ def patch_database():
     }
 }
 
-#[cfg(test)]"""
+#[cfg(test)]""",
         ),
     ]
 
@@ -185,12 +187,12 @@ def patch_peer():
         # 1. Add ID_CHANGE_COOLDOWN to lazy_static block
         (
             "    pub(crate) static ref IP_CHANGES: Mutex<IpChangesMap> = Default::default();\n}",
-            "    pub(crate) static ref IP_CHANGES: Mutex<IpChangesMap> = Default::default();\n    pub(crate) static ref ID_CHANGE_COOLDOWN: Mutex<HashMap<String, Instant>> = Default::default();\n}"
+            "    pub(crate) static ref IP_CHANGES: Mutex<IpChangesMap> = Default::default();\n    pub(crate) static ref ID_CHANGE_COOLDOWN: Mutex<HashMap<String, Instant>> = Default::default();\n}",
         ),
         # 2. Add ID_CHANGE_COOLDOWN_SECS constant after IP_BLOCK_DUR
         (
             "pub const IP_BLOCK_DUR: u64 = 60;\n",
-            "pub const IP_BLOCK_DUR: u64 = 60;\nconst ID_CHANGE_COOLDOWN_SECS: u64 = 300; // 5 minutes between ID changes per device\n"
+            "pub const IP_BLOCK_DUR: u64 = 60;\nconst ID_CHANGE_COOLDOWN_SECS: u64 = 300; // 5 minutes between ID changes per device\n",
         ),
         # 3. Add change_id() method after update_pk() (before get())
         (
@@ -300,7 +302,7 @@ def patch_peer():
     }
 
     #[inline]
-    pub(crate) async fn get("""
+    pub(crate) async fn get(""",
         ),
     ]
 

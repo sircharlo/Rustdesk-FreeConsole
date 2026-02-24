@@ -158,22 +158,22 @@ fix_peer_table() {
             
             case "$col" in
                 "last_online")
-                    sqlite3 "$db" "ALTER TABLE peer ADD COLUMN last_online TEXT;"
+                    sqlite3 "$db" "ALTER TABLE peer ADD COLUMN last_online DATETIME DEFAULT NULL;"
                     ;;
                 "is_deleted")
                     sqlite3 "$db" "ALTER TABLE peer ADD COLUMN is_deleted INTEGER DEFAULT 0;"
                     ;;
                 "deleted_at")
-                    sqlite3 "$db" "ALTER TABLE peer ADD COLUMN deleted_at INTEGER;"
+                    sqlite3 "$db" "ALTER TABLE peer ADD COLUMN deleted_at DATETIME DEFAULT NULL;"
                     ;;
                 "updated_at")
-                    sqlite3 "$db" "ALTER TABLE peer ADD COLUMN updated_at INTEGER;"
+                    sqlite3 "$db" "ALTER TABLE peer ADD COLUMN updated_at DATETIME DEFAULT NULL;"
                     ;;
                 "is_banned")
                     sqlite3 "$db" "ALTER TABLE peer ADD COLUMN is_banned INTEGER DEFAULT 0;"
                     ;;
                 "banned_at"|"banned_by"|"ban_reason")
-                    sqlite3 "$db" "ALTER TABLE peer ADD COLUMN $col TEXT;"
+                    sqlite3 "$db" "ALTER TABLE peer ADD COLUMN $col TEXT DEFAULT '';"
                     ;;
             esac
             
