@@ -53,7 +53,14 @@ echo ""
 # Handle random password generation if no password provided
 if [ -z "$DEFAULT_ADMIN_PASSWORD" ] ; then
     # Generate a random password if none provided, for security
-    RAND_PASS=$(node -e "console.log(require('crypto').randomBytes(12).toString('base64'))")
+    RAND_PASS=$(node -e "console.log(require('crypto').randomBytes(12).toString('base64'))" 2>/dev/null) || RAND_PASS=""
+
+    # Verify that password generation succeeded
+    if [ -z "$RAND_PASS" ]; then
+        echo "❌ Failed to generate a secure random admin password using Node.js crypto." >&2
+        echo "   Please set DEFAULT_ADMIN_PASSWORD (or ADMIN_PASSWORD) environment variable explicitly." >&2
+        exit 1
+    fi
     export DEFAULT_ADMIN_PASSWORD="$RAND_PASS"
     
     echo "🔐 GENERATED ADMIN PASSWORD:"
