@@ -27,7 +27,7 @@ services:
       - ALWAYS_USE_RELAY=N
       - ENCRYPTED_ONLY=1
       - RUST_LOG=info,hbbs=trace        # Trace-level logging to debug set_online
-      - HBBS_API_KEY=CHANGE_ME
+      - HBBS_API_KEY=${HBBS_API_KEY:?HBBS_API_KEY environment variable must be set to a strong random value}
     network_mode: host
     restart: unless-stopped
     healthcheck:
