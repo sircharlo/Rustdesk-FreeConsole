@@ -99,7 +99,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          pkgroot=pack/pkg
+          mkdir -p pack
+          # Staging tree lives OUTSIDE pack/ — upload-artifact globs pack/*,
+          # and an earlier version of this step staged pkgroot under pack/
+          # too, so the uploaded artifact contained the loose staging files
+          # (e.g. DEBIAN/control) alongside the real .deb, and whichever one
+          # happened to be first in the zip got picked up downstream instead
+          # of the actual package.
+          pkgroot=stage/pkg
           bindir="$pkgroot/usr/local/bin"
           mkdir -p "$bindir" "$pkgroot/DEBIAN"
           cp dist/betterdesk-support-linux "$bindir/betterdesk-support"
