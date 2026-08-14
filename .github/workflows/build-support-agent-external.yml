@@ -1,0 +1,125 @@
+name: Build Support Agent (external, homelab-triggered)
+
+# Manually dispatched by the homelab sync script (not run on push/PR).
+# Builds betterdesk-support-agent for one platform on a NATIVE runner for
+# that OS, so no cross-compilation toolchain (mingw-w64 / osxcross) is
+# needed. Branding is injected via a base64 JSON input, matching exactly
+# what agentBuildWorker.js would have written to resources/branding.json.
+#
+# MVP scope: one artifact format per OS —
+#   windows -> portable .exe
+#   linux   -> .deb
+#   macos   -> .zip (raw binary, no code signing/notarization)
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'windows | linux | macos'
+        required: true
+        type: choice
+        options: [windows, linux, macos]
+      branding_b64:
+        description: 'base64-encoded branding.json contents'
+        required: true
+        type: string
+      label:
+        description: 'short label for the artifact filename (e.g. branding hash prefix)'
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: ${{ inputs.platform == 'windows' && 'windows-latest' || inputs.platform == 'macos' && 'macos-latest' || 'ubuntu-latest' }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: betterdesk-support-agent
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: betterdesk-support-agent/go.mod
+          cache-dependency-path: |
+            betterdesk-support-agent/go.sum
+            betterdesk-agent/go.sum
+
+      - name: Write branding.json
+        shell: bash
+        run: |
+          mkdir -p resources
+          echo "${{ inputs.branding_b64 }}" | base64 -d > resources/branding.json
+          echo "Branding written:"
+          cat resources/branding.json
+
+      - name: Install Linux build deps (Fyne)
+        if: inputs.platform == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev libwayland-dev libdecor-0-dev
+
+      - name: Ensure mingw/gcc present (Windows CGO)
+        if: inputs.platform == 'windows'
+        shell: pwsh
+        run: |
+          if (-not (Get-Command gcc -ErrorAction SilentlyContinue)) {
+            choco install mingw -y --no-progress
+          }
+          gcc --version
+
+      - name: Build (Windows)
+        if: inputs.platform == 'windows'
+        shell: bash
+        run: |
+          chmod +x build.sh
+          ./build.sh -p windows -o dist/betterdesk-support-windows.exe
+
+      - name: Build (Linux)
+        if: inputs.platform == 'linux'
+        shell: bash
+        run: |
+          chmod +x build.sh
+          ./build.sh -p linux -o dist/betterdesk-support-linux
+
+      - name: Build (macOS)
+        if: inputs.platform == 'macos'
+        shell: bash
+        run: |
+          chmod +x build.sh
+          ./build.sh -p darwin -o dist/betterdesk-support-darwin
+
+      - name: Package (Windows portable .exe)
+        if: inputs.platform == 'windows'
+        shell: bash
+        run: |
+          mkdir -p pack
+          cp dist/betterdesk-support-windows.exe "pack/betterdesk-support-${{ inputs.label }}-portable.exe"
+
+      - name: Package (Linux .deb)
+        if: inputs.platform == 'linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          pkgroot=pack/pkg
+          bindir="$pkgroot/usr/local/bin"
+          mkdir -p "$bindir" "$pkgroot/DEBIAN"
+          cp dist/betterdesk-support-linux "$bindir/betterdesk-support"
+          chmod 755 "$bindir/betterdesk-support"
+          printf 'Package: betterdesk-support\nVersion: 1.0.0\nArchitecture: amd64\nMaintainer: BetterDesk\nDescription: BetterDesk Support Agent\n' > "$pkgroot/DEBIAN/control"
+          printf '#!/bin/sh\n/usr/local/bin/betterdesk-support -install || true\n' > "$pkgroot/DEBIAN/postinst"
+          chmod 755 "$pkgroot/DEBIAN/postinst"
+          dpkg-deb --build "$pkgroot" "pack/betterdesk-support-${{ inputs.label }}.deb"
+
+      - name: Package (macOS .zip)
+        if: inputs.platform == 'macos'
+        shell: bash
+        run: |
+          mkdir -p pack
+          chmod +x dist/betterdesk-support-darwin
+          cp dist/betterdesk-support-darwin pack/betterdesk-support
+          cd pack && zip "betterdesk-support-${{ inputs.label }}-portable.zip" betterdesk-support && rm betterdesk-support
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: betterdesk-support-${{ inputs.platform }}-${{ inputs.label }}
+          path: betterdesk-support-agent/pack/*
+          retention-days: 7
