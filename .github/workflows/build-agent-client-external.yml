@@ -83,7 +83,7 @@ jobs:
           # two. Pre-existing inconsistency in the v3.5.4 tag itself, not
           # something introduced here -- fixed at the workflow level (install
           # the matching JS version) rather than patching the pinned source.
-          npm install @tauri-apps/api@2.11.5 --no-save
+          npm install @tauri-apps/api@^2.11 --no-save
 
       - name: Build (Windows nsis)
         if: inputs.platform == 'windows'
