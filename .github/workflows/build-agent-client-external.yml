@@ -10,17 +10,20 @@ name: Build Agent Client (external, homelab-triggered)
 # the older betterdesk-support-agent's build.sh, confirmed by source search).
 #
 # MVP scope: one artifact format per OS -- windows: nsis installer,
-# linux: deb. (macOS skipped: not in the console's own BUILD_PROFILES and
-# not clearly wired into this app's Tauri bundle targets either.)
+# linux: deb, macos: dmg. macOS isn't in the console's own BUILD_PROFILES
+# and "dmg"/"app" aren't in this app's tauri.conf.json targets array, but
+# passing --bundles explicitly on the CLI overrides the config either way.
+# Unsigned/unnotarized -- Gatekeeper will warn on the receiving Mac, same
+# caveat as the earlier betterdesk-support-agent macOS build.
 
 on:
   workflow_dispatch:
     inputs:
       platform:
-        description: 'windows | linux'
+        description: 'windows | linux | macos'
         required: true
         type: choice
-        options: [windows, linux]
+        options: [windows, linux, macos]
       branding_b64:
         description: 'base64-encoded branding.json contents'
         required: true
@@ -32,7 +35,7 @@ on:
 
 jobs:
   build:
-    runs-on: ${{ inputs.platform == 'windows' && 'windows-latest' || 'ubuntu-latest' }}
+    runs-on: ${{ inputs.platform == 'windows' && 'windows-latest' || inputs.platform == 'macos' && 'macos-latest' || 'ubuntu-latest' }}
     timeout-minutes: 40
     defaults:
       run:
@@ -79,6 +82,10 @@ jobs:
         if: inputs.platform == 'linux'
         run: npx tauri build --bundles deb
 
+      - name: Build (macOS dmg)
+        if: inputs.platform == 'macos'
+        run: npx tauri build --bundles dmg
+
       - name: Collect artifact (Windows)
         if: inputs.platform == 'windows'
         shell: bash
@@ -92,6 +99,13 @@ jobs:
         run: |
           mkdir -p pack
           find src-tauri/target/release/bundle -iname '*.deb' -exec cp {} "pack/betterdesk-agent-client-${{ inputs.label }}.deb" \;
+          ls -la pack/
+
+      - name: Collect artifact (macOS)
+        if: inputs.platform == 'macos'
+        run: |
+          mkdir -p pack
+          find src-tauri/target/release/bundle -iname '*.dmg' -exec cp {} "pack/betterdesk-agent-client-${{ inputs.label }}.dmg" \;
           ls -la pack/
 
       - uses: actions/upload-artifact@v4
