@@ -1,0 +1,101 @@
+name: Build Agent Client (external, homelab-triggered)
+
+# Manually dispatched to build betterdesk-agent-client (Tauri + Go sidecar) --
+# the newer agent that (unlike betterdesk-support-agent) implements bd_signal,
+# needed for the console's classic Files/Activity/Processes/Services tabs.
+# Builds on NATIVE per-OS runners so build.rs's sidecar cross-build just
+# works (it looks for a sibling ../betterdesk-agent/ dir, which a normal full
+# checkout provides -- no manual staging needed, unlike the old Go agent
+# pipeline). No branding-signing-key requirement here (that's specific to
+# the older betterdesk-support-agent's build.sh, confirmed by source search).
+#
+# MVP scope: one artifact format per OS -- windows: nsis installer,
+# linux: deb. (macOS skipped: not in the console's own BUILD_PROFILES and
+# not clearly wired into this app's Tauri bundle targets either.)
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'windows | linux'
+        required: true
+        type: choice
+        options: [windows, linux]
+      branding_b64:
+        description: 'base64-encoded branding.json contents'
+        required: true
+        type: string
+      label:
+        description: 'short label for the artifact filename (e.g. branding hash prefix)'
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: ${{ inputs.platform == 'windows' && 'windows-latest' || 'ubuntu-latest' }}
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: betterdesk-agent-client
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: betterdesk-agent/go.mod
+          cache-dependency-path: betterdesk-agent/go.sum
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: betterdesk-agent-client/package-lock.json
+
+      - name: Write branding.json
+        shell: bash
+        run: |
+          mkdir -p src-tauri/resources
+          echo "${{ inputs.branding_b64 }}" | base64 -d > src-tauri/resources/branding.json
+          echo "Branding written:"
+          cat src-tauri/resources/branding.json
+
+      - name: Install Linux Tauri build deps
+        if: inputs.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev \
+            patchelf build-essential libssl-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev
+
+      - name: npm ci
+        run: npm ci
+
+      - name: Build (Windows nsis)
+        if: inputs.platform == 'windows'
+        run: npx tauri build --bundles nsis
+
+      - name: Build (Linux deb)
+        if: inputs.platform == 'linux'
+        run: npx tauri build --bundles deb
+
+      - name: Collect artifact (Windows)
+        if: inputs.platform == 'windows'
+        shell: bash
+        run: |
+          mkdir -p pack
+          find src-tauri/target/release/bundle -iname '*.exe' -exec cp {} "pack/betterdesk-agent-client-${{ inputs.label }}-setup.exe" \;
+          ls -la pack/
+
+      - name: Collect artifact (Linux)
+        if: inputs.platform == 'linux'
+        run: |
+          mkdir -p pack
+          find src-tauri/target/release/bundle -iname '*.deb' -exec cp {} "pack/betterdesk-agent-client-${{ inputs.label }}.deb" \;
+          ls -la pack/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: betterdesk-agent-client-${{ inputs.platform }}-${{ inputs.label }}
+          path: betterdesk-agent-client/pack/*
+          retention-days: 7
